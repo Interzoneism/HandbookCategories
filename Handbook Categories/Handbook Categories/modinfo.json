@@ -1,15 +1,12 @@
 {
   "type": "code",
-  "modid": "showcraftable",
-  "name": "ShowCraftable",
+  "modid": "handbookcategories",
+  "name": "Handbook Categories",
   "authors": [
     "Interzoneism"
   ],
-  "description": "Scans nearby storage and tells you whats Craftable",
-  "VersionMap": {
-    "VS1.20": "1.0.2",
-    "VS1.21": "1.2.0"
-  },
+  "description": "Adds category tabs to the survival handbook and sorts grid recipes into them.",
+  "version": "1.0.0",
   "dependencies": {
     "game": ""
   }

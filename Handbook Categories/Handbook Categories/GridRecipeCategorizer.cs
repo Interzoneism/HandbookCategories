@@ -41,6 +41,8 @@ namespace Handbook_Categories
             "Food"
         };
 
+        public static IEnumerable<string> AllCategories => CategoryOrder;
+
         private static readonly EnumTool[] WeaponTools =
         {
             EnumTool.Sword,
