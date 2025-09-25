@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 using Newtonsoft.Json.Linq;
 
@@ -9,7 +10,6 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
-using Vintagestory.GameContent.Mechanics;
 
 namespace Handbook_Categories
 {
@@ -24,27 +24,11 @@ namespace Handbook_Categories
         {
             "Armor",
             "Clothes",
-            "Jonas Tech",
-            "Slabs",
-            "Stairs",
-            "Paths",
-            "Roofing",
-            "Glass",
             "Tools",
             "Weapons",
-            "Shields",
-            "Transportation",
             "Storage",
-            "Consumables",
             "Furniture",
-            "Machinery",
-            "Crafting Stations",
-            "Decorative",
-            "Construction",
-            "Lighting",
-            "Animals",
-            "Food",
-            "Ores & Ingots"
+            "Consumables"
         };
 
         public static IEnumerable<string> AllCategories => CategoryOrder;
@@ -86,6 +70,47 @@ namespace Handbook_Categories
             EnumTool.Drill
         };
 
+        private static readonly KeywordRule[] KeywordRules =
+        {
+            new KeywordRule("Armor", 7.5f, new[]
+            {
+                "armor", "armour", "helmet", "helm", "cuirass", "breastplate", "chestplate", "greaves",
+                "sabatons", "vambrace", "gauntlet", "chainmail", "mail", "scale", "shield"
+            }),
+            new KeywordRule("Clothes", 6f, new[]
+            {
+                "clothes", "hat", "cap", "hood", "shirt", "jacket", "coat", "cloak", "tunic", "robe",
+                "dress", "skirt", "pants", "trousers", "leggings", "gloves", "belt", "apron", "garment"
+            }),
+            new KeywordRule("Tools", 5.5f, new[]
+            {
+                "tool", "knife", "knives", "axe", "hatchet", "pickaxe", "pick", "hammer", "mallet",
+                "hoe", "shovel", "spade", "sickle", "scythe", "saw", "chisel", "drill", "wrench",
+                "trowel", "rake", "plane", "adze"
+            }),
+            new KeywordRule("Weapons", 6.5f, new[]
+            {
+                "weapon", "sword", "blade", "longblade", "spear", "halberd", "polearm", "pike",
+                "sling", "bow", "arrow", "bolt", "javelin", "mace", "club", "warhammer"
+            }),
+            new KeywordRule("Storage", 5f, new[]
+            {
+                "storage", "chest", "basket", "crate", "box", "drawer", "cabinet", "locker", "trunk",
+                "cask", "vessel", "jar", "urn", "barrel", "bin", "coffer", "shelf", "wardrobe",
+                "larder", "pantry"
+            }),
+            new KeywordRule("Furniture", 4.5f, new[]
+            {
+                "furniture", "bed", "chair", "stool", "bench", "table", "desk", "bookshelf", "bookcase",
+                "couch", "sofa", "dresser", "cupboard", "wardrobe", "cabinet"
+            }),
+            new KeywordRule("Consumables", 7f, new[]
+            {
+                "bandage", "poultice", "salve", "remedy", "balm", "ointment", "medicine", "elixir",
+                "potion", "tonic", "liniment"
+            })
+        };
+
         /// <summary>
         /// Categorises a resolved grid recipe. The method inspects attributes, behaviors, storage flags, light emission,
         /// nutrition data and crafting hooks to produce a relevance score for every handbook category and returns the
@@ -103,7 +128,7 @@ namespace Handbook_Categories
 
             if (recipe.Output?.ResolvedItemstack is ItemStack stack)
             {
-                ScoreStack(stack, scores);
+                ScoreStack(recipe, stack, scores);
             }
 
             if (recipe.Ingredients != null)
@@ -138,27 +163,16 @@ namespace Handbook_Categories
             return scores;
         }
 
-        private static void ScoreStack(ItemStack stack, IDictionary<string, float> scores)
+        private static void ScoreStack(GridRecipe recipe, ItemStack stack, IDictionary<string, float> scores)
         {
             CollectibleObject collectible = stack.Collectible;
 
+            ApplyMetadataHeuristics(recipe, stack, collectible, scores);
             ScoreWearables(collectible, scores);
             ScoreToolsAndWeapons(collectible, scores);
-            ScoreTransportation(collectible, scores);
             ScoreStorage(collectible, scores);
-            ScoreFoodAndConsumables(collectible, scores);
-            ScoreLighting(collectible, stack, scores);
-            ScoreAnimals(collectible, scores);
-            ScoreMachinery(collectible, scores);
-            ScoreCraftingStations(collectible, scores);
-            ScoreSpecialBlocks(collectible, scores);
-            ScoreFurnitureAndDecor(collectible, scores);
-            ScoreOresAndIngots(collectible, scores);
-
-            if (scores["Construction"] == 0f && collectible is Block)
-            {
-                scores["Construction"] += 1f;
-            }
+            ScoreConsumables(collectible, scores);
+            ScoreFurniture(collectible, scores);
         }
 
         private static void ScoreIngredient(ItemStack stack, IDictionary<string, float> scores)
@@ -173,11 +187,6 @@ namespace Handbook_Categories
             if (collectible.Tool is EnumTool tool && UtilityTools.Contains(tool))
             {
                 scores["Tools"] += 0.5f;
-            }
-
-            if (collectible.NutritionProps != null)
-            {
-                scores["Food"] += 0.25f;
             }
 
             ScoreIngredientAttributes(collectible.Attributes, scores);
@@ -195,15 +204,6 @@ namespace Handbook_Categories
                 scores["Clothes"] += 0.4f;
             }
 
-            if (attributes["traptype"].Exists || attributes["creatureContainer"].Exists)
-            {
-                scores["Animals"] += 0.6f;
-            }
-
-            if (attributes["mechanicalPower"].Exists)
-            {
-                scores["Machinery"] += 0.5f;
-            }
         }
 
         private static void ScoreWearables(CollectibleObject collectible, IDictionary<string, float> scores)
@@ -224,16 +224,19 @@ namespace Handbook_Categories
 
             if (tool == EnumTool.Shield || collectible is ItemShield)
             {
-                scores["Shields"] += 9.5f;
+                scores["Armor"] += 6.5f;
                 return;
             }
 
-            if (WeaponTools.Contains(tool.Value) || collectible.AttackPower >= 4f)
+            bool isUtilityTool = UtilityTools.Contains(tool.Value) || collectible.ToolTier > 0;
+            bool isWeaponTool = WeaponTools.Contains(tool.Value);
+
+            if (!isUtilityTool && (isWeaponTool || collectible.AttackPower >= 4f))
             {
                 scores["Weapons"] += 7f;
             }
 
-            if (UtilityTools.Contains(tool.Value) || collectible.ToolTier > 0)
+            if (isUtilityTool)
             {
                 scores["Tools"] += 6.5f;
             }
@@ -267,219 +270,24 @@ namespace Handbook_Categories
             return hasInventoryAttributes || hasContainerBehavior || isBackpack;
         }
 
-        private static void ScoreFoodAndConsumables(CollectibleObject collectible, IDictionary<string, float> scores)
+        private static void ScoreConsumables(CollectibleObject collectible, IDictionary<string, float> scores)
         {
-            if (collectible.NutritionProps != null)
-            {
-                scores["Food"] += 10f;
-            }
-
-            bool isConsumable = collectible.CombustibleProps != null
-                || (collectible.TransitionableProps != null && collectible.TransitionableProps.Length > 0)
-                || collectible.HasBehavior<CollectibleBehaviorGroundStorable>();
-
-            if (isConsumable)
-            {
-                scores["Consumables"] += collectible.NutritionProps != null ? 2.5f : 6f;
-            }
-        }
-
-        private static void ScoreLighting(CollectibleObject collectible, ItemStack stack, IDictionary<string, float> scores)
-        {
-            if (EmitsLight(collectible, stack))
-            {
-                scores["Lighting"] += 8.5f;
-            }
-        }
-
-        private static bool EmitsLight(CollectibleObject collectible, ItemStack stack)
-        {
-            if (collectible.LightHsv[0] != 0 || collectible.LightHsv[1] != 0 || collectible.LightHsv[2] != 0)
-            {
-                return true;
-            }
-
-            if (collectible is Block block && block.LightAbsorption < 15)
-            {
-                byte[] hsv = block.GetLightHsv(null, null, stack);
-                if (hsv != null && hsv.Length == 3)
-                {
-                    return hsv[0] != 0 || hsv[1] != 0 || hsv[2] != 0;
-                }
-            }
-
-            return false;
-        }
-
-        private static void ScoreAnimals(CollectibleObject collectible, IDictionary<string, float> scores)
-        {
-            JsonObject attributes = collectible.Attributes;
-            bool creatureContainer = attributes != null && (
-                attributes["traptype"].Exists ||
-                attributes["creatureContainer"].Exists ||
-                attributes["animalfeed"].Exists ||
-                attributes["petAccessory"].Exists);
-
-            if (collectible is ItemCreature || collectible is ItemCreatureInventory || creatureContainer)
-            {
-                scores["Animals"] += 7.5f;
-            }
-        }
-
-        private static void ScoreMachinery(CollectibleObject collectible, IDictionary<string, float> scores)
-        {
-            JsonObject attributes = collectible.Attributes;
-            bool hasMechanicalAttributes = attributes != null && (
-                attributes["mechanicalPower"].Exists ||
-                attributes["transmission"].Exists ||
-                attributes["machinepart"].Exists);
-
-            bool mechanicalBlock = collectible is Block block && (
-                block.HasBehavior<BlockBehaviorJonasHydraulicPump>() ||
-                block.EntityClass != null && block.EntityClass.IndexOf("Mechanical", StringComparison.OrdinalIgnoreCase) >= 0);
-
-            if (hasMechanicalAttributes || mechanicalBlock)
-            {
-                scores["Machinery"] += 9.5f;
-            }
-
-            if (collectible is BlockMPBase || collectible is BlockMPMultiblockPulverizer || collectible is BlockLargeGear3m || collectible is BlockHelveHammer)
-            {
-                scores["Machinery"] += 8.5f;
-            }
-
-            if (collectible is IBlockItemFlow)
-            {
-                scores["Machinery"] += 7.5f;
-            }
-
-            if (attributes != null && attributes["rackable"].AsBool(false) && attributes["toolrackTransform"].Exists)
-            {
-                scores["Machinery"] += 4f;
-            }
-
-            if (HandbookGroupContains(attributes, "solderbar"))
-            {
-                scores["Machinery"] += 6.5f;
-            }
-
-            if (LooksLikeJonasDevice(collectible))
-            {
-                scores["Jonas Tech"] += 9.5f;
-            }
-        }
-
-        private static bool LooksLikeJonasDevice(CollectibleObject collectible)
-        {
-            Type type = collectible.GetType();
-            if (type.Name.IndexOf("Jonas", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                type.Name.IndexOf("Resonator", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                type.Name.IndexOf("Teleporter", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                type.Name.IndexOf("Nightvision", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            if (collectible is Block block)
-            {
-                return block is BlockGasifier
-                    || block is BlockResonator
-                    || block is BlockRiftWard
-                    || block is BlockBaseReturnTeleporter
-                    || block is BlockCorpseReturnTeleporter;
-            }
-
-            JsonObject attributes = collectible.Attributes;
-            return attributes != null && (attributes["displaycaseableByType"].Exists
-                || attributes["jonasComponent"].Exists
-                || HandbookGroupContains(attributes, "jonas")
-                || HandbookGroupContains(attributes, "nightvision")
-                || HandbookGroupContains(attributes, "returnbase")
-                || HandbookGroupContains(attributes, "returndeath"));
-        }
-
-        private static void ScoreCraftingStations(CollectibleObject collectible, IDictionary<string, float> scores)
-        {
-            if (collectible is Block block)
-            {
-                bool hasStationEntity = !string.IsNullOrEmpty(block.EntityClass) && (
-                    block.EntityClass.IndexOf("Forge", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Quern", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Churn", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Bloomery", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Anvil", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Station", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    block.EntityClass.IndexOf("Press", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                bool stationBehaviors = block.HasBehavior<BlockBehaviorHeatSource>()
-                    || block.BlockEntityBehaviors.Any(b => b.Name.IndexOf("Work", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                                            b.Name.IndexOf("Cook", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                                            b.Name.IndexOf("Forge", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                if (hasStationEntity || stationBehaviors)
-                {
-                    scores["Crafting Stations"] += 8.5f;
-                }
-            }
-        }
-
-        private static void ScoreSpecialBlocks(CollectibleObject collectible, IDictionary<string, float> scores)
-        {
-            if (collectible is not Block block)
+            if (collectible == null)
             {
                 return;
             }
 
-            if (block is BlockSlab || block.HasBehavior<BlockBehaviorSlab>())
+            bool healingBehavior = collectible.HasBehavior<BehaviorHealingItem>() || collectible is ItemPoultice;
+            if (healingBehavior)
             {
-                scores["Slabs"] += 9f;
-            }
-
-            if (block is BlockStairs)
-            {
-                scores["Stairs"] += 9f;
-            }
-
-            JsonObject attributes = block.Attributes;
-            string mapColor = attributes?["mapColorCode"].AsString();
-            if (!string.IsNullOrEmpty(mapColor))
-            {
-                if (mapColor.Equals("road", StringComparison.OrdinalIgnoreCase))
-                {
-                    scores["Paths"] += 9f;
-                }
-
-                if (mapColor.Equals("settlement", StringComparison.OrdinalIgnoreCase) && attributes["humanoidTraversalCost"].AsInt(0) >= 50)
-                {
-                    scores["Roofing"] += 6f;
-                }
-            }
-
-            if (block.BlockMaterial == EnumBlockMaterial.Glass || block.DrawType == EnumDrawType.Transparent)
-            {
-                scores["Glass"] += 8f;
+                scores["Consumables"] += 8.5f;
             }
         }
 
-        private static void ScoreFurnitureAndDecor(CollectibleObject collectible, IDictionary<string, float> scores)
+        private static void ScoreFurniture(CollectibleObject collectible, IDictionary<string, float> scores)
         {
             if (collectible is not Block block)
             {
-                if (collectible is ItemBook)
-                {
-                    scores["Decorative"] += 7f;
-                }
-
-                if (collectible.Attributes?["writingTool"].AsBool(false) == true)
-                {
-                    scores["Decorative"] += 5.5f;
-                }
-
-                if (collectible.CreativeInventoryTabs != null && collectible.CreativeInventoryTabs.Any(tab => tab.Equals("decorative", StringComparison.OrdinalIgnoreCase)))
-                {
-                    scores["Decorative"] += 4f;
-                }
-
                 return;
             }
 
@@ -490,37 +298,180 @@ namespace Handbook_Categories
 
             JsonObject attributes = block.Attributes;
             int traversalCost = attributes?["humanoidTraversalCost"].AsInt(0) ?? 0;
-            bool hasDecorTab = block.CreativeInventoryTabs != null && block.CreativeInventoryTabs.Any(tab => tab.Equals("decorative", StringComparison.OrdinalIgnoreCase));
 
             if (traversalCost >= 75 && block.CollisionBoxes?.Any(box => !IsFullBlock(box)) == true)
             {
                 scores["Furniture"] += 8f;
             }
+        }
 
-            if (hasDecorTab || attributes?["handbook"].Exists == true)
+        private static void ApplyMetadataHeuristics(GridRecipe recipe, ItemStack stack, CollectibleObject collectible, IDictionary<string, float> scores)
+        {
+            if (collectible == null)
             {
-                scores["Decorative"] += 6f;
+                return;
+            }
+
+            List<string> metadata = CollectMetadataStrings(recipe, stack, collectible);
+            if (metadata.Count == 0)
+            {
+                return;
+            }
+
+            HashSet<string> tokens = new HashSet<string>();
+            foreach (string entry in metadata)
+            {
+                foreach (string token in SplitIntoTokens(entry))
+                {
+                    tokens.Add(token);
+                }
+            }
+
+            foreach (KeywordRule rule in KeywordRules)
+            {
+                float weight = 0f;
+                foreach (string keyword in rule.Keywords)
+                {
+                    if (tokens.Contains(keyword) || metadata.Any(value => value.Contains(keyword)))
+                    {
+                        weight += rule.Weight;
+                    }
+                }
+
+                if (weight > 0f)
+                {
+                    scores[rule.Category] += weight;
+                }
             }
         }
 
-        private static void ScoreTransportation(CollectibleObject collectible, IDictionary<string, float> scores)
+        private static List<string> CollectMetadataStrings(GridRecipe recipe, ItemStack stack, CollectibleObject collectible)
         {
-            if (HasAttachableToEntity(collectible.Attributes))
+            var metadata = new List<string>();
+
+            void Add(string value)
             {
-                scores["Transportation"] += 8.5f;
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    metadata.Add(value.Trim().ToLowerInvariant());
+                }
             }
 
-            if (collectible is ItemGlider || collectible is ItemOar || collectible is ItemFlute)
+            Add(recipe?.Name?.Domain);
+            Add(recipe?.Name?.Path);
+
+            AddAttributeMetadata(recipe?.Attributes, Add);
+
+            AssetLocation code = collectible.Code;
+            Add(code?.Domain);
+            Add(code?.Path);
+            Add(code?.ToShortString());
+
+            Add(collectible.GetType().Name);
+
+            if (collectible.CreativeInventoryTabs != null)
             {
-                scores["Transportation"] += 8.5f;
+                foreach (string tab in collectible.CreativeInventoryTabs)
+                {
+                    Add(tab);
+                }
+            }
+
+            AddAttributeMetadata(collectible.Attributes, Add);
+
+            try
+            {
+                Add(stack?.GetName());
+            }
+            catch
+            {
+                // The name lookup can fail if the stack is not fully resolved; ignore and continue.
+            }
+
+            return metadata;
+        }
+
+        private static void AddAttributeMetadata(JsonObject source, Action<string> add)
+        {
+            if (source == null || add == null)
+            {
+                return;
+            }
+
+            JToken token = source.Token;
+            if (token == null)
+            {
+                return;
+            }
+
+            ProcessAttributeToken(token, add);
+        }
+
+        private static void ProcessAttributeToken(JToken token, Action<string> add)
+        {
+            switch (token)
+            {
+                case null:
+                    return;
+                case JValue value when value.Type == JTokenType.String:
+                    add(value.ToString());
+                    break;
+                case JObject obj:
+                    foreach (JProperty property in obj.Properties())
+                    {
+                        add(property.Name);
+                        ProcessAttributeToken(property.Value, add);
+                    }
+
+                    break;
+                case JArray array:
+                    foreach (JToken child in array)
+                    {
+                        ProcessAttributeToken(child, add);
+                    }
+
+                    break;
             }
         }
 
-        private static void ScoreOresAndIngots(CollectibleObject collectible, IDictionary<string, float> scores)
+        private static IEnumerable<string> SplitIntoTokens(string text)
         {
-            if (collectible is ItemIngot || collectible is ItemNugget || collectible is ItemOre || collectible is ItemCoal)
+            if (string.IsNullOrEmpty(text))
             {
-                scores["Ores & Ingots"] += 9f;
+                yield break;
+            }
+
+            StringBuilder builder = new StringBuilder();
+            char? previous = null;
+
+            foreach (char c in text)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    if (builder.Length > 0 && char.IsUpper(c) && previous.HasValue && char.IsLower(previous.Value))
+                    {
+                        yield return builder.ToString();
+                        builder.Clear();
+                    }
+
+                    builder.Append(char.ToLowerInvariant(c));
+                    previous = c;
+                }
+                else
+                {
+                    if (builder.Length > 0)
+                    {
+                        yield return builder.ToString();
+                        builder.Clear();
+                    }
+
+                    previous = null;
+                }
+            }
+
+            if (builder.Length > 0)
+            {
+                yield return builder.ToString();
             }
         }
 
@@ -530,49 +481,20 @@ namespace Handbook_Categories
                    Math.Abs(box.X2 - 1f) < float.Epsilon && Math.Abs(box.Y2 - 1f) < float.Epsilon && Math.Abs(box.Z2 - 1f) < float.Epsilon;
         }
 
-        private static bool HasAttachableToEntity(JsonObject attributes)
+        private readonly struct KeywordRule
         {
-            if (attributes == null || !attributes.Exists)
+            public KeywordRule(string category, float weight, string[] keywords)
             {
-                return false;
+                Category = category;
+                Weight = weight;
+                Keywords = keywords ?? Array.Empty<string>();
             }
 
-            if (attributes["attachableToEntity"].Exists)
-            {
-                return true;
-            }
+            public string Category { get; }
 
-            if (attributes.Token is not JObject && attributes.Token is not JArray)
-            {
-                return false;
-            }
+            public float Weight { get; }
 
-            foreach (JsonObject child in attributes)
-            {
-                if (HasAttachableToEntity(child))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            public string[] Keywords { get; }
         }
-
-        private static bool HandbookGroupContains(JsonObject attributes, string value)
-        {
-            if (attributes == null || !attributes.Exists)
-            {
-                return false;
-            }
-
-            string[] groups = attributes["handbook"]["groupBy"].AsArray<string>();
-            if (groups == null)
-            {
-                return false;
-            }
-
-            return groups.Any(group => group != null && group.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
-        }
-
     }
 }
