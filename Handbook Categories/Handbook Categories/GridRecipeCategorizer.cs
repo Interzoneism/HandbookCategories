@@ -7,6 +7,7 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
+using Vintagestory.GameContent.Mechanics;
 
 namespace Handbook_Categories
 {
@@ -29,6 +30,8 @@ namespace Handbook_Categories
             "Glass",
             "Tools",
             "Weapons",
+            "Shields",
+            "Transportation",
             "Storage",
             "Consumables",
             "Furniture",
@@ -38,7 +41,8 @@ namespace Handbook_Categories
             "Construction",
             "Lighting",
             "Animals",
-            "Food"
+            "Food",
+            "Ores & Ingots"
         };
 
         public static IEnumerable<string> AllCategories => CategoryOrder;
@@ -138,6 +142,7 @@ namespace Handbook_Categories
 
             ScoreWearables(collectible, scores);
             ScoreToolsAndWeapons(collectible, scores);
+            ScoreTransportation(collectible, scores);
             ScoreStorage(collectible, scores);
             ScoreFoodAndConsumables(collectible, scores);
             ScoreLighting(collectible, stack, scores);
@@ -146,6 +151,7 @@ namespace Handbook_Categories
             ScoreCraftingStations(collectible, scores);
             ScoreSpecialBlocks(collectible, scores);
             ScoreFurnitureAndDecor(collectible, scores);
+            ScoreOresAndIngots(collectible, scores);
 
             if (scores["Construction"] == 0f && collectible is Block)
             {
@@ -211,6 +217,12 @@ namespace Handbook_Categories
             EnumTool? tool = collectible.Tool;
             if (tool == null)
             {
+                return;
+            }
+
+            if (tool == EnumTool.Shield || collectible is ItemShield)
+            {
+                scores["Shields"] += 9.5f;
                 return;
             }
 
@@ -329,6 +341,26 @@ namespace Handbook_Categories
                 scores["Machinery"] += 9.5f;
             }
 
+            if (collectible is BlockMPBase || collectible is BlockMPMultiblockPulverizer || collectible is BlockLargeGear3m || collectible is BlockHelveHammer)
+            {
+                scores["Machinery"] += 8.5f;
+            }
+
+            if (collectible is IBlockItemFlow)
+            {
+                scores["Machinery"] += 7.5f;
+            }
+
+            if (attributes != null && attributes["rackable"].AsBool(false) && attributes["toolrackTransform"].Exists)
+            {
+                scores["Machinery"] += 4f;
+            }
+
+            if (HandbookGroupContains(attributes, "solderbar"))
+            {
+                scores["Machinery"] += 6.5f;
+            }
+
             if (LooksLikeJonasDevice(collectible))
             {
                 scores["Jonas Tech"] += 9.5f;
@@ -356,7 +388,12 @@ namespace Handbook_Categories
             }
 
             JsonObject attributes = collectible.Attributes;
-            return attributes != null && (attributes["displaycaseableByType"].Exists || attributes["jonasComponent"].Exists);
+            return attributes != null && (attributes["displaycaseableByType"].Exists
+                || attributes["jonasComponent"].Exists
+                || HandbookGroupContains(attributes, "jonas")
+                || HandbookGroupContains(attributes, "nightvision")
+                || HandbookGroupContains(attributes, "returnbase")
+                || HandbookGroupContains(attributes, "returndeath"));
         }
 
         private static void ScoreCraftingStations(CollectibleObject collectible, IDictionary<string, float> scores)
@@ -426,12 +463,27 @@ namespace Handbook_Categories
         {
             if (collectible is not Block block)
             {
+                if (collectible is ItemBook)
+                {
+                    scores["Decorative"] += 7f;
+                }
+
+                if (collectible.Attributes?["writingTool"].AsBool(false) == true)
+                {
+                    scores["Decorative"] += 5.5f;
+                }
+
                 if (collectible.CreativeInventoryTabs != null && collectible.CreativeInventoryTabs.Any(tab => tab.Equals("decorative", StringComparison.OrdinalIgnoreCase)))
                 {
                     scores["Decorative"] += 4f;
                 }
 
                 return;
+            }
+
+            if (block is BlockAntlerMount || block is BlockScrollRack || block is BlockBookshelf || block is BlockBed)
+            {
+                scores["Furniture"] += 8.5f;
             }
 
             JsonObject attributes = block.Attributes;
@@ -449,10 +501,71 @@ namespace Handbook_Categories
             }
         }
 
+        private static void ScoreTransportation(CollectibleObject collectible, IDictionary<string, float> scores)
+        {
+            if (HasAttachableToEntity(collectible.Attributes))
+            {
+                scores["Transportation"] += 8.5f;
+            }
+
+            if (collectible is ItemGlider || collectible is ItemOar || collectible is ItemFlute)
+            {
+                scores["Transportation"] += 8.5f;
+            }
+        }
+
+        private static void ScoreOresAndIngots(CollectibleObject collectible, IDictionary<string, float> scores)
+        {
+            if (collectible is ItemIngot || collectible is ItemNugget || collectible is ItemOre || collectible is ItemCoal)
+            {
+                scores["Ores & Ingots"] += 9f;
+            }
+        }
+
         private static bool IsFullBlock(Cuboidf box)
         {
             return Math.Abs(box.X1) < float.Epsilon && Math.Abs(box.Y1) < float.Epsilon && Math.Abs(box.Z1) < float.Epsilon &&
                    Math.Abs(box.X2 - 1f) < float.Epsilon && Math.Abs(box.Y2 - 1f) < float.Epsilon && Math.Abs(box.Z2 - 1f) < float.Epsilon;
         }
+
+        private static bool HasAttachableToEntity(JsonObject attributes)
+        {
+            if (attributes == null || !attributes.Exists)
+            {
+                return false;
+            }
+
+            if (attributes["attachableToEntity"].Exists)
+            {
+                return true;
+            }
+
+            foreach (JsonObject child in attributes)
+            {
+                if (HasAttachableToEntity(child))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HandbookGroupContains(JsonObject attributes, string value)
+        {
+            if (attributes == null || !attributes.Exists)
+            {
+                return false;
+            }
+
+            string[] groups = attributes["handbook"]["groupBy"].AsArray<string>();
+            if (groups == null)
+            {
+                return false;
+            }
+
+            return groups.Any(group => group != null && group.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
     }
 }
