@@ -9,6 +9,8 @@
   "tab-glass": "Glass",
   "tab-tools": "Tools",
   "tab-weapons": "Weapons",
+  "tab-shields": "Shields",
+  "tab-transportation": "Transportation",
   "tab-storage": "Storage",
   "tab-consumables": "Consumables",
   "tab-furniture": "Furniture",
@@ -18,5 +20,6 @@
   "tab-construction": "Construction",
   "tab-lighting": "Lighting",
   "tab-animals": "Animals",
-  "tab-food": "Food"
+  "tab-food": "Food",
+  "tab-ores-ingots": "Ores & Ingots"
 }
