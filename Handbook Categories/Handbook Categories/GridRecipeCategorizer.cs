@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
+using Newtonsoft.Json.Linq;
+
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
@@ -538,6 +540,11 @@ namespace Handbook_Categories
             if (attributes["attachableToEntity"].Exists)
             {
                 return true;
+            }
+
+            if (attributes.Token is not JObject && attributes.Token is not JArray)
+            {
+                return false;
             }
 
             foreach (JsonObject child in attributes)
