@@ -36,15 +36,7 @@ namespace Handbook_Categories
             internal string[] ForbiddenWords { get; }
         }
 
-        private static readonly WordCategoryDefinition[] WordCategories =
-        {
-            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves" }, new[] { "Shield", "Stand", "Boiler" }),
-            new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt", "Hat", "Blouse", "Coat", "Amulet", "Necklace", "Gloves", "Fur", "Gloves", "Trousers", "Cape", "Capelet", "Apron", "Vest", "Sash", "Tunic", "Bracelet", "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget", "Skirt", "Cloak"  }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
-            new("Tools", new[] { "Shovel", "Cleaver", "Tongs", "Shears", "Saw", "Scythe", "Wrench", "Axe", "Hoe", "Knife", "Hammer", "Pickaxe", "Prospecting", "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow", "Shortsword", "Falx"  }, new[] { "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head" }),
-            new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
-            new("Consumables", new[] { "Poultice", "Healing", "Bandage", "Potion", "Herb", "Poison" }, new[] { "Trap" }),
-            new("Machinery", new[] { "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor", "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper" }, new[] { "Mold", "Rusty", "Temporal" }),
-        };
+        private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
 
         private static ICoreClientAPI capi;
 
@@ -53,6 +45,39 @@ namespace Handbook_Categories
         internal static void Initialize(ICoreClientAPI api)
         {
             capi = api;
+            ReloadConfiguration();
+        }
+
+        internal static void ReloadConfiguration()
+        {
+            if (capi == null)
+            {
+                wordCategories = Array.Empty<WordCategoryDefinition>();
+                return;
+            }
+
+            bool shouldStoreConfig = false;
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName);
+
+            if (config == null)
+            {
+                config = LoadDefaultConfiguration() ?? HandbookCategoriesConfig.CreateDefault();
+                shouldStoreConfig = true;
+            }
+
+            wordCategories = BuildWordCategories(config);
+
+            if (wordCategories.Length == 0)
+            {
+                config = HandbookCategoriesConfig.CreateDefault();
+                wordCategories = BuildWordCategories(config);
+                shouldStoreConfig = true;
+            }
+
+            if (shouldStoreConfig)
+            {
+                capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            }
         }
 
         internal static void Clear()
@@ -165,7 +190,7 @@ namespace Handbook_Categories
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
 
-            foreach (string categoryName in WordCategories.Select(definition => definition.CategoryName))
+            foreach (string categoryName in wordCategories.Select(definition => definition.CategoryName))
             {
                 string sanitized = Sanitize(categoryName);
                 string categoryCode = $"{CategoryCodePrefix}{sanitized}";
@@ -222,7 +247,7 @@ namespace Handbook_Categories
 
                 HashSet<string> wordsInTitle = ExtractWords(title);
 
-                foreach (WordCategoryDefinition definition in WordCategories)
+                foreach (WordCategoryDefinition definition in wordCategories)
                 {
                     if (!MatchesAnyWord(definition.MatchWords, title, wordsInTitle))
                     {
@@ -502,6 +527,65 @@ namespace Handbook_Categories
             }
 
             return false;
+        }
+
+        private static WordCategoryDefinition[] BuildWordCategories(HandbookCategoriesConfig config)
+        {
+            if (config?.Categories == null)
+            {
+                return Array.Empty<WordCategoryDefinition>();
+            }
+
+            List<WordCategoryDefinition> definitions = new();
+
+            foreach (HandbookCategoryConfigEntry entry in config.Categories)
+            {
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                string name = entry.Name?.Trim();
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                string[] matchWords = NormalizeWords(entry.MatchWords);
+                string[] forbiddenWords = NormalizeWords(entry.ForbiddenWords);
+
+                definitions.Add(new WordCategoryDefinition(name, matchWords, forbiddenWords));
+            }
+
+            return definitions.ToArray();
+        }
+
+        private static HandbookCategoriesConfig LoadDefaultConfiguration()
+        {
+            try
+            {
+                var asset = capi.Assets.TryGet(new AssetLocation("handbookcategories", "config/categories.json"));
+                return asset?.ToObject<HandbookCategoriesConfig>();
+            }
+            catch (Exception e)
+            {
+                capi.Logger?.Warning("Failed to load handbook categories config from assets: {0}", e.Message);
+                return null;
+            }
+        }
+
+        private static string[] NormalizeWords(IEnumerable<string> rawWords)
+        {
+            if (rawWords == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            return rawWords
+                .Select(word => word?.Trim())
+                .Where(word => !string.IsNullOrEmpty(word))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
     }
 }
