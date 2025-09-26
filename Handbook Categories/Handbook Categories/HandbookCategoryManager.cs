@@ -39,10 +39,11 @@ namespace Handbook_Categories
         private static readonly WordCategoryDefinition[] WordCategories =
         {
             new("Weapons", new[] { "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow" }, new[] { "Sticks" }),
-            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin" }, new[] { "Shield", "Stand" }),
+            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin" }, new[] { "Shield", "Stand", "Boiler" }),
             new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt" }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
             new("Tools", new[] { "Shovel", "Axe" }, new[] { "Trap", "Soldering" }),
             new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
+            new("Consumables", new[] { "Poultice", "Healing", "Bandage", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
             new("Furniture", new[] { "Bed", "Table", "Chair" }, new[] { "Lantern", "Lamp", "Flute", "Grass" })
         };
 
@@ -165,12 +166,13 @@ namespace Handbook_Categories
 
             ApplyWordBasedCategories(gridRecipePages, AddPageToCategory);
 
+
             pagesByCategory.Clear();
             displayNameByCategory.Clear();
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
 
-            foreach (string categoryName in GridRecipeCategorizer.AllCategories)
+            foreach (string categoryName in WordCategories.Select(definition => definition.CategoryName))
             {
                 string sanitized = Sanitize(categoryName);
                 string categoryCode = $"{CategoryCodePrefix}{sanitized}";
