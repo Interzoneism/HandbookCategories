@@ -7,6 +7,9 @@ namespace Handbook_Categories
     {
         internal const string ConfigFileName = "HandbookCategories.json";
 
+        [JsonProperty("onlyGridPages")]
+        public bool OnlyGridPages { get; set; } = true;
+
         [JsonProperty("categories")]
         public List<HandbookCategoryConfigEntry> Categories { get; set; } = new();
 
@@ -14,6 +17,7 @@ namespace Handbook_Categories
         {
             return new HandbookCategoriesConfig
             {
+                OnlyGridPages = true,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
                     new HandbookCategoryConfigEntry
