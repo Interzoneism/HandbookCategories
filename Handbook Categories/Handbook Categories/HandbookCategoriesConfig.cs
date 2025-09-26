@@ -32,7 +32,7 @@ namespace Handbook_Categories
                             "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
                             "Skirt", "Cloak", "Mantle"
                         },
-                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack" }
+                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand" }
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -48,8 +48,8 @@ namespace Handbook_Categories
                     new HandbookCategoryConfigEntry
                     {
                         Name = "Storage",
-                        MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel", "Sack", "Bag", "Saddlebags", "Crate" },
-                        ForbiddenWords = new List<string> { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }
+                        MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel", "Sack", "Bag", "Saddlebags", "Crate", "Bookshelf" },
+                        ForbiddenWords = new List<string> { "Trap", "Papyrus", "Cattails", "Beenade", "Bricks", "Planks", "Stone" }
                     },
                     new HandbookCategoryConfigEntry
                     {
