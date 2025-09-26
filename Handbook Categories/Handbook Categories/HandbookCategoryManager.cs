@@ -38,13 +38,12 @@ namespace Handbook_Categories
 
         private static readonly WordCategoryDefinition[] WordCategories =
         {
-            new("Weapons", new[] { "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow" }, new[] { "Sticks" }),
-            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin" }, new[] { "Shield", "Stand", "Boiler" }),
-            new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt" }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
-            new("Tools", new[] { "Shovel", "Axe" }, new[] { "Trap", "Soldering" }),
-            new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
-            new("Consumables", new[] { "Poultice", "Healing", "Bandage" }, new[] { "Trap" }),
-            new("Furniture", new[] { "Bed", "Table", "Chair" }, new[] { "Lantern", "Lamp", "Flute", "Grass" })
+            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves" }, new[] { "Shield", "Stand", "Boiler" }),
+            new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt", "Hat", "Blouse", "Coat", "Amulet", "Necklace", "Gloves", "Fur", "Gloves", "Trousers", "Cape", "Capelet", "Apron", "Vest", "Sash", "Tunic", "Bracelet", "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget", "Skirt", "Cloak"  }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
+            new("Tools", new[] { "Shovel", "Cleaver", "Tongs", "Shears", "Saw", "Scythe", "Wrench", "Axe", "Hoe", "Knife", "Hammer", "Pickaxe", "Prospecting", "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow", "Shortsword", "Falx"  }, new[] { "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head" }),
+            new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
+            new("Consumables", new[] { "Poultice", "Healing", "Bandage", "Potion", "Herb", "Poison" }, new[] { "Trap" }),
+            new("Machinery", new[] { "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor", "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper" }, new[] { "Mold", "Rusty", "Temporal" }),
         };
 
         private static ICoreClientAPI capi;
