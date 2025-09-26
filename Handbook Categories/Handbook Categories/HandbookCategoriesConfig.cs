@@ -24,7 +24,7 @@ namespace Handbook_Categories
                     {
                         Name = "Armor",
                         MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves", "Gambeson", "Leg" },
-                        ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler" }
+                        ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler", "Rack" }
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -36,7 +36,7 @@ namespace Handbook_Categories
                             "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
                             "Skirt", "Cloak", "Mantle"
                         },
-                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand" }
+                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch's", "Mourning" }
                     },
                     new HandbookCategoryConfigEntry
                     {
