@@ -27,6 +27,12 @@ namespace Handbook_Categories
 
             HandbookCategoryManager.Initialize(api);
 
+            capi.ChatCommands
+                .Create("categorymod")
+                .WithDescription("Adds allowed or forbidden words to a handbook category")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnCategoryModCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -60,6 +66,139 @@ namespace Handbook_Categories
         private void OnLeaveWorld()
         {
             HandbookCategoryManager.Clear();
+        }
+
+        private TextCommandResult OnCategoryModCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            CmdArgs rawArgs = args?.RawArgs;
+            if (rawArgs == null || rawArgs.Length == 0)
+            {
+                return TextCommandResult.Error("Usage: .categorymod [category] [words]");
+            }
+
+            string categoryNameInput = rawArgs.PopWord();
+            if (string.IsNullOrWhiteSpace(categoryNameInput))
+            {
+                return TextCommandResult.Error("You must specify a category name");
+            }
+
+            categoryNameInput = categoryNameInput.Trim();
+
+            List<string> tokens = new();
+            while (rawArgs.Length > 0)
+            {
+                string token = rawArgs.PopWord();
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    tokens.Add(token.Trim());
+                }
+            }
+
+            if (tokens.Count == 0)
+            {
+                return TextCommandResult.Error("You must specify at least one word to add");
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            if (config.Categories == null)
+            {
+                config.Categories = new List<HandbookCategoryConfigEntry>();
+            }
+
+            HandbookCategoryConfigEntry category = config.Categories
+                .FirstOrDefault(entry => entry != null && entry.Name != null && entry.Name.Equals(categoryNameInput, StringComparison.OrdinalIgnoreCase));
+
+            bool createdCategory = false;
+            if (category == null)
+            {
+                category = new HandbookCategoryConfigEntry
+                {
+                    Name = categoryNameInput,
+                    MatchWords = new List<string>(),
+                    ForbiddenWords = new List<string>()
+                };
+
+                config.Categories.Add(category);
+                createdCategory = true;
+            }
+
+            category.MatchWords ??= new List<string>();
+            category.ForbiddenWords ??= new List<string>();
+
+            List<string> addedMatches = new();
+            List<string> addedForbidden = new();
+            List<string> skipped = new();
+
+            foreach (string token in tokens)
+            {
+                string word = token;
+                bool isForbidden = false;
+
+                if (word.StartsWith("-", StringComparison.Ordinal))
+                {
+                    isForbidden = true;
+                    word = word.Substring(1);
+                }
+
+                word = word.Trim();
+                if (string.IsNullOrWhiteSpace(word))
+                {
+                    continue;
+                }
+
+                List<string> targetList = isForbidden ? category.ForbiddenWords : category.MatchWords;
+                if (targetList.Any(existing => existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
+                {
+                    skipped.Add(token);
+                    continue;
+                }
+
+                targetList.Add(word);
+
+                if (isForbidden)
+                {
+                    addedForbidden.Add(word);
+                }
+                else
+                {
+                    addedMatches.Add(word);
+                }
+            }
+
+            if (addedMatches.Count == 0 && addedForbidden.Count == 0)
+            {
+                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.");
+            }
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            HandbookCategoryManager.ReloadConfiguration();
+
+            List<string> parts = new();
+            parts.Add(createdCategory ? $"Created category \"{category.Name}\"" : $"Updated category \"{category.Name}\"");
+
+            if (addedMatches.Count > 0)
+            {
+                parts.Add($"added matches: {string.Join(", ", addedMatches)}");
+            }
+
+            if (addedForbidden.Count > 0)
+            {
+                parts.Add($"added forbidden words: {string.Join(", ", addedForbidden)}");
+            }
+
+            if (skipped.Count > 0)
+            {
+                parts.Add($"skipped existing: {string.Join(", ", skipped)}");
+            }
+
+            return TextCommandResult.Success(string.Join(". ", parts) + ".");
         }
     }
 
