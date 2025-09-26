@@ -178,6 +178,7 @@ namespace Handbook_Categories
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             HandbookCategoryManager.ReloadConfiguration();
+            HandbookCategoryPatches.RefreshOpenHandbookDialogs(capi);
 
             List<string> parts = new();
             parts.Add(createdCategory ? $"Created category \"{category.Name}\"" : $"Updated category \"{category.Name}\"");
@@ -241,6 +242,44 @@ namespace Handbook_Categories
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, shownPages, overviewGui, currentSearch, loading, listHeight);
 
             return false;
+        }
+
+        public static void RefreshOpenHandbookDialogs(ICoreClientAPI capi)
+        {
+            if (capi?.Gui?.OpenedGuis == null)
+            {
+                return;
+            }
+
+            List<GuiDialogSurvivalHandbook> openDialogs = capi.Gui.OpenedGuis
+                .OfType<GuiDialogSurvivalHandbook>()
+                .ToList();
+
+            if (openDialogs.Count == 0)
+            {
+                return;
+            }
+
+            List<GuiHandbookPage> pages = null;
+
+            foreach (GuiDialogSurvivalHandbook dialog in openDialogs)
+            {
+                if (AllPagesField?.GetValue(dialog) is List<GuiHandbookPage> dialogPages && dialogPages.Count > 0)
+                {
+                    pages = dialogPages;
+                    break;
+                }
+            }
+
+            if (pages != null)
+            {
+                HandbookCategoryManager.RebuildCategories(pages);
+            }
+
+            foreach (GuiDialogSurvivalHandbook dialog in openDialogs)
+            {
+                dialog.ReloadPage();
+            }
         }
 
         public static void GenTabsPostfix(GuiDialogSurvivalHandbook __instance, ref GuiTab[] __result, ref int curTab)
