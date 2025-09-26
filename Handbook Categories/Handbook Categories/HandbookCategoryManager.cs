@@ -20,6 +20,8 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
         private static readonly List<string> orderedCategories = new();
 
+        private static bool onlyGridPages = true;
+
         private sealed class WordCategoryDefinition
         {
             internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases)
@@ -102,7 +104,7 @@ namespace Handbook_Categories
 
         private static ICoreClientAPI capi;
 
-        internal static bool IsReady => capi?.World?.GridRecipes != null;
+        internal static bool IsReady => capi?.World != null && (capi.World.GridRecipes != null || !onlyGridPages);
 
         internal static void Initialize(ICoreClientAPI api)
         {
@@ -115,6 +117,7 @@ namespace Handbook_Categories
             if (capi == null)
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
+                onlyGridPages = true;
                 return;
             }
 
@@ -135,6 +138,8 @@ namespace Handbook_Categories
                 wordCategories = BuildWordCategories(config);
                 shouldStoreConfig = true;
             }
+
+            onlyGridPages = config?.OnlyGridPages ?? true;
 
             if (shouldStoreConfig)
             {
@@ -182,7 +187,13 @@ namespace Handbook_Categories
 
         internal static void RebuildCategories(List<GuiHandbookPage> allPages)
         {
-            if (capi?.World?.GridRecipes == null || allPages == null || allPages.Count == 0)
+            if (capi?.World == null || allPages == null || allPages.Count == 0)
+            {
+                Clear();
+                return;
+            }
+
+            if (onlyGridPages && capi.World.GridRecipes == null)
             {
                 Clear();
                 return;
@@ -198,7 +209,7 @@ namespace Handbook_Categories
             Dictionary<string, HashSet<string>> seenPageCodes = new();
             Dictionary<string, string> displayNames = new();
             Dictionary<string, string> translationKeys = new();
-            HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
+            ISet<string> gridRecipePageCodes = onlyGridPages ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) : null;
 
             void AddPageToCategory(WordCategoryDefinition definition, GuiHandbookPage page)
             {
@@ -224,22 +235,25 @@ namespace Handbook_Categories
                 }
             }
 
-            foreach (GridRecipe recipe in capi.World.GridRecipes)
+            if (onlyGridPages)
             {
-                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                foreach (GridRecipe recipe in capi.World.GridRecipes)
                 {
-                    continue;
-                }
+                    if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                    {
+                        continue;
+                    }
 
-                GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
-                if (page == null)
-                {
-                    continue;
-                }
+                    GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
+                    if (page == null)
+                    {
+                        continue;
+                    }
 
-                if (!string.IsNullOrEmpty(page.PageCode))
-                {
-                    gridRecipePageCodes.Add(page.PageCode);
+                    if (!string.IsNullOrEmpty(page.PageCode))
+                    {
+                        gridRecipePageCodes?.Add(page.PageCode);
+                    }
                 }
             }
 
@@ -281,7 +295,7 @@ namespace Handbook_Categories
 
         private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipePageCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
         {
-            if (pages == null || gridRecipePageCodes == null || addPageAction == null)
+            if (pages == null || addPageAction == null)
             {
                 return;
             }
@@ -291,6 +305,7 @@ namespace Handbook_Categories
                 return;
             }
 
+            bool requireGridPages = onlyGridPages;
             HashSet<WordCategoryDefinition> matchedDefinitions = new();
 
             foreach (GuiHandbookItemStackPage page in pages)
@@ -301,9 +316,17 @@ namespace Handbook_Categories
                 }
 
                 string pageCode = page.PageCode;
-                if (string.IsNullOrEmpty(pageCode) || !gridRecipePageCodes.Contains(pageCode))
+                if (string.IsNullOrEmpty(pageCode))
                 {
                     continue;
+                }
+
+                if (requireGridPages)
+                {
+                    if (gridRecipePageCodes == null || !gridRecipePageCodes.Contains(pageCode))
+                    {
+                        continue;
+                    }
                 }
 
                 string title = page.Stack.GetName();
