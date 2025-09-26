@@ -22,21 +22,83 @@ namespace Handbook_Categories
 
         private sealed class WordCategoryDefinition
         {
-            internal WordCategoryDefinition(string categoryName, string[] matchWords, string[] forbiddenWords)
+            internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases)
             {
                 CategoryName = categoryName ?? string.Empty;
+                SanitizedName = sanitizedName ?? string.Empty;
+                CategoryCode = $"{CategoryCodePrefix}{SanitizedName}";
+                TranslationKey = $"{TranslationPrefix}{SanitizedName}";
                 MatchWords = matchWords ?? Array.Empty<string>();
+                MatchPhrases = matchPhrases ?? Array.Empty<string>();
                 ForbiddenWords = forbiddenWords ?? Array.Empty<string>();
+                ForbiddenPhrases = forbiddenPhrases ?? Array.Empty<string>();
             }
 
             internal string CategoryName { get; }
 
+            internal string SanitizedName { get; }
+
+            internal string CategoryCode { get; }
+
+            internal string TranslationKey { get; }
+
             internal string[] MatchWords { get; }
 
+            internal string[] MatchPhrases { get; }
+
             internal string[] ForbiddenWords { get; }
+
+            internal string[] ForbiddenPhrases { get; }
+
+            internal bool MatchesAnyPhrase(string normalizedTitle)
+            {
+                if (MatchPhrases.Length == 0 || string.IsNullOrEmpty(normalizedTitle))
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < MatchPhrases.Length; i++)
+                {
+                    if (normalizedTitle.IndexOf(MatchPhrases[i], StringComparison.Ordinal) >= 0)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            internal bool IsForbidden(string normalizedTitle, HashSet<string> wordsInTitle)
+            {
+                if (ForbiddenWords.Length > 0 && wordsInTitle != null)
+                {
+                    foreach (string forbidden in ForbiddenWords)
+                    {
+                        if (wordsInTitle.Contains(forbidden))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                if (ForbiddenPhrases.Length > 0 && !string.IsNullOrEmpty(normalizedTitle))
+                {
+                    foreach (string phrase in ForbiddenPhrases)
+                    {
+                        if (normalizedTitle.IndexOf(phrase, StringComparison.Ordinal) >= 0)
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
+        private static readonly Dictionary<string, List<WordCategoryDefinition>> categoriesByMatchWord = new(StringComparer.OrdinalIgnoreCase);
+        private static WordCategoryDefinition[] categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
 
         private static ICoreClientAPI capi;
 
@@ -138,23 +200,22 @@ namespace Handbook_Categories
             Dictionary<string, string> translationKeys = new();
             HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
 
-            void AddPageToCategory(string categoryName, GuiHandbookPage page)
+            void AddPageToCategory(WordCategoryDefinition definition, GuiHandbookPage page)
             {
-                if (page == null || string.IsNullOrWhiteSpace(categoryName))
+                if (page == null || definition == null || string.IsNullOrWhiteSpace(definition.CategoryCode))
                 {
                     return;
                 }
 
-                string sanitized = Sanitize(categoryName);
-                string categoryCode = $"{CategoryCodePrefix}{sanitized}";
+                string categoryCode = definition.CategoryCode;
 
                 if (!categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list))
                 {
                     list = new List<GuiHandbookPage>();
                     categorizedPages[categoryCode] = list;
                     seenPageCodes[categoryCode] = new HashSet<string>();
-                    displayNames[categoryCode] = categoryName;
-                    translationKeys[categoryCode] = $"{TranslationPrefix}{sanitized}";
+                    displayNames[categoryCode] = definition.CategoryName;
+                    translationKeys[categoryCode] = definition.TranslationKey;
                 }
 
                 if (seenPageCodes[categoryCode].Add(page.PageCode))
@@ -190,11 +251,10 @@ namespace Handbook_Categories
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
 
-            foreach (string categoryName in wordCategories.Select(definition => definition.CategoryName))
+            foreach (WordCategoryDefinition definition in wordCategories)
             {
-                string sanitized = Sanitize(categoryName);
-                string categoryCode = $"{CategoryCodePrefix}{sanitized}";
-                if (!categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list) || list.Count == 0)
+                string categoryCode = definition.CategoryCode;
+                if (string.IsNullOrEmpty(categoryCode) || !categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list) || list.Count == 0)
                 {
                     continue;
                 }
@@ -219,12 +279,19 @@ namespace Handbook_Categories
             builder.Clear();
         }
 
-        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipePageCodes, Action<string, GuiHandbookPage> addPageAction)
+        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipePageCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
         {
             if (pages == null || gridRecipePageCodes == null || addPageAction == null)
             {
                 return;
             }
+
+            if (categoriesByMatchWord.Count == 0 && categoriesWithMatchPhrases.Length == 0)
+            {
+                return;
+            }
+
+            HashSet<WordCategoryDefinition> matchedDefinitions = new();
 
             foreach (GuiHandbookItemStackPage page in pages)
             {
@@ -245,22 +312,37 @@ namespace Handbook_Categories
                     continue;
                 }
 
-                HashSet<string> wordsInTitle = ExtractWords(title);
+                string normalizedTitle = title.ToLowerInvariant();
+                HashSet<string> wordsInTitle = ExtractWords(normalizedTitle);
+                matchedDefinitions.Clear();
 
-                foreach (WordCategoryDefinition definition in wordCategories)
+                foreach (string word in wordsInTitle)
                 {
-                    if (!MatchesAnyWord(definition.MatchWords, title, wordsInTitle))
+                    if (!categoriesByMatchWord.TryGetValue(word, out List<WordCategoryDefinition> definitions))
                     {
                         continue;
                     }
 
-                    if (MatchesAnyWord(definition.ForbiddenWords, title, wordsInTitle))
+                    foreach (WordCategoryDefinition definition in definitions)
                     {
-                        continue;
-                    }
+                        if (!matchedDefinitions.Add(definition) || definition.IsForbidden(normalizedTitle, wordsInTitle))
+                        {
+                            continue;
+                        }
 
-                    addPageAction(definition.CategoryName, page);
-                    break;
+                        addPageAction(definition, page);
+                    }
+                }
+
+                for (int i = 0; i < categoriesWithMatchPhrases.Length; i++)
+                {
+                    WordCategoryDefinition definition = categoriesWithMatchPhrases[i];
+
+                    if (!matchedDefinitions.Contains(definition) && definition.MatchesAnyPhrase(normalizedTitle) && !definition.IsForbidden(normalizedTitle, wordsInTitle))
+                    {
+                        matchedDefinitions.Add(definition);
+                        addPageAction(definition, page);
+                    }
                 }
             }
         }
@@ -496,41 +578,11 @@ namespace Handbook_Categories
             return words;
         }
 
-        private static bool MatchesAnyWord(IEnumerable<string> wordsToMatch, string text, HashSet<string> discreteWords)
-        {
-            if (wordsToMatch == null)
-            {
-                return false;
-            }
-
-            string source = text ?? string.Empty;
-
-            foreach (string rawWord in wordsToMatch)
-            {
-                string candidate = rawWord?.Trim();
-                if (string.IsNullOrEmpty(candidate))
-                {
-                    continue;
-                }
-
-                if (candidate.IndexOf(' ', StringComparison.Ordinal) >= 0)
-                {
-                    if (source.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return true;
-                    }
-                }
-                else if (discreteWords?.Contains(candidate) == true)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         private static WordCategoryDefinition[] BuildWordCategories(HandbookCategoriesConfig config)
         {
+            categoriesByMatchWord.Clear();
+            categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
+
             if (config?.Categories == null)
             {
                 return Array.Empty<WordCategoryDefinition>();
@@ -551,11 +603,67 @@ namespace Handbook_Categories
                     continue;
                 }
 
+                string sanitized = Sanitize(name);
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    continue;
+                }
+
                 string[] matchWords = NormalizeWords(entry.MatchWords);
                 string[] forbiddenWords = NormalizeWords(entry.ForbiddenWords);
 
-                definitions.Add(new WordCategoryDefinition(name, matchWords, forbiddenWords));
+                List<string> matchSinglesList = new(matchWords.Length);
+                List<string> matchPhrasesList = new();
+                for (int i = 0; i < matchWords.Length; i++)
+                {
+                    string word = matchWords[i];
+                    if (word.IndexOf(' ', StringComparison.Ordinal) >= 0)
+                    {
+                        matchPhrasesList.Add(word);
+                    }
+                    else
+                    {
+                        matchSinglesList.Add(word);
+                    }
+                }
+
+                List<string> forbiddenSinglesList = new(forbiddenWords.Length);
+                List<string> forbiddenPhrasesList = new();
+                for (int i = 0; i < forbiddenWords.Length; i++)
+                {
+                    string word = forbiddenWords[i];
+                    if (word.IndexOf(' ', StringComparison.Ordinal) >= 0)
+                    {
+                        forbiddenPhrasesList.Add(word);
+                    }
+                    else
+                    {
+                        forbiddenSinglesList.Add(word);
+                    }
+                }
+
+                string[] matchSingles = matchSinglesList.ToArray();
+                string[] matchPhrases = matchPhrasesList.ToArray();
+                string[] forbiddenSingles = forbiddenSinglesList.ToArray();
+                string[] forbiddenPhrases = forbiddenPhrasesList.ToArray();
+
+                WordCategoryDefinition definition = new(name, sanitized, matchSingles, matchPhrases, forbiddenSingles, forbiddenPhrases);
+                definitions.Add(definition);
+
+                for (int i = 0; i < matchSingles.Length; i++)
+                {
+                    string word = matchSingles[i];
+                    if (!categoriesByMatchWord.TryGetValue(word, out List<WordCategoryDefinition> list))
+                    {
+                        list = new List<WordCategoryDefinition>();
+                        categoriesByMatchWord[word] = list;
+                    }
+
+                    list.Add(definition);
+                }
             }
+
+            categoriesWithMatchPhrases = definitions.Where(definition => definition.MatchPhrases.Length > 0).ToArray();
 
             return definitions.ToArray();
         }
@@ -584,6 +692,7 @@ namespace Handbook_Categories
             return rawWords
                 .Select(word => word?.Trim())
                 .Where(word => !string.IsNullOrEmpty(word))
+                .Select(word => word.ToLowerInvariant())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
