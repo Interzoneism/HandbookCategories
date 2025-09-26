@@ -112,6 +112,7 @@ namespace Handbook_Categories
             Dictionary<string, HashSet<string>> seenPageCodes = new();
             Dictionary<string, string> displayNames = new();
             Dictionary<string, string> translationKeys = new();
+            HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
 
             void AddPageToCategory(string categoryName, GuiHandbookPage page)
             {
@@ -138,7 +139,33 @@ namespace Handbook_Categories
                 }
             }
 
-            ApplyWordBasedCategories(itemPagesByCode.Values, AddPageToCategory);
+            foreach (GridRecipe recipe in capi.World.GridRecipes)
+            {
+                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                {
+                    continue;
+                }
+
+                GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
+                if (page == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(page.PageCode))
+                {
+                    gridRecipePageCodes.Add(page.PageCode);
+                }
+
+                string categoryName = GridRecipeCategorizer.Categorize(recipe);
+                AddPageToCategory(categoryName, page);
+            }
+
+            IEnumerable<GuiHandbookItemStackPage> gridRecipePages = itemPagesByCode.Values
+                .Where(page => page != null && !string.IsNullOrEmpty(page.PageCode) && gridRecipePageCodes.Contains(page.PageCode));
+
+            ApplyWordBasedCategories(gridRecipePages, AddPageToCategory);
+
 
             pagesByCategory.Clear();
             displayNameByCategory.Clear();
