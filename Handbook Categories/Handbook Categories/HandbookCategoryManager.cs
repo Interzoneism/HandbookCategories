@@ -161,10 +161,7 @@ namespace Handbook_Categories
                 AddPageToCategory(categoryName, page);
             }
 
-            IEnumerable<GuiHandbookItemStackPage> gridRecipePages = itemPagesByCode.Values
-                .Where(page => page != null && !string.IsNullOrEmpty(page.PageCode) && gridRecipePageCodes.Contains(page.PageCode));
-
-            ApplyWordBasedCategories(gridRecipePages, AddPageToCategory);
+            ApplyWordBasedCategories(itemPagesByCode.Values, gridRecipePageCodes, AddPageToCategory);
 
 
             pagesByCategory.Clear();
@@ -201,9 +198,9 @@ namespace Handbook_Categories
             builder.Clear();
         }
 
-        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, Action<string, GuiHandbookPage> addPageAction)
+        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipePageCodes, Action<string, GuiHandbookPage> addPageAction)
         {
-            if (pages == null || addPageAction == null)
+            if (pages == null || gridRecipePageCodes == null || addPageAction == null)
             {
                 return;
             }
@@ -215,27 +212,34 @@ namespace Handbook_Categories
                     continue;
                 }
 
-                string stackName = page.Stack.GetName();
-                if (string.IsNullOrWhiteSpace(stackName))
+                string pageCode = page.PageCode;
+                if (string.IsNullOrEmpty(pageCode) || !gridRecipePageCodes.Contains(pageCode))
                 {
                     continue;
                 }
 
-                HashSet<string> wordsInName = ExtractWords(stackName);
+                string title = page.Stack.GetName();
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                HashSet<string> wordsInTitle = ExtractWords(title);
 
                 foreach (WordCategoryDefinition definition in WordCategories)
                 {
-                    if (MatchesAnyWord(definition.ForbiddenWords, stackName, wordsInName))
+                    if (!MatchesAnyWord(definition.MatchWords, title, wordsInTitle))
                     {
                         continue;
                     }
 
-                    if (!MatchesAnyWord(definition.MatchWords, stackName, wordsInName))
+                    if (MatchesAnyWord(definition.ForbiddenWords, title, wordsInTitle))
                     {
                         continue;
                     }
 
                     addPageAction(definition.CategoryName, page);
+                    break;
                 }
             }
         }
