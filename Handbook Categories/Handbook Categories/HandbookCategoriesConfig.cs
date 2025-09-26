@@ -65,7 +65,7 @@ namespace Handbook_Categories
                             "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor",
                             "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper"
                         },
-                        ForbiddenWords = new List<string> { "Mold", "Rusty", "Temporal" }
+                        ForbiddenWords = new List<string> { "Mold", "Rusty", "Temporal", "Figurehead" }
                     }
                 }
             };
