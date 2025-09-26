@@ -20,6 +20,32 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
         private static readonly List<string> orderedCategories = new();
 
+        private sealed class WordCategoryDefinition
+        {
+            internal WordCategoryDefinition(string categoryName, string[] matchWords, string[] forbiddenWords)
+            {
+                CategoryName = categoryName ?? string.Empty;
+                MatchWords = matchWords ?? Array.Empty<string>();
+                ForbiddenWords = forbiddenWords ?? Array.Empty<string>();
+            }
+
+            internal string CategoryName { get; }
+
+            internal string[] MatchWords { get; }
+
+            internal string[] ForbiddenWords { get; }
+        }
+
+        private static readonly WordCategoryDefinition[] WordCategories =
+        {
+            new("Weapons", new[] { "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow" }, new[] { "Sticks" }),
+            new("Armor", new[] { "Armor", "Body", "Lamellar", "Helmet", "Jerkin" }, new[] { "Shield", "Stand" }),
+            new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt" }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
+            new("Tools", new[] { "Shovel", "Axe" }, new[] { "Trap", "Soldering" }),
+            new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
+            new("Furniture", new[] { "Bed", "Table", "Chair" }, new[] { "Lantern", "Lamp", "Flute", "Grass" })
+        };
+
         private static ICoreClientAPI capi;
 
         internal static bool IsReady => capi?.World?.GridRecipes != null;
@@ -86,20 +112,13 @@ namespace Handbook_Categories
             Dictionary<string, string> displayNames = new();
             Dictionary<string, string> translationKeys = new();
 
-            foreach (GridRecipe recipe in capi.World.GridRecipes)
+            void AddPageToCategory(string categoryName, GuiHandbookPage page)
             {
-                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                if (page == null || string.IsNullOrWhiteSpace(categoryName))
                 {
-                    continue;
+                    return;
                 }
 
-                GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
-                if (page == null)
-                {
-                    continue;
-                }
-
-                string categoryName = GridRecipeCategorizer.Categorize(recipe);
                 string sanitized = Sanitize(categoryName);
                 string categoryCode = $"{CategoryCodePrefix}{sanitized}";
 
@@ -117,6 +136,25 @@ namespace Handbook_Categories
                     list.Add(page);
                 }
             }
+
+            foreach (GridRecipe recipe in capi.World.GridRecipes)
+            {
+                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                {
+                    continue;
+                }
+
+                GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
+                if (page == null)
+                {
+                    continue;
+                }
+
+                string categoryName = GridRecipeCategorizer.Categorize(recipe);
+                AddPageToCategory(categoryName, page);
+            }
+
+            ApplyWordBasedCategories(itemPagesByCode.Values, AddPageToCategory);
 
             pagesByCategory.Clear();
             displayNameByCategory.Clear();
@@ -138,6 +176,56 @@ namespace Handbook_Categories
                 displayNameByCategory[categoryCode] = displayNames[categoryCode];
                 translationKeyByCategory[categoryCode] = translationKeys[categoryCode];
                 orderedCategories.Add(categoryCode);
+            }
+        }
+
+        private static void AddWordFromBuilder(StringBuilder builder, HashSet<string> words)
+        {
+            if (builder == null || words == null || builder.Length == 0)
+            {
+                return;
+            }
+
+            words.Add(builder.ToString());
+            builder.Clear();
+        }
+
+        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, Action<string, GuiHandbookPage> addPageAction)
+        {
+            if (pages == null || addPageAction == null)
+            {
+                return;
+            }
+
+            foreach (GuiHandbookItemStackPage page in pages)
+            {
+                if (page?.Stack?.Collectible == null)
+                {
+                    continue;
+                }
+
+                string stackName = page.Stack.GetName();
+                if (string.IsNullOrWhiteSpace(stackName))
+                {
+                    continue;
+                }
+
+                HashSet<string> wordsInName = ExtractWords(stackName);
+
+                foreach (WordCategoryDefinition definition in WordCategories)
+                {
+                    if (MatchesAnyWord(definition.ForbiddenWords, stackName, wordsInName))
+                    {
+                        continue;
+                    }
+
+                    if (!MatchesAnyWord(definition.MatchWords, stackName, wordsInName))
+                    {
+                        continue;
+                    }
+
+                    addPageAction(definition.CategoryName, page);
+                }
             }
         }
 
@@ -342,6 +430,67 @@ namespace Handbook_Categories
             }
 
             return builder.ToString();
+        }
+
+        private static HashSet<string> ExtractWords(string text)
+        {
+            HashSet<string> words = new(StringComparer.OrdinalIgnoreCase);
+
+            if (string.IsNullOrEmpty(text))
+            {
+                return words;
+            }
+
+            StringBuilder builder = new();
+
+            foreach (char ch in text)
+            {
+                if (char.IsLetterOrDigit(ch))
+                {
+                    builder.Append(ch);
+                }
+                else
+                {
+                    AddWordFromBuilder(builder, words);
+                }
+            }
+
+            AddWordFromBuilder(builder, words);
+
+            return words;
+        }
+
+        private static bool MatchesAnyWord(IEnumerable<string> wordsToMatch, string text, HashSet<string> discreteWords)
+        {
+            if (wordsToMatch == null)
+            {
+                return false;
+            }
+
+            string source = text ?? string.Empty;
+
+            foreach (string rawWord in wordsToMatch)
+            {
+                string candidate = rawWord?.Trim();
+                if (string.IsNullOrEmpty(candidate))
+                {
+                    continue;
+                }
+
+                if (candidate.IndexOf(' ', StringComparison.Ordinal) >= 0)
+                {
+                    if (source.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+                else if (discreteWords?.Contains(candidate) == true)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
