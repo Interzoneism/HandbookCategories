@@ -19,7 +19,7 @@ namespace Handbook_Categories
                     new HandbookCategoryConfigEntry
                     {
                         Name = "Armor",
-                        MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves" },
+                        MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves", "Gambeson", "Leg" },
                         ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler" }
                     },
                     new HandbookCategoryConfigEntry
@@ -30,9 +30,9 @@ namespace Handbook_Categories
                             "Clothes", "Shirt", "Pants", "Boots", "Belt", "Hat", "Blouse", "Coat", "Amulet", "Necklace",
                             "Gloves", "Fur", "Trousers", "Cape", "Capelet", "Apron", "Vest", "Sash", "Tunic", "Bracelet",
                             "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
-                            "Skirt", "Cloak"
+                            "Skirt", "Cloak", "Mantle"
                         },
-                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear" }
+                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor" }
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -48,7 +48,7 @@ namespace Handbook_Categories
                     new HandbookCategoryConfigEntry
                     {
                         Name = "Storage",
-                        MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display" },
+                        MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel", "Sack", "Bag", "Saddlebags", "Crate" },
                         ForbiddenWords = new List<string> { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }
                     },
                     new HandbookCategoryConfigEntry
