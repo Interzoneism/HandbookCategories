@@ -156,9 +156,6 @@ namespace Handbook_Categories
                 {
                     gridRecipePageCodes.Add(page.PageCode);
                 }
-
-                string categoryName = GridRecipeCategorizer.Categorize(recipe);
-                AddPageToCategory(categoryName, page);
             }
 
             ApplyWordBasedCategories(itemPagesByCode.Values, gridRecipePageCodes, AddPageToCategory);
