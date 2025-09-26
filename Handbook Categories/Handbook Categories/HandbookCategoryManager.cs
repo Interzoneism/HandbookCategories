@@ -137,23 +137,6 @@ namespace Handbook_Categories
                 }
             }
 
-            foreach (GridRecipe recipe in capi.World.GridRecipes)
-            {
-                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
-                {
-                    continue;
-                }
-
-                GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
-                if (page == null)
-                {
-                    continue;
-                }
-
-                string categoryName = GridRecipeCategorizer.Categorize(recipe);
-                AddPageToCategory(categoryName, page);
-            }
-
             ApplyWordBasedCategories(itemPagesByCode.Values, AddPageToCategory);
 
             pagesByCategory.Clear();
@@ -161,7 +144,7 @@ namespace Handbook_Categories
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
 
-            foreach (string categoryName in GridRecipeCategorizer.AllCategories)
+            foreach (string categoryName in WordCategories.Select(definition => definition.CategoryName))
             {
                 string sanitized = Sanitize(categoryName);
                 string categoryCode = $"{CategoryCodePrefix}{sanitized}";
