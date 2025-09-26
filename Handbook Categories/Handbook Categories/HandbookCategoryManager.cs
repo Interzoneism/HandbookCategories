@@ -43,7 +43,7 @@ namespace Handbook_Categories
             new("Clothes", new[] { "Clothes", "Shirt", "Pants", "Boots", "Belt" }, new[] { "Blanket", "Rusty Gear", "Temporal Gear" }),
             new("Tools", new[] { "Shovel", "Axe" }, new[] { "Trap", "Soldering" }),
             new("Storage", new[] { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
-            new("Consumables", new[] { "Poultice", "Healing", "Bandage", "Shelf", "Shelves", "Rack" }, new[] { "Trap", "Papyrus", "Cattails", "Beenade", "Bookshelf" }),
+            new("Consumables", new[] { "Poultice", "Healing", "Bandage" }, new[] { "Trap" }),
             new("Furniture", new[] { "Bed", "Table", "Chair" }, new[] { "Lantern", "Lamp", "Flute", "Grass" })
         };
 
