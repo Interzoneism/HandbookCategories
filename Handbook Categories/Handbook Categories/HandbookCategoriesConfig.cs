@@ -32,7 +32,7 @@ namespace Handbook_Categories
                             "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
                             "Skirt", "Cloak", "Mantle"
                         },
-                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor" }
+                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack" }
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -43,7 +43,7 @@ namespace Handbook_Categories
                             "Hammer", "Pickaxe", "Prospecting", "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow",
                             "Shortsword", "Falx"
                         },
-                        ForbiddenWords = new List<string> { "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head" }
+                        ForbiddenWords = new List<string> { "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head", "Pedestal" }
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -65,7 +65,7 @@ namespace Handbook_Categories
                             "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor",
                             "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper"
                         },
-                        ForbiddenWords = new List<string> { "Mold", "Rusty", "Temporal", "Figurehead" }
+                        ForbiddenWords = new List<string> { "Mold", "Rusty", "Temporal", "Figurehead", "Bricks", "Planks", "Stone" }
                     }
                 }
             };
