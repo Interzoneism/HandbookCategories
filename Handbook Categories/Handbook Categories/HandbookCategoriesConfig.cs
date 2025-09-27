@@ -27,9 +27,9 @@ namespace Handbook_Categories
             return new HandbookCategoriesConfig
             {
                 OnlyGridPages = true,
-                DisableTutorialTab = false,
-                DisableBlocksAndItemsTab = false,
-                DisableGuidesTab = false,
+                DisableTutorialTab = true,
+                DisableBlocksAndItemsTab = true,
+                DisableGuidesTab = true,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
                     new HandbookCategoryConfigEntry
