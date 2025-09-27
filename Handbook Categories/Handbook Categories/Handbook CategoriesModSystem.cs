@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -306,7 +307,50 @@ namespace Handbook_Categories
                 return TextCommandResult.Error(error ?? "Failed to create preset code.");
             }
 
-            return TextCommandResult.Success($"Category preset saved. Use .categorymodload {code} to load it later.");
+            bool clipboardCopied = false;
+            if (!string.IsNullOrEmpty(code))
+            {
+                try
+                {
+                    capi.Forms?.SetClipboardText(code);
+                    clipboardCopied = true;
+                }
+                catch (Exception ex)
+                {
+                    capi.Logger?.Warning("Handbook Categories: Failed to copy preset code to clipboard: {0}", ex.Message);
+                }
+            }
+
+            string documentsMessage;
+            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrWhiteSpace(documentsPath))
+            {
+                string filePath = Path.Combine(documentsPath, "VS_CategoryCode.txt");
+                try
+                {
+                    File.WriteAllText(filePath, code ?? string.Empty);
+                    documentsMessage = $"Saved to {filePath}.";
+                }
+                catch (Exception ex)
+                {
+                    capi.Logger?.Warning("Handbook Categories: Failed to write preset code to {0}: {1}", filePath, ex.Message);
+                    documentsMessage = "Could not save to the Documents folder.";
+                }
+            }
+            else
+            {
+                documentsMessage = "Could not locate the Documents folder.";
+            }
+
+            List<string> messageParts = new()
+            {
+                "Category preset saved.",
+                clipboardCopied ? "Code copied to clipboard." : "Unable to copy code to clipboard.",
+                documentsMessage,
+                $"Use .categorymodload {code} to load it later."
+            };
+
+            return TextCommandResult.Success(string.Join(" ", messageParts));
         }
 
         private TextCommandResult OnCategoryModLoadCommand(TextCommandCallingArgs args)
