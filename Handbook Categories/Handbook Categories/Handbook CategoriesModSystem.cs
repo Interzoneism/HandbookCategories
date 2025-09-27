@@ -50,6 +50,9 @@ namespace Handbook_Categories
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
+            harmony.Patch(AccessTools.Method(typeof(GuiElementVerticalTabs), nameof(GuiElementVerticalTabs.ComposeTextElements)),
+                prefix: new HarmonyMethod(typeof(HandbookVerticalTabsPatches), nameof(HandbookVerticalTabsPatches.AdjustTabLayout)));
+
             api.Event.LeaveWorld += OnLeaveWorld;
         }
 
