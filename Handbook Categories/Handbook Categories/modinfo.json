@@ -5,7 +5,7 @@
   "authors": [
     "Interzoneism"
   ],
-  "description": "Adds category tabs to the survival handbook and sorts grid recipes into them.",
+  "description": "Adds category tabs to the handbook.",
   "version": "1.0.0",
   "dependencies": {
     "game": ""

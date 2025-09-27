@@ -27,9 +27,9 @@ namespace Handbook_Categories
             return new HandbookCategoriesConfig
             {
                 OnlyGridPages = true,
-                DisableTutorialTab = true,
-                DisableBlocksAndItemsTab = true,
-                DisableGuidesTab = true,
+                DisableTutorialTab = false,
+                DisableBlocksAndItemsTab = false,
+                DisableGuidesTab = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
                     new HandbookCategoryConfigEntry
@@ -37,7 +37,7 @@ namespace Handbook_Categories
                         Name = "Armor",
                         MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves", "Gambeson", "Leg" },
                         ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler", "Rack" },
-                        TabBackgroundColor = "green"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -50,7 +50,7 @@ namespace Handbook_Categories
                             "Skirt", "Cloak", "Mantle"
                         },
                         ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch's", "Mourning" },
-                        TabBackgroundColor = "blue"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -62,21 +62,21 @@ namespace Handbook_Categories
                             "Shortsword", "Falx"
                         },
                         ForbiddenWords = new List<string> { "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head", "Pedestal" },
-                        TabBackgroundColor = "red"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
                     {
                         Name = "Storage",
                         MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel", "Sack", "Bag", "Saddlebags", "Crate", "Bookshelf" },
                         ForbiddenWords = new List<string> { "Trap", "Papyrus", "Cattails", "Beenade", "Bricks", "Planks", "Stone" },
-                        TabBackgroundColor = "yellow"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
                     {
                         Name = "Consumables",
                         MatchWords = new List<string> { "Poultice", "Healing", "Bandage", "Potion", "Herb", "Poison" },
                         ForbiddenWords = new List<string> { "Trap" },
-                        TabBackgroundColor = "pink"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
                     {
@@ -87,7 +87,7 @@ namespace Handbook_Categories
                             "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper"
                         },
                         ForbiddenWords = new List<string> { "Mold", "Rusty", "Temporal", "Figurehead", "Bricks", "Planks", "Stone" },
-                        TabBackgroundColor = "orange"
+                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     }
                 }
             };
