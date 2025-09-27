@@ -186,12 +186,12 @@ namespace Handbook_Categories
                 return showTutorialTab;
             }
 
-            if (categoryCode.Equals("blocksitems", StringComparison.OrdinalIgnoreCase))
+            if (categoryCode.Equals("blocksitems", StringComparison.OrdinalIgnoreCase) || categoryCode.Equals("stack", StringComparison.OrdinalIgnoreCase))
             {
                 return showBlocksAndItemsTab;
             }
 
-            if (categoryCode.Equals("guides", StringComparison.OrdinalIgnoreCase))
+            if (categoryCode.Equals("guides", StringComparison.OrdinalIgnoreCase) || categoryCode.Equals("guide", StringComparison.OrdinalIgnoreCase))
             {
                 return showGuidesTab;
             }
