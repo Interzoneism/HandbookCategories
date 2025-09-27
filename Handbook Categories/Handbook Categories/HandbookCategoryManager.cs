@@ -22,6 +22,9 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
         private static bool onlyGridPages = true;
+        private static bool showTutorialTab = true;
+        private static bool showBlocksAndItemsTab = true;
+        private static bool showGuidesTab = true;
 
         private sealed class WordCategoryDefinition
         {
@@ -136,6 +139,9 @@ namespace Handbook_Categories
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
                 onlyGridPages = true;
+                showTutorialTab = true;
+                showBlocksAndItemsTab = true;
+                showGuidesTab = true;
                 return;
             }
 
@@ -158,11 +164,39 @@ namespace Handbook_Categories
             }
 
             onlyGridPages = config?.OnlyGridPages ?? true;
+            showTutorialTab = !(config?.DisableTutorialTab ?? false);
+            showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
+            showGuidesTab = !(config?.DisableGuidesTab ?? false);
 
             if (shouldStoreConfig)
             {
                 capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             }
+        }
+
+        internal static bool ShouldDisplayVanillaTab(string categoryCode)
+        {
+            if (categoryCode == null)
+            {
+                return true;
+            }
+
+            if (categoryCode.Equals("tutorial", StringComparison.OrdinalIgnoreCase))
+            {
+                return showTutorialTab;
+            }
+
+            if (categoryCode.Equals("blocksitems", StringComparison.OrdinalIgnoreCase))
+            {
+                return showBlocksAndItemsTab;
+            }
+
+            if (categoryCode.Equals("guides", StringComparison.OrdinalIgnoreCase))
+            {
+                return showGuidesTab;
+            }
+
+            return true;
         }
 
         internal static void Clear()

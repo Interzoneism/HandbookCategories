@@ -350,6 +350,7 @@ namespace Handbook_Categories
         private static readonly System.Reflection.FieldInfo CurrentSearchTextField = AccessTools.Field(typeof(GuiDialogHandbook), "currentSearchText");
         private static readonly System.Reflection.FieldInfo LoadingPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "loadingPagesAsync");
         private static readonly System.Reflection.FieldInfo ListHeightField = AccessTools.Field(typeof(GuiDialogHandbook), "listHeight");
+        private static readonly System.Reflection.FieldInfo CategoryCodesField = AccessTools.Field(typeof(GuiDialogHandbook), "categoryCodes");
 
         public static void AfterPagesLoaded(GuiDialogHandbook __instance)
         {
@@ -393,6 +394,22 @@ namespace Handbook_Categories
 
             var tabs = (__result ?? Array.Empty<GuiTab>()).ToList();
             bool updated = false;
+
+            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("tutorial"))
+            {
+                updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "tutorial");
+            }
+
+            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("blocksitems"))
+            {
+                updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "blocksitems");
+            }
+
+            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("guides"))
+            {
+                updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "guides");
+            }
+
             var existing = new HashSet<string>(tabs.OfType<HandbookTab>().Select(tab => tab.CategoryCode));
 
             foreach (string categoryCode in HandbookCategoryManager.OrderedCategoryCodes)
@@ -425,6 +442,8 @@ namespace Handbook_Categories
 
             if (updated)
             {
+                ReindexTabs(tabs);
+                EnsureValidSelection(__instance, tabs, ref curTab);
                 __result = tabs.ToArray();
             }
         }
@@ -451,6 +470,100 @@ namespace Handbook_Categories
 
             __result = composer;
             return false;
+        }
+
+        private static bool RemoveVanillaTab(GuiDialogSurvivalHandbook instance, List<GuiTab> tabs, ref int curTab, string categoryCode)
+        {
+            if (instance == null || tabs == null || tabs.Count == 0 || string.IsNullOrEmpty(categoryCode))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < tabs.Count; i++)
+            {
+                if (tabs[i] is not HandbookTab tab)
+                {
+                    continue;
+                }
+
+                if (!categoryCode.Equals(tab.CategoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                tabs.RemoveAt(i);
+
+                if (CategoryCodesField?.GetValue(instance) is List<string> codes && codes.Count > 0)
+                {
+                    codes.RemoveAll(code => code != null && categoryCode.Equals(code, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (instance.currentCatgoryCode != null && categoryCode.Equals(instance.currentCatgoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    instance.currentCatgoryCode = null;
+                }
+
+                if (curTab > i)
+                {
+                    curTab--;
+                }
+                else if (curTab >= tabs.Count)
+                {
+                    curTab = Math.Max(0, tabs.Count - 1);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void ReindexTabs(List<GuiTab> tabs)
+        {
+            if (tabs == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < tabs.Count; i++)
+            {
+                tabs[i].DataInt = i;
+            }
+        }
+
+        private static void EnsureValidSelection(GuiDialogSurvivalHandbook instance, List<GuiTab> tabs, ref int curTab)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            if (tabs == null || tabs.Count == 0)
+            {
+                curTab = 0;
+                instance.currentCatgoryCode = null;
+                return;
+            }
+
+            if (curTab < 0)
+            {
+                curTab = 0;
+            }
+            else if (curTab >= tabs.Count)
+            {
+                curTab = tabs.Count - 1;
+            }
+
+            if (curTab < 0 || curTab >= tabs.Count)
+            {
+                instance.currentCatgoryCode = null;
+                return;
+            }
+
+            if (tabs[curTab] is HandbookTab tab)
+            {
+                instance.currentCatgoryCode = tab.CategoryCode;
+            }
         }
     }
 }

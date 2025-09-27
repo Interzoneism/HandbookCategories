@@ -10,6 +10,15 @@ namespace Handbook_Categories
         [JsonProperty("onlyGridPages")]
         public bool OnlyGridPages { get; set; } = true;
 
+        [JsonProperty("disableTutorialTab")]
+        public bool DisableTutorialTab { get; set; }
+
+        [JsonProperty("disableBlocksAndItemsTab")]
+        public bool DisableBlocksAndItemsTab { get; set; }
+
+        [JsonProperty("disableGuidesTab")]
+        public bool DisableGuidesTab { get; set; }
+
         [JsonProperty("categories")]
         public List<HandbookCategoryConfigEntry> Categories { get; set; } = new();
 
@@ -18,6 +27,9 @@ namespace Handbook_Categories
             return new HandbookCategoriesConfig
             {
                 OnlyGridPages = true,
+                DisableTutorialTab = false,
+                DisableBlocksAndItemsTab = false,
+                DisableGuidesTab = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
                     new HandbookCategoryConfigEntry
