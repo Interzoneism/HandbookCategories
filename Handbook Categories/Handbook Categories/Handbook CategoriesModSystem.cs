@@ -394,10 +394,16 @@ namespace Handbook_Categories
                 }
                 else
                 {
-                    if (ch == '\"' || ch == '\'')
+                    if (ch == '"' || ch == '\'')
                     {
-                        inQuotes = true;
-                        quoteChar = ch;
+                        if (builder.Length == 0)
+                        {
+                            inQuotes = true;
+                            quoteChar = ch;
+                            continue;
+                        }
+
+                        builder.Append(ch);
                         continue;
                     }
 
