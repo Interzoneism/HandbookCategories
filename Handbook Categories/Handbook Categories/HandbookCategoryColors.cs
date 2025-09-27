@@ -20,7 +20,7 @@ namespace Handbook_Categories
             ["amber"] = "#F59E0B",
             ["yellow"] = "#E9C46A",
             ["lime"] = "#A7C957",
-            ["green"] = "#2A9D8F",
+            ["green"] = "#50C878",
             ["teal"] = "#14B8A6",
             ["cyan"] = "#0891B2",
             ["blue"] = "#1D4ED8",
