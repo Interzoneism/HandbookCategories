@@ -32,6 +32,12 @@ namespace Handbook_Categories
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModCommand);
 
+            capi.ChatCommands
+                .Create("categorymoddelete")
+                .WithDescription("Deletes a handbook category or clears custom categories")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnCategoryModDeleteCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -173,7 +179,7 @@ namespace Handbook_Categories
 
             if (addedMatches.Count == 0 && addedForbidden.Count == 0)
             {
-                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.");
+                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added. Restart the game for the changes to take effect.");
             }
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
@@ -197,7 +203,68 @@ namespace Handbook_Categories
                 parts.Add($"skipped existing: {string.Join(", ", skipped)}");
             }
 
-            return TextCommandResult.Success(string.Join(". ", parts) + ".");
+            return TextCommandResult.Success(string.Join(". ", parts) + ". Restart the game for the changes to take effect.");
+        }
+
+        private TextCommandResult OnCategoryModDeleteCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            CmdArgs rawArgs = args?.RawArgs;
+            if (rawArgs == null || rawArgs.Length == 0)
+            {
+                return TextCommandResult.Error("Usage: .categorymoddelete [category]");
+            }
+
+            string categoryNameInput = rawArgs.PopWord();
+            if (string.IsNullOrWhiteSpace(categoryNameInput))
+            {
+                return TextCommandResult.Error("You must specify a category name");
+            }
+
+            categoryNameInput = categoryNameInput.Trim();
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            config.Categories ??= new List<HandbookCategoryConfigEntry>();
+
+            if (categoryNameInput.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                HashSet<string> defaultNames = new(HandbookCategoriesConfig.CreateDefault().Categories
+                    .Where(entry => !string.IsNullOrWhiteSpace(entry?.Name))
+                    .Select(entry => entry.Name), StringComparer.OrdinalIgnoreCase);
+
+                int removed = config.Categories.RemoveAll(entry => entry != null && !defaultNames.Contains(entry.Name ?? string.Empty));
+
+                if (removed == 0)
+                {
+                    return TextCommandResult.Error("No custom categories to delete.");
+                }
+
+                capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+                HandbookCategoryManager.ReloadConfiguration();
+
+                return TextCommandResult.Success($"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Restart the game for the changes to take effect.");
+            }
+
+            HandbookCategoryConfigEntry category = config.Categories
+                .FirstOrDefault(entry => entry != null && entry.Name != null && entry.Name.Equals(categoryNameInput, StringComparison.OrdinalIgnoreCase));
+
+            if (category == null)
+            {
+                return TextCommandResult.Error($"Category \"{categoryNameInput}\" was not found");
+            }
+
+            config.Categories.Remove(category);
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            HandbookCategoryManager.ReloadConfiguration();
+
+            return TextCommandResult.Success($"Deleted category \"{category.Name}\". Restart the game for the changes to take effect.");
         }
     }
 
