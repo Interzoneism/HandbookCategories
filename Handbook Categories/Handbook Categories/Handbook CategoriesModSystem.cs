@@ -214,6 +214,7 @@ namespace Handbook_Categories
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             HandbookCategoryManager.ReloadConfiguration();
+            RebuildHandbookTabs();
 
             List<string> parts = new();
             parts.Add(createdCategory ? $"Created category \"{category.Name}\"" : $"Updated category \"{category.Name}\"");
@@ -277,6 +278,7 @@ namespace Handbook_Categories
 
                 capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
                 HandbookCategoryManager.ReloadConfiguration();
+                RebuildHandbookTabs();
 
                 return TextCommandResult.Success($"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Restart the game for the changes to take effect.");
             }
@@ -293,6 +295,7 @@ namespace Handbook_Categories
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             HandbookCategoryManager.ReloadConfiguration();
+            RebuildHandbookTabs();
 
             return TextCommandResult.Success($"Deleted category \"{category.Name}\". Restart the game for the changes to take effect.");
         }
@@ -517,6 +520,31 @@ namespace Handbook_Categories
 
             return prefix + quoteChar + escaped + quoteChar;
         }
+
+        private void RebuildHandbookTabs()
+        {
+            if (capi?.Gui?.OpenedGuis == null)
+            {
+                return;
+            }
+
+            List<GuiDialogSurvivalHandbook> openDialogs = capi.Gui.OpenedGuis
+                .OfType<GuiDialogSurvivalHandbook>()
+                .ToList();
+
+            if (openDialogs.Count == 0)
+            {
+                return;
+            }
+
+            capi.Event.EnqueueMainThreadTask(() =>
+            {
+                foreach (GuiDialogSurvivalHandbook dialog in openDialogs)
+                {
+                    HandbookCategoryPatches.RebuildTabs(dialog);
+                }
+            }, "handbookcategories-rebuildtabs");
+        }
     }
 
     internal static class HandbookCategoryPatches
@@ -524,6 +552,7 @@ namespace Handbook_Categories
         private static readonly System.Reflection.FieldInfo AllPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "allHandbookPages");
         private static readonly System.Reflection.FieldInfo ShownPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "shownHandbookPages");
         private static readonly System.Reflection.FieldInfo OverviewGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "overviewGui");
+        private static readonly System.Reflection.FieldInfo DetailGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "detailViewGui");
         private static readonly System.Reflection.FieldInfo CurrentSearchTextField = AccessTools.Field(typeof(GuiDialogHandbook), "currentSearchText");
         private static readonly System.Reflection.FieldInfo LoadingPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "loadingPagesAsync");
         private static readonly System.Reflection.FieldInfo ListHeightField = AccessTools.Field(typeof(GuiDialogHandbook), "listHeight");
@@ -560,6 +589,33 @@ namespace Handbook_Categories
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, shownPages, overviewGui, currentSearch, loading, listHeight);
 
             return false;
+        }
+
+        public static void RebuildTabs(GuiDialogSurvivalHandbook instance)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            if (AllPagesField?.GetValue(instance) is List<GuiHandbookPage> pages)
+            {
+                HandbookCategoryManager.RebuildCategories(pages);
+            }
+
+            if (OverviewGuiField?.GetValue(instance) is GuiComposer overview)
+            {
+                overview.Dispose();
+                OverviewGuiField.SetValue(instance, null);
+            }
+
+            if (DetailGuiField?.GetValue(instance) is GuiComposer detail)
+            {
+                detail.Dispose();
+                DetailGuiField.SetValue(instance, null);
+            }
+
+            instance.ReloadPage();
         }
 
         public static void GenTabsPostfix(GuiDialogSurvivalHandbook __instance, ref GuiTab[] __result, ref int curTab)
