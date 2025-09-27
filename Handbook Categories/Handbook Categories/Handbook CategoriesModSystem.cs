@@ -16,6 +16,8 @@ namespace Handbook_Categories
         private Harmony harmony;
         private ICoreClientAPI capi;
 
+        private static readonly char[] QuoteCharacters = { '"', '\'' };
+
         public override bool ShouldLoad(EnumAppSide side)
         {
             return side == EnumAppSide.Client;
@@ -394,7 +396,7 @@ namespace Handbook_Categories
                 }
                 else
                 {
-                    if (ch == '"' || ch == '\'')
+                    if (IsQuoteCharacter(ch))
                     {
                         if (builder.Length == 0 || (builder.Length == 1 && builder[0] == '-'))
                         {
@@ -431,6 +433,19 @@ namespace Handbook_Categories
 
             tokens.Add(builder.ToString());
             builder.Clear();
+        }
+
+        private static bool IsQuoteCharacter(char ch)
+        {
+            for (int i = 0; i < QuoteCharacters.Length; i++)
+            {
+                if (QuoteCharacters[i] == ch)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static string BuildCategoryCommand(HandbookCategoryConfigEntry category)
