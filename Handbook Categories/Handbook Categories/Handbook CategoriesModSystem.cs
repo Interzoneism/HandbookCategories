@@ -333,7 +333,7 @@ namespace Handbook_Categories
                     DataInt = tabs.Count,
                     CategoryCode = categoryCode,
                     Name = HandbookCategoryManager.GetTabDisplayName(categoryCode),
-                    PaddingTop = tabs.Count == 0 ? 5.0 : 1.0
+                    PaddingTop = tabs.Count == 0 ? 5.0 : 0.0
                 };
 
                 tabs.Add(tab);
