@@ -6,7 +6,6 @@ using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.GameContent;
-using ClientGuiComposerHelpers = Vintagestory.API.Client.GuiComposerHelpers;
 
 namespace Handbook_Categories
 {
@@ -64,14 +63,11 @@ namespace Handbook_Categories
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
-            harmony.Patch(AccessTools.Method(typeof(ClientGuiComposerHelpers), nameof(ClientGuiComposerHelpers.AddVerticalTabs), new[]
+            harmony.Patch(AccessTools.Method(typeof(GuiElementVerticalTabs), nameof(GuiElementVerticalTabs.ComposeTextElements), new[]
             {
-                typeof(GuiComposer),
-                typeof(GuiTab[]),
-                typeof(ElementBounds),
-                typeof(Action<int, GuiTab>),
-                typeof(string)
-            }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.AddVerticalTabsPrefix)));
+                typeof(Cairo.Context),
+                typeof(Cairo.ImageSurface)
+            }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.ComposeVerticalTabsPrefix)));
 
             api.Event.LeaveWorld += OnLeaveWorld;
         }
@@ -494,28 +490,9 @@ namespace Handbook_Categories
             }
         }
 
-        public static bool AddVerticalTabsPrefix(GuiComposer composer, GuiTab[] tabs, ElementBounds bounds, Action<int, GuiTab> onTabClicked, string key, ref GuiComposer __result)
+        public static bool ComposeVerticalTabsPrefix(GuiElementVerticalTabs __instance, Cairo.Context ctxStatic, Cairo.ImageSurface surfaceStatic)
         {
-            if (composer == null || tabs == null || tabs.Length == 0)
-            {
-                return true;
-            }
-
-            bool hasCustomBackgrounds = tabs.Any(tab => tab is IHandbookTabBackground);
-            if (!hasCustomBackgrounds)
-            {
-                return true;
-            }
-
-            if (!composer.Composed)
-            {
-                CairoFont font = CairoFont.WhiteDetailText().WithFontSize(17f);
-                CairoFont selectedFont = CairoFont.WhiteDetailText().WithFontSize(17f).WithColor(GuiStyle.ActiveButtonTextColor);
-                composer.AddInteractiveElement(new GuiElementVerticalTabsWithBackgrounds(composer.Api, tabs, font, selectedFont, bounds, onTabClicked), key);
-            }
-
-            __result = composer;
-            return false;
+            return !GuiElementVerticalTabsWithBackgrounds.TryCompose(__instance);
         }
 
         private static bool RemoveVanillaTab(GuiDialogSurvivalHandbook instance, List<GuiTab> tabs, ref int curTab, string categoryCode)
