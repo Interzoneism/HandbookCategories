@@ -400,13 +400,15 @@ namespace Handbook_Categories
                 updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "tutorial");
             }
 
-            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("blocksitems"))
+            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("stack"))
             {
+                updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "stack");
                 updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "blocksitems");
             }
 
-            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("guides"))
+            if (!HandbookCategoryManager.ShouldDisplayVanillaTab("guide"))
             {
+                updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "guide");
                 updated |= RemoveVanillaTab(__instance, tabs, ref curTab, "guides");
             }
 
