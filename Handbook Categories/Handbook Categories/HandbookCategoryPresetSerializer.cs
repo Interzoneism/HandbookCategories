@@ -11,65 +11,53 @@ namespace Handbook_Categories
     {
         internal static bool TryEncode(HandbookCategoriesConfig config, out string code, out string error)
         {
-            code = null;
-            error = null;
-
             if (config == null)
             {
-                error = "No configuration available to save.";
-                return false;
+                return Fail(out code, out error, "No configuration available to save.");
             }
 
             try
             {
                 Normalize(config);
 
-                string json = JsonConvert.SerializeObject(config, Formatting.None, new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore
-                });
-
-                byte[] jsonBytes = Encoding.UTF8.GetBytes(json);
-
                 using MemoryStream compressedStream = new();
                 using (DeflateStream deflate = new(compressedStream, CompressionLevel.Optimal, leaveOpen: true))
                 {
+                    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(
+                        config,
+                        Formatting.None,
+                        new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
                     deflate.Write(jsonBytes, 0, jsonBytes.Length);
                 }
 
-                string base64 = Convert.ToBase64String(compressedStream.ToArray());
-                string shortCode = base64.TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-                code = shortCode;
+                code = Convert.ToBase64String(compressedStream.ToArray())
+                    .TrimEnd('=')
+                    .Replace('+', '-')
+                    .Replace('/', '_');
+                error = null;
                 return true;
             }
             catch (Exception e)
             {
-                error = $"Failed to encode preset: {e.Message}";
-                return false;
+                return Fail(out code, out error, $"Failed to encode preset: {e.Message}");
             }
         }
 
         internal static bool TryDecode(string code, out HandbookCategoriesConfig config, out string error)
         {
-            config = null;
-            error = null;
-
             if (string.IsNullOrWhiteSpace(code))
             {
-                error = "Preset code cannot be empty.";
-                return false;
+                return Fail(out config, out error, "Preset code cannot be empty.");
             }
 
             try
             {
                 string normalized = code.Trim().Replace('-', '+').Replace('_', '/');
-
                 int padding = normalized.Length % 4;
+
                 if (padding == 1)
                 {
-                    error = "Invalid preset code.";
-                    return false;
+                    return Fail(out config, out error, "Invalid preset code.");
                 }
 
                 if (padding > 0)
@@ -77,30 +65,27 @@ namespace Handbook_Categories
                     normalized = normalized.PadRight(normalized.Length + (4 - padding), '=');
                 }
 
-                byte[] compressedBytes = Convert.FromBase64String(normalized);
-
-                using MemoryStream compressedStream = new(compressedBytes);
+                using MemoryStream compressedStream = new(Convert.FromBase64String(normalized));
                 using DeflateStream deflate = new(compressedStream, CompressionMode.Decompress);
                 using MemoryStream jsonStream = new();
-                deflate.CopyTo(jsonStream);
 
-                string json = Encoding.UTF8.GetString(jsonStream.ToArray());
-                HandbookCategoriesConfig result = JsonConvert.DeserializeObject<HandbookCategoriesConfig>(json);
+                deflate.CopyTo(jsonStream);
+                HandbookCategoriesConfig result = JsonConvert.DeserializeObject<HandbookCategoriesConfig>(
+                    Encoding.UTF8.GetString(jsonStream.ToArray()));
 
                 if (result == null)
                 {
-                    error = "Preset code did not contain a valid configuration.";
-                    return false;
+                    return Fail(out config, out error, "Preset code did not contain a valid configuration.");
                 }
 
                 Normalize(result);
                 config = result;
+                error = null;
                 return true;
             }
             catch (Exception e)
             {
-                error = $"Failed to decode preset: {e.Message}";
-                return false;
+                return Fail(out config, out error, $"Failed to decode preset: {e.Message}");
             }
         }
 
@@ -119,6 +104,13 @@ namespace Handbook_Categories
                 entry.ForbiddenWords ??= new List<string>();
                 entry.TabBackgroundColor ??= HandbookCategoryColors.DefaultColorName;
             }
+        }
+
+        private static bool Fail<T>(out T result, out string error, string message)
+        {
+            result = default;
+            error = message;
+            return false;
         }
     }
 }
