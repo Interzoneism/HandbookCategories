@@ -1,8 +1,8 @@
 ﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.GameContent;
@@ -41,15 +41,9 @@ namespace Handbook_Categories
 
             capi.ChatCommands
                 .Create("categorymodsave")
-                .WithDescription("Saves the current handbook category configuration as a preset code")
+                .WithDescription("Copies a .categorymod command for the specified category to the clipboard")
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModSaveCommand);
-
-            capi.ChatCommands
-                .Create("categorymodload")
-                .WithDescription("Loads a handbook category configuration from a preset code")
-                .IgnoreAdditionalArgs()
-                .HandleWith(OnCategoryModLoadCommand);
 
             harmony = new Harmony(HarmonyId);
 
@@ -99,13 +93,19 @@ namespace Handbook_Categories
                 return TextCommandResult.Error("Client API unavailable");
             }
 
-            CmdArgs rawArgs = args?.RawArgs;
-            if (rawArgs == null || rawArgs.Length == 0)
+            string rawInput = args?.RawArgs?.PopAll();
+            if (string.IsNullOrWhiteSpace(rawInput))
             {
                 return TextCommandResult.Error("Usage: .categorymod [category] [words]");
             }
 
-            string categoryNameInput = rawArgs.PopWord();
+            List<string> parsedTokens = TokenizeArguments(rawInput);
+            if (parsedTokens.Count == 0)
+            {
+                return TextCommandResult.Error("Usage: .categorymod [category] [words]");
+            }
+
+            string categoryNameInput = parsedTokens[0];
             if (string.IsNullOrWhiteSpace(categoryNameInput))
             {
                 return TextCommandResult.Error("You must specify a category name");
@@ -113,17 +113,7 @@ namespace Handbook_Categories
 
             categoryNameInput = categoryNameInput.Trim();
 
-            List<string> tokens = new();
-            while (rawArgs.Length > 0)
-            {
-                string token = rawArgs.PopWord();
-                if (!string.IsNullOrWhiteSpace(token))
-                {
-                    tokens.Add(token.Trim());
-                }
-            }
-
-            if (tokens.Count == 0)
+            if (parsedTokens.Count == 1)
             {
                 return TextCommandResult.Error("You must specify at least one word to add");
             }
@@ -160,18 +150,37 @@ namespace Handbook_Categories
             List<string> addedForbidden = new();
             List<string> skipped = new();
 
-            foreach (string token in tokens)
+            bool nextIsForbidden = false;
+            for (int i = 1; i < parsedTokens.Count; i++)
             {
-                string word = token;
-                bool isForbidden = false;
-
-                if (word.StartsWith("-", StringComparison.Ordinal))
+                string token = parsedTokens[i];
+                if (string.IsNullOrWhiteSpace(token))
                 {
-                    isForbidden = true;
-                    word = word.Substring(1);
+                    continue;
                 }
 
-                word = word.Trim();
+                string trimmedToken = token.Trim();
+                if (trimmedToken.Length == 0)
+                {
+                    continue;
+                }
+
+                if (trimmedToken.Equals("-", StringComparison.Ordinal))
+                {
+                    nextIsForbidden = true;
+                    continue;
+                }
+
+                bool isForbidden = nextIsForbidden;
+                nextIsForbidden = false;
+
+                if (trimmedToken.StartsWith("-", StringComparison.Ordinal))
+                {
+                    isForbidden = true;
+                    trimmedToken = trimmedToken.Substring(1);
+                }
+
+                string word = trimmedToken.Trim();
                 if (string.IsNullOrWhiteSpace(word))
                 {
                     continue;
@@ -293,92 +302,199 @@ namespace Handbook_Categories
                 return TextCommandResult.Error("Client API unavailable");
             }
 
+            string rawInput = args?.RawArgs?.PopAll();
+            if (string.IsNullOrWhiteSpace(rawInput))
+            {
+                return TextCommandResult.Error("Usage: .categorymodsave [category]");
+            }
+
+            List<string> tokens = TokenizeArguments(rawInput);
+            if (tokens.Count == 0)
+            {
+                return TextCommandResult.Error("Usage: .categorymodsave [category]");
+            }
+
+            string categoryNameInput = tokens[0];
+            if (string.IsNullOrWhiteSpace(categoryNameInput))
+            {
+                return TextCommandResult.Error("You must specify a category name");
+            }
+
             HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
                 ?? HandbookCategoriesConfig.CreateDefault();
 
             config.Categories ??= new List<HandbookCategoryConfigEntry>();
 
-            if (!HandbookCategoryPresetSerializer.TryEncode(config, out string code, out string error))
+            HandbookCategoryConfigEntry category = config.Categories
+                .FirstOrDefault(entry => entry != null && entry.Name != null && entry.Name.Equals(categoryNameInput, StringComparison.OrdinalIgnoreCase));
+
+            if (category == null)
             {
-                return TextCommandResult.Error(error ?? "Failed to create preset code.");
+                return TextCommandResult.Error($"Category \"{categoryNameInput}\" was not found");
             }
 
+            string command = BuildCategoryCommand(category);
             bool clipboardCopied = false;
-            if (!string.IsNullOrEmpty(code))
+
+            if (!string.IsNullOrWhiteSpace(command))
             {
                 try
                 {
-                    capi.Forms?.SetClipboardText(code);
+                    capi.Forms?.SetClipboardText(command);
                     clipboardCopied = true;
                 }
                 catch (Exception ex)
                 {
-                    capi.Logger?.Warning("Handbook Categories: Failed to copy preset code to clipboard: {0}", ex.Message);
+                    capi.Logger?.Warning("Handbook Categories: Failed to copy category command to clipboard: {0}", ex.Message);
                 }
-            }
-
-            string documentsMessage;
-            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            if (!string.IsNullOrWhiteSpace(documentsPath))
-            {
-                string filePath = Path.Combine(documentsPath, "VS_CategoryCode.txt");
-                try
-                {
-                    File.WriteAllText(filePath, code ?? string.Empty);
-                    documentsMessage = $"Saved to {filePath}.";
-                }
-                catch (Exception ex)
-                {
-                    capi.Logger?.Warning("Handbook Categories: Failed to write preset code to {0}: {1}", filePath, ex.Message);
-                    documentsMessage = "Could not save to the Documents folder.";
-                }
-            }
-            else
-            {
-                documentsMessage = "Could not locate the Documents folder.";
             }
 
             List<string> messageParts = new()
             {
-                "Category preset saved.",
-                clipboardCopied ? "Code copied to clipboard." : "Unable to copy code to clipboard.",
-                documentsMessage,
-                $"Use .categorymodload {code} to load it later."
+                $"Category \"{category.Name}\" command: {command}",
+                clipboardCopied ? "Copied to clipboard." : "Unable to copy to clipboard."
             };
 
             return TextCommandResult.Success(string.Join(" ", messageParts));
         }
 
-        private TextCommandResult OnCategoryModLoadCommand(TextCommandCallingArgs args)
+        private static List<string> TokenizeArguments(string input)
         {
-            if (capi == null)
+            List<string> tokens = new();
+
+            if (string.IsNullOrWhiteSpace(input))
             {
-                return TextCommandResult.Error("Client API unavailable");
+                return tokens;
             }
 
-            CmdArgs rawArgs = args?.RawArgs;
-            if (rawArgs == null || rawArgs.Length == 0)
+            StringBuilder builder = new();
+            bool inQuotes = false;
+            char quoteChar = '\0';
+
+            for (int i = 0; i < input.Length; i++)
             {
-                return TextCommandResult.Error("Usage: .categorymodload [presetCode]");
+                char ch = input[i];
+
+                if (inQuotes)
+                {
+                    if (ch == '\\' && i + 1 < input.Length)
+                    {
+                        i++;
+                        builder.Append(input[i]);
+                        continue;
+                    }
+
+                    if (ch == quoteChar)
+                    {
+                        inQuotes = false;
+                        continue;
+                    }
+
+                    builder.Append(ch);
+                }
+                else
+                {
+                    if (ch == '\"' || ch == '\'')
+                    {
+                        inQuotes = true;
+                        quoteChar = ch;
+                        continue;
+                    }
+
+                    if (char.IsWhiteSpace(ch))
+                    {
+                        AddToken(builder, tokens);
+                        continue;
+                    }
+
+                    builder.Append(ch);
+                }
             }
 
-            string presetCode = rawArgs.PopWord();
-            if (string.IsNullOrWhiteSpace(presetCode))
+            AddToken(builder, tokens);
+
+            return tokens;
+        }
+
+        private static void AddToken(StringBuilder builder, List<string> tokens)
+        {
+            if (builder.Length == 0)
             {
-                return TextCommandResult.Error("You must specify a preset code");
+                return;
             }
 
-            if (!HandbookCategoryPresetSerializer.TryDecode(presetCode.Trim(), out HandbookCategoriesConfig config, out string error))
+            tokens.Add(builder.ToString());
+            builder.Clear();
+        }
+
+        private static string BuildCategoryCommand(HandbookCategoryConfigEntry category)
+        {
+            List<string> parts = new()
             {
-                return TextCommandResult.Error(error ?? "Failed to load preset code.");
+                ".categorymod",
+                FormatCommandToken(category?.Name, isForbidden: false)
+            };
+
+            if (category?.MatchWords != null)
+            {
+                foreach (string word in category.MatchWords)
+                {
+                    string formatted = FormatCommandToken(word, isForbidden: false);
+                    if (!string.IsNullOrWhiteSpace(formatted))
+                    {
+                        parts.Add(formatted);
+                    }
+                }
             }
 
-            config.Categories ??= new List<HandbookCategoryConfigEntry>();
+            if (category?.ForbiddenWords != null)
+            {
+                foreach (string word in category.ForbiddenWords)
+                {
+                    string formatted = FormatCommandToken(word, isForbidden: true);
+                    if (!string.IsNullOrWhiteSpace(formatted))
+                    {
+                        parts.Add(formatted);
+                    }
+                }
+            }
 
-            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
-            HandbookCategoryManager.ReloadConfiguration();
+            return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+        }
 
-            return TextCommandResult.Success("Category preset loaded. Restart the game for the changes to take effect.");
+        private static string FormatCommandToken(string value, bool isForbidden)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            string trimmed = value.Trim();
+            string prefix = isForbidden ? "-" : string.Empty;
+
+            bool needsQuotes = trimmed.Any(char.IsWhiteSpace);
+
+            if (!needsQuotes)
+            {
+                return prefix + trimmed;
+            }
+
+            bool containsDouble = trimmed.Contains("\"");
+            bool containsSingle = trimmed.Contains("'");
+
+            char quoteChar = containsDouble && !containsSingle ? '\'' : '"';
+
+            string escaped = trimmed.Replace("\\", "\\\\");
+            if (quoteChar == '\'')
+            {
+                escaped = escaped.Replace("'", "\\'");
+            }
+            else
+            {
+                escaped = escaped.Replace("\"", "\\\"");
+            }
+
+            return prefix + quoteChar + escaped + quoteChar;
         }
     }
 
