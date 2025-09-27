@@ -10,6 +10,8 @@ namespace Handbook_Categories
     {
         internal const string DefaultColorName = "default";
 
+        private const double CustomColorDefaultAlpha = 1.0;
+
         private static readonly Dictionary<string, string> NamedColorHexValues = new(StringComparer.OrdinalIgnoreCase)
         {
             [DefaultColorName] = "#403529",
@@ -32,8 +34,6 @@ namespace Handbook_Categories
             ["white"] = "#F9FAFB"
         };
 
-        private static double DefaultAlpha => GuiStyle.DialogDefaultBgColor.Length > 3 ? GuiStyle.DialogDefaultBgColor[3] : 1.0;
-
         internal static double[] GetDefaultBackgroundColor()
         {
             return (double[])GuiStyle.DialogDefaultBgColor.Clone();
@@ -52,7 +52,12 @@ namespace Handbook_Categories
             if (NamedColorHexValues.TryGetValue(trimmed, out string hex))
             {
                 usedFallback = false;
-                return ColorUtil.Hex2Doubles(hex, DefaultAlpha);
+                if (string.Equals(trimmed, DefaultColorName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return GetDefaultBackgroundColor();
+                }
+
+                return ColorUtil.Hex2Doubles(hex, CustomColorDefaultAlpha);
             }
 
             if (TryParseHex(trimmed, out double[] fromHex))
@@ -89,7 +94,7 @@ namespace Handbook_Categories
             {
                 if (value.Length == 7)
                 {
-                    color = ColorUtil.Hex2Doubles(value, DefaultAlpha);
+                    color = ColorUtil.Hex2Doubles(value, CustomColorDefaultAlpha);
                     return true;
                 }
 
@@ -152,7 +157,7 @@ namespace Handbook_Categories
             }
             else
             {
-                channels[3] = DefaultAlpha;
+                channels[3] = CustomColorDefaultAlpha;
             }
 
             color = channels;
