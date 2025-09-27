@@ -396,7 +396,7 @@ namespace Handbook_Categories
                 {
                     if (ch == '"' || ch == '\'')
                     {
-                        if (builder.Length == 0)
+                        if (builder.Length == 0 || (builder.Length == 1 && builder[0] == '-'))
                         {
                             inQuotes = true;
                             quoteChar = ch;
