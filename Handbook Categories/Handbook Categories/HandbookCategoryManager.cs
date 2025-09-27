@@ -19,12 +19,15 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, string> displayNameByCategory = new();
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
         private static readonly List<string> orderedCategories = new();
+        private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
         private static bool onlyGridPages = true;
 
         private sealed class WordCategoryDefinition
         {
-            internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases)
+            private readonly double[] tabBackgroundColor;
+
+            internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases, double[] backgroundColor)
             {
                 CategoryName = categoryName ?? string.Empty;
                 SanitizedName = sanitizedName ?? string.Empty;
@@ -34,6 +37,7 @@ namespace Handbook_Categories
                 MatchPhrases = matchPhrases ?? Array.Empty<string>();
                 ForbiddenWords = forbiddenWords ?? Array.Empty<string>();
                 ForbiddenPhrases = forbiddenPhrases ?? Array.Empty<string>();
+                tabBackgroundColor = NormalizeColor(backgroundColor);
             }
 
             internal string CategoryName { get; }
@@ -51,6 +55,8 @@ namespace Handbook_Categories
             internal string[] ForbiddenWords { get; }
 
             internal string[] ForbiddenPhrases { get; }
+
+            internal double[] BackgroundColor => (double[])tabBackgroundColor.Clone();
 
             internal bool MatchesAnyPhrase(string normalizedTitle)
             {
@@ -95,6 +101,18 @@ namespace Handbook_Categories
                 }
 
                 return false;
+            }
+
+            private static double[] NormalizeColor(double[] color)
+            {
+                if (color == null || color.Length < 4)
+                {
+                    return HandbookCategoryColors.GetDefaultBackgroundColor();
+                }
+
+                double[] copy = new double[4];
+                Array.Copy(color, copy, 4);
+                return copy;
             }
         }
 
@@ -153,6 +171,7 @@ namespace Handbook_Categories
             displayNameByCategory.Clear();
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
+            tabBackgroundByCategory.Clear();
         }
 
         internal static bool HasCategories => orderedCategories.Count > 0;
@@ -183,6 +202,16 @@ namespace Handbook_Categories
 
             string translated = Lang.GetMatchingIfExists(translationKey);
             return string.IsNullOrEmpty(translated) ? fallback : translated;
+        }
+
+        internal static double[] GetTabBackgroundColor(string categoryCode)
+        {
+            if (!string.IsNullOrEmpty(categoryCode) && tabBackgroundByCategory.TryGetValue(categoryCode, out double[] color) && color != null)
+            {
+                return (double[])color.Clone();
+            }
+
+            return HandbookCategoryColors.GetDefaultBackgroundColor();
         }
 
         internal static void RebuildCategories(List<GuiHandbookPage> allPages)
@@ -264,6 +293,7 @@ namespace Handbook_Categories
             displayNameByCategory.Clear();
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
+            tabBackgroundByCategory.Clear();
 
             foreach (WordCategoryDefinition definition in wordCategories)
             {
@@ -279,6 +309,7 @@ namespace Handbook_Categories
                 displayNameByCategory[categoryCode] = displayNames[categoryCode];
                 translationKeyByCategory[categoryCode] = translationKeys[categoryCode];
                 orderedCategories.Add(categoryCode);
+                tabBackgroundByCategory[categoryCode] = definition.BackgroundColor;
             }
         }
 
@@ -670,7 +701,13 @@ namespace Handbook_Categories
                 string[] forbiddenSingles = forbiddenSinglesList.ToArray();
                 string[] forbiddenPhrases = forbiddenPhrasesList.ToArray();
 
-                WordCategoryDefinition definition = new(name, sanitized, matchSingles, matchPhrases, forbiddenSingles, forbiddenPhrases);
+                double[] backgroundColor = HandbookCategoryColors.ResolveBackgroundColor(entry.TabBackgroundColor, out bool usedFallback);
+                if (usedFallback && !string.IsNullOrWhiteSpace(entry.TabBackgroundColor))
+                {
+                    capi?.Logger?.Warning("[HandbookCategories] Unknown tab background color \"{0}\" for category \"{1}\". Using default color.", entry.TabBackgroundColor, name);
+                }
+
+                WordCategoryDefinition definition = new(name, sanitized, matchSingles, matchPhrases, forbiddenSingles, forbiddenPhrases, backgroundColor);
                 definitions.Add(definition);
 
                 for (int i = 0; i < matchSingles.Length; i++)
