@@ -39,6 +39,18 @@ namespace Handbook_Categories
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModDeleteCommand);
 
+            capi.ChatCommands
+                .Create("categorymodsave")
+                .WithDescription("Saves the current handbook category configuration as a preset code")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnCategoryModSaveCommand);
+
+            capi.ChatCommands
+                .Create("categorymodload")
+                .WithDescription("Loads a handbook category configuration from a preset code")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnCategoryModLoadCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -275,6 +287,58 @@ namespace Handbook_Categories
             HandbookCategoryManager.ReloadConfiguration();
 
             return TextCommandResult.Success($"Deleted category \"{category.Name}\". Restart the game for the changes to take effect.");
+        }
+
+        private TextCommandResult OnCategoryModSaveCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            config.Categories ??= new List<HandbookCategoryConfigEntry>();
+
+            if (!HandbookCategoryPresetSerializer.TryEncode(config, out string code, out string error))
+            {
+                return TextCommandResult.Error(error ?? "Failed to create preset code.");
+            }
+
+            return TextCommandResult.Success($"Category preset saved. Use .categorymodload {code} to load it later.");
+        }
+
+        private TextCommandResult OnCategoryModLoadCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            CmdArgs rawArgs = args?.RawArgs;
+            if (rawArgs == null || rawArgs.Length == 0)
+            {
+                return TextCommandResult.Error("Usage: .categorymodload [presetCode]");
+            }
+
+            string presetCode = rawArgs.PopWord();
+            if (string.IsNullOrWhiteSpace(presetCode))
+            {
+                return TextCommandResult.Error("You must specify a preset code");
+            }
+
+            if (!HandbookCategoryPresetSerializer.TryDecode(presetCode.Trim(), out HandbookCategoriesConfig config, out string error))
+            {
+                return TextCommandResult.Error(error ?? "Failed to load preset code.");
+            }
+
+            config.Categories ??= new List<HandbookCategoryConfigEntry>();
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            HandbookCategoryManager.ReloadConfiguration();
+
+            return TextCommandResult.Success("Category preset loaded. Restart the game for the changes to take effect.");
         }
     }
 
