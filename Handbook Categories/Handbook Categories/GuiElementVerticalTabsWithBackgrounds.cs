@@ -1,39 +1,69 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using Cairo;
+using HarmonyLib;
 using Vintagestory.API.Client;
 
 namespace Handbook_Categories
 {
-    internal sealed class GuiElementVerticalTabsWithBackgrounds : GuiElementVerticalTabs
+    internal static class GuiElementVerticalTabsWithBackgrounds
     {
-        public GuiElementVerticalTabsWithBackgrounds(ICoreClientAPI capi, GuiTab[] tabs, CairoFont font, CairoFont selectedFont, ElementBounds bounds, Action<int, GuiTab> onTabClicked)
-            : base(capi, tabs, font, selectedFont, bounds, onTabClicked)
-        {
-        }
+        private static readonly FieldInfo TabsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabs");
+        private static readonly FieldInfo TabWidthsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabWidths");
+        private static readonly FieldInfo TabHeightField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabHeight");
+        private static readonly FieldInfo TextOffsetYField = AccessTools.Field(typeof(GuiElementVerticalTabs), "textOffsetY");
+        private static readonly FieldInfo UnscaledTabSpacingField = AccessTools.Field(typeof(GuiElementVerticalTabs), "unscaledTabSpacing");
+        private static readonly FieldInfo UnscaledTabPaddingField = AccessTools.Field(typeof(GuiElementVerticalTabs), "unscaledTabPadding");
+        private static readonly FieldInfo UnscaledTabHeightField = AccessTools.Field(typeof(GuiElementVerticalTabs), "unscaledTabHeight");
+        private static readonly FieldInfo SelectedFontField = AccessTools.Field(typeof(GuiElementVerticalTabs), "selectedFont");
+        private static readonly FieldInfo HoverTexturesField = AccessTools.Field(typeof(GuiElementVerticalTabs), "hoverTextures");
+        private static readonly FieldInfo BaseTextureField = AccessTools.Field(typeof(GuiElementVerticalTabs), "baseTexture");
+        private static readonly FieldInfo ApiField = AccessTools.Field(typeof(GuiElement), "api");
 
-        public override void ComposeTextElements(Context ctxStatic, ImageSurface surfaceStatic)
+        public static bool TryCompose(GuiElementVerticalTabs element)
         {
-            Bounds.CalcWorldBounds();
+            if (TabsField?.GetValue(element) is not GuiTab[] tabs || tabs.Length == 0)
+            {
+                return false;
+            }
 
-            using var surface = new ImageSurface(Format.Argb32, (int)Bounds.InnerWidth + 1, (int)Bounds.InnerHeight + 1);
+            if (!tabs.Any(tab => tab is IHandbookTabBackground))
+            {
+                return false;
+            }
+
+            ElementBounds bounds = element.Bounds;
+            bounds.CalcWorldBounds();
+
+            using var surface = new ImageSurface(Format.Argb32, (int)bounds.InnerWidth + 1, (int)bounds.InnerHeight + 1);
             using var ctx = new Context(surface);
 
-            double outlineThickness = GuiElement.scaled(1.0);
-            double tabSpacing = GuiElement.scaled(unscaledTabSpacing);
-            double tabPadding = GuiElement.scaled(unscaledTabPadding);
-            tabHeight = GuiElement.scaled(unscaledTabHeight);
+            if (ApiField?.GetValue(element) is not ICoreClientAPI api)
+            {
+                return false;
+            }
 
-            Font.Color[3] = 0.85;
+            double outlineThickness = GuiElement.scaled(1.0);
+            double tabSpacing = GuiElement.scaled((double)(UnscaledTabSpacingField?.GetValue(element) ?? 5.0));
+            double tabPadding = GuiElement.scaled((double)(UnscaledTabPaddingField?.GetValue(element) ?? 3.0));
+            double tabHeight = GuiElement.scaled((double)(UnscaledTabHeightField?.GetValue(element) ?? 25.0));
+            TabHeightField?.SetValue(element, tabHeight);
+
+            CairoFont font = element.Font;
+            font.Color[3] = 0.85;
 
             double tabHeightWithBorder = tabHeight + 1.0;
-            Font.SetupContext(ctx);
-            FontExtents fontExtents = Font.GetFontExtents();
-            textOffsetY = (tabHeightWithBorder - fontExtents.Height) / 2.0;
+            font.SetupContext(ctx);
+            FontExtents fontExtents = font.GetFontExtents();
+            double textOffsetY = (tabHeightWithBorder - fontExtents.Height) / 2.0;
+            TextOffsetYField?.SetValue(element, textOffsetY);
+
+            int[] tabWidths = GetTabWidths(element, tabs.Length);
 
             double maxTabWidth = 0.0;
-            for (int i = 0; i < tabs.Length; i++)
+            foreach (GuiTab tab in tabs)
             {
-                GuiTab tab = tabs[i];
                 if (tab == null)
                 {
                     continue;
@@ -48,6 +78,7 @@ namespace Handbook_Categories
             }
 
             double currentY = 0.0;
+            bool right = element.Right;
 
             for (int i = 0; i < tabs.Length; i++)
             {
@@ -62,7 +93,7 @@ namespace Handbook_Categories
 
                 double xStart;
                 ctx.NewPath();
-                if (Right)
+                if (right)
                 {
                     xStart = 1.0;
                     ctx.MoveTo(xStart, currentY + tabHeight);
@@ -73,7 +104,7 @@ namespace Handbook_Categories
                 }
                 else
                 {
-                    xStart = (int)Bounds.InnerWidth + 1;
+                    xStart = (int)bounds.InnerWidth + 1;
                     ctx.MoveTo(xStart, currentY + tabHeight);
                     ctx.LineTo(xStart, currentY);
                     ctx.LineTo(xStart - tabWidths[i] + outlineThickness, currentY);
@@ -86,21 +117,52 @@ namespace Handbook_Categories
                 double[] color = GetBackgroundColor(tab);
                 ctx.SetSourceRGBA(color[0], color[1], color[2], color[3]);
                 ctx.FillPreserve();
-                ShadePath(ctx);
+                element.ShadePath(ctx);
 
-                Font.SetupContext(ctx);
-                DrawTextLineAt(ctx, tab.Name ?? string.Empty, xStart - (!Right ? tabWidths[i] : 0) + tabPadding, currentY + textOffsetY);
+                font.SetupContext(ctx);
+                element.DrawTextLineAt(ctx, tab.Name ?? string.Empty, xStart - (!right ? tabWidths[i] : 0) + tabPadding, currentY + textOffsetY);
 
                 currentY += tabHeight + tabSpacing;
             }
 
-            Font.Color[3] = 1.0;
-            ComposeOverlaysWithBackgrounds(tabPadding, outlineThickness);
-            generateTexture(surface, ref baseTexture);
+            font.Color[3] = 1.0;
+            ComposeOverlays(element, api, tabs, tabWidths, tabPadding, outlineThickness, tabHeight, textOffsetY);
+
+            if (BaseTextureField?.GetValue(element) is LoadedTexture baseTexture)
+            {
+                api.Gui.LoadOrUpdateCairoTexture(surface, true, ref baseTexture);
+                BaseTextureField.SetValue(element, baseTexture);
+            }
+
+            return true;
         }
 
-        private void ComposeOverlaysWithBackgrounds(double tabPadding, double outlineThickness)
+        private static int[] GetTabWidths(GuiElementVerticalTabs element, int length)
         {
+            if (TabWidthsField?.GetValue(element) is int[] widths && widths.Length == length)
+            {
+                return widths;
+            }
+
+            widths = new int[length];
+            TabWidthsField?.SetValue(element, widths);
+            return widths;
+        }
+
+        private static void ComposeOverlays(GuiElementVerticalTabs element, ICoreClientAPI api, GuiTab[] tabs, int[] tabWidths, double tabPadding, double outlineThickness, double tabHeight, double textOffsetY)
+        {
+            if (HoverTexturesField?.GetValue(element) is not LoadedTexture[] hoverTextures || hoverTextures.Length != tabs.Length)
+            {
+                return;
+            }
+
+            if (SelectedFontField?.GetValue(element) is not CairoFont selectedFont)
+            {
+                return;
+            }
+
+            bool right = element.Right;
+
             for (int i = 0; i < tabs.Length; i++)
             {
                 GuiTab tab = tabs[i];
@@ -110,7 +172,7 @@ namespace Handbook_Categories
                 }
 
                 using var surface = new ImageSurface(Format.Argb32, tabWidths[i] + 1, (int)tabHeight + 1);
-                using var ctx = genContext(surface);
+                using var ctx = GuiElement.GenContext(surface);
 
                 double width = tabWidths[i] + 1;
                 ctx.SetSourceRGBA(1.0, 1.0, 1.0, 0.0);
@@ -128,7 +190,7 @@ namespace Handbook_Categories
                 ctx.Fill();
 
                 ctx.NewPath();
-                if (Right)
+                if (right)
                 {
                     ctx.LineTo(1.0, 1.0);
                     ctx.LineTo(width, 1.0);
@@ -153,9 +215,9 @@ namespace Handbook_Categories
                 ctx.Stroke();
 
                 selectedFont.SetupContext(ctx);
-                DrawTextLineAt(ctx, tab.Name ?? string.Empty, tabPadding + 2.0, textOffsetY);
+                element.DrawTextLineAt(ctx, tab.Name ?? string.Empty, tabPadding + 2.0, textOffsetY);
 
-                generateTexture(surface, ref hoverTextures[i]);
+                api.Gui.LoadOrUpdateCairoTexture(surface, true, ref hoverTextures[i]);
             }
         }
 
