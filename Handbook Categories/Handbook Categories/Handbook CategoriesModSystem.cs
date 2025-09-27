@@ -5,6 +5,7 @@ using System.Linq;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.GameContent;
+using ClientGuiComposerHelpers = Vintagestory.API.Client.GuiComposerHelpers;
 
 namespace Handbook_Categories
 {
@@ -49,6 +50,15 @@ namespace Handbook_Categories
 
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
+
+            harmony.Patch(AccessTools.Method(typeof(ClientGuiComposerHelpers), nameof(ClientGuiComposerHelpers.AddVerticalTabs), new[]
+            {
+                typeof(GuiComposer),
+                typeof(GuiTab[]),
+                typeof(ElementBounds),
+                typeof(Action<int, GuiTab>),
+                typeof(string)
+            }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.AddVerticalTabsPrefix)));
 
             api.Event.LeaveWorld += OnLeaveWorld;
         }
@@ -328,12 +338,16 @@ namespace Handbook_Categories
                     continue;
                 }
 
-                var tab = new HandbookTab
+                double[] backgroundColor = HandbookCategoryManager.GetTabBackgroundColor(categoryCode);
+
+                var tab = new ColoredHandbookTab
                 {
                     DataInt = tabs.Count,
                     CategoryCode = categoryCode,
                     Name = HandbookCategoryManager.GetTabDisplayName(categoryCode),
-                    PaddingTop = tabs.Count == 0 ? 5.0 : 0.0
+                    PaddingTop = tabs.Count == 0 ? 5.0 : 1.0,
+                    BackgroundColor = backgroundColor
+
                 };
 
                 tabs.Add(tab);
@@ -349,6 +363,30 @@ namespace Handbook_Categories
             {
                 __result = tabs.ToArray();
             }
+        }
+
+        public static bool AddVerticalTabsPrefix(GuiComposer composer, GuiTab[] tabs, ElementBounds bounds, Action<int, GuiTab> onTabClicked, string key, ref GuiComposer __result)
+        {
+            if (composer == null || tabs == null || tabs.Length == 0)
+            {
+                return true;
+            }
+
+            bool hasCustomBackgrounds = tabs.Any(tab => tab is IHandbookTabBackground);
+            if (!hasCustomBackgrounds)
+            {
+                return true;
+            }
+
+            if (!composer.Composed)
+            {
+                CairoFont font = CairoFont.WhiteDetailText().WithFontSize(17f);
+                CairoFont selectedFont = CairoFont.WhiteDetailText().WithFontSize(17f).WithColor(GuiStyle.ActiveButtonTextColor);
+                composer.AddInteractiveElement(new GuiElementVerticalTabsWithBackgrounds(composer.Api, tabs, font, selectedFont, bounds, onTabClicked), key);
+            }
+
+            __result = composer;
+            return false;
         }
     }
 }
