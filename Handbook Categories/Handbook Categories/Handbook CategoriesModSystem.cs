@@ -347,6 +347,7 @@ namespace Handbook_Categories
                     Name = HandbookCategoryManager.GetTabDisplayName(categoryCode),
                     PaddingTop = tabs.Count == 0 ? 5.0 : 1.0,
                     BackgroundColor = backgroundColor
+
                 };
 
                 tabs.Add(tab);
