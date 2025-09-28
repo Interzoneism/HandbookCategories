@@ -609,9 +609,14 @@ namespace Handbook_Categories
                 return false;
             }
 
+            if (normalizedTitle.IndexOf(term, StringComparison.Ordinal) >= 0)
+            {
+                return true;
+            }
+
             if (term.IndexOf(' ', StringComparison.Ordinal) >= 0)
             {
-                return normalizedTitle.IndexOf(term, StringComparison.Ordinal) >= 0;
+                return false;
             }
 
             return titleWords != null && titleWords.Contains(term);
