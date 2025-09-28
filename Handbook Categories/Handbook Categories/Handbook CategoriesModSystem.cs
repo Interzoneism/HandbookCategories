@@ -209,7 +209,7 @@ namespace Handbook_Categories
 
             if (addedMatches.Count == 0 && addedForbidden.Count == 0)
             {
-                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added. Restart the game for the changes to take effect.");
+                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.");
             }
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
@@ -234,7 +234,9 @@ namespace Handbook_Categories
                 parts.Add($"skipped existing: {string.Join(", ", skipped)}");
             }
 
-            return TextCommandResult.Success(string.Join(". ", parts) + ". Restart the game for the changes to take effect.");
+            parts.Add("Handbook tabs refreshed");
+
+            return TextCommandResult.Success(string.Join(". ", parts) + ".");
         }
 
         private TextCommandResult OnCategoryModDeleteCommand(TextCommandCallingArgs args)
@@ -280,7 +282,7 @@ namespace Handbook_Categories
                 HandbookCategoryManager.ReloadConfiguration();
                 RebuildHandbookTabs();
 
-                return TextCommandResult.Success($"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Restart the game for the changes to take effect.");
+                return TextCommandResult.Success($"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Handbook tabs refreshed.");
             }
 
             HandbookCategoryConfigEntry category = config.Categories
@@ -297,7 +299,7 @@ namespace Handbook_Categories
             HandbookCategoryManager.ReloadConfiguration();
             RebuildHandbookTabs();
 
-            return TextCommandResult.Success($"Deleted category \"{category.Name}\". Restart the game for the changes to take effect.");
+            return TextCommandResult.Success($"Deleted category \"{category.Name}\". Handbook tabs refreshed.");
         }
 
         private TextCommandResult OnCategoryModSaveCommand(TextCommandCallingArgs args)
@@ -523,22 +525,27 @@ namespace Handbook_Categories
 
         private void RebuildHandbookTabs()
         {
-            if (capi?.Gui?.OpenedGuis == null)
-            {
-                return;
-            }
-
-            List<GuiDialogSurvivalHandbook> openDialogs = capi.Gui.OpenedGuis
-                .OfType<GuiDialogSurvivalHandbook>()
-                .ToList();
-
-            if (openDialogs.Count == 0)
+            if (capi?.Gui == null)
             {
                 return;
             }
 
             capi.Event.EnqueueMainThreadTask(() =>
             {
+                if (capi?.Gui?.OpenedGuis == null)
+                {
+                    return;
+                }
+
+                List<GuiDialogSurvivalHandbook> openDialogs = capi.Gui.OpenedGuis
+                    .OfType<GuiDialogSurvivalHandbook>()
+                    .ToList();
+
+                if (openDialogs.Count == 0)
+                {
+                    return;
+                }
+
                 foreach (GuiDialogSurvivalHandbook dialog in openDialogs)
                 {
                     HandbookCategoryPatches.RebuildTabs(dialog);
