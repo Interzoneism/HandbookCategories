@@ -119,6 +119,24 @@ namespace Handbook_Categories
             }
         }
 
+        private readonly struct SearchQuery
+        {
+            internal SearchQuery(string[] includeTerms, string[] excludeTerms, bool requiresAllMatches)
+            {
+                IncludeTerms = includeTerms ?? Array.Empty<string>();
+                ExcludeTerms = excludeTerms ?? Array.Empty<string>();
+                RequiresAllMatches = requiresAllMatches && IncludeTerms.Length > 0;
+            }
+
+            internal string[] IncludeTerms { get; }
+
+            internal string[] ExcludeTerms { get; }
+
+            internal bool RequiresAllMatches { get; }
+
+            internal bool HasFilters => IncludeTerms.Length > 0 || ExcludeTerms.Length > 0;
+        }
+
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
         private static readonly Dictionary<string, List<WordCategoryDefinition>> categoriesByMatchWord = new(StringComparer.OrdinalIgnoreCase);
         private static WordCategoryDefinition[] categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
@@ -450,7 +468,7 @@ namespace Handbook_Categories
                 return;
             }
 
-            string[] searchTerms = PrepareSearchTerms(currentSearchText, out bool requireAllMatches);
+            SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
 
             List<WeightedHandbookPage> weightedPages = new();
             foreach (GuiHandbookPage page in pages)
@@ -460,27 +478,7 @@ namespace Handbook_Categories
                     continue;
                 }
 
-                float weight = 1f;
-                bool matches = requireAllMatches;
-                for (int i = 0; i < searchTerms.Length; i++)
-                {
-                    weight = page.GetTextMatchWeight(searchTerms[i]);
-                    if (weight > 0f)
-                    {
-                        if (!requireAllMatches)
-                        {
-                            matches = true;
-                            break;
-                        }
-                    }
-                    else if (requireAllMatches)
-                    {
-                        matches = false;
-                        break;
-                    }
-                }
-
-                if (matches || searchTerms.Length == 0)
+                if (MatchesSearchQuery(page, searchQuery, out float weight))
                 {
                     weightedPages.Add(new WeightedHandbookPage
                     {
@@ -524,63 +522,172 @@ namespace Handbook_Categories
             return null;
         }
 
-        private static string[] PrepareSearchTerms(string currentSearchText, out bool requireAllMatches)
+        private static bool MatchesSearchQuery(GuiHandbookPage page, SearchQuery searchQuery, out float weight)
         {
-            requireAllMatches = false;
+            weight = 1f;
 
-            if (string.IsNullOrEmpty(currentSearchText))
+            if (!searchQuery.HasFilters)
             {
-                return Array.Empty<string>();
+                return true;
             }
 
-            string text = currentSearchText.ToLowerInvariant();
-            string[] parts;
+            float bestWeight = 0f;
 
-            if (text.Contains(" or ", StringComparison.Ordinal))
+            if (searchQuery.IncludeTerms.Length > 0)
             {
-                parts = text.Split(new[] { " or " }, StringSplitOptions.RemoveEmptyEntries)
-                    .OrderBy(str => str.Length)
-                    .ToArray();
-            }
-            else if (text.Contains(" and ", StringComparison.Ordinal))
-            {
-                parts = text.Split(new[] { " and " }, StringSplitOptions.RemoveEmptyEntries)
-                    .OrderBy(str => str.Length)
-                    .ToArray();
-                requireAllMatches = parts.Length > 1;
-            }
-            else
-            {
-                parts = new[] { text };
-            }
+                bool requiresAll = searchQuery.RequiresAllMatches;
+                bool hasMatch = false;
 
-            int emptyCount = 0;
-            for (int i = 0; i < parts.Length; i++)
-            {
-                parts[i] = parts[i].ToSearchFriendly().Trim();
-                if (parts[i].Length == 0)
+                for (int i = 0; i < searchQuery.IncludeTerms.Length; i++)
                 {
-                    emptyCount++;
-                }
-            }
-
-            if (emptyCount > 0)
-            {
-                string[] filtered = new string[parts.Length - emptyCount];
-                int index = 0;
-                for (int i = 0; i < parts.Length; i++)
-                {
-                    if (parts[i].Length != 0)
+                    float termWeight = page.GetTextMatchWeight(searchQuery.IncludeTerms[i]);
+                    if (termWeight > 0f)
                     {
-                        filtered[index++] = parts[i];
+                        hasMatch = true;
+                        if (termWeight > bestWeight)
+                        {
+                            bestWeight = termWeight;
+                        }
+                    }
+                    else if (requiresAll)
+                    {
+                        return false;
                     }
                 }
 
-                parts = filtered;
-                requireAllMatches = requireAllMatches && parts.Length > 1;
+                if (!hasMatch)
+                {
+                    return false;
+                }
             }
 
-            return parts;
+            for (int i = 0; i < searchQuery.ExcludeTerms.Length; i++)
+            {
+                if (page.GetTextMatchWeight(searchQuery.ExcludeTerms[i]) > 0f)
+                {
+                    return false;
+                }
+            }
+
+            weight = bestWeight > 0f ? bestWeight : 1f;
+            return true;
+        }
+
+        private static SearchQuery PrepareSearchTerms(string currentSearchText)
+        {
+            if (string.IsNullOrWhiteSpace(currentSearchText))
+            {
+                return new SearchQuery(Array.Empty<string>(), Array.Empty<string>(), false);
+            }
+
+            string text = currentSearchText.ToLowerInvariant();
+            List<string> includeTerms = new();
+            List<string> excludeTerms = new();
+            StringBuilder builder = new();
+            bool inQuotes = false;
+            bool excludeNext = false;
+
+            void CommitCurrentToken()
+            {
+                if (builder.Length == 0)
+                {
+                    return;
+                }
+
+                string raw = builder.ToString();
+                builder.Clear();
+
+                string term = raw.ToSearchFriendly().Trim();
+                if (term.Length == 0)
+                {
+                    excludeNext = false;
+                    return;
+                }
+
+                if (excludeNext)
+                {
+                    excludeTerms.Add(term);
+                }
+                else
+                {
+                    includeTerms.Add(term);
+                }
+
+                excludeNext = false;
+            }
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char ch = text[i];
+
+                if (ch == '"')
+                {
+                    if (inQuotes)
+                    {
+                        CommitCurrentToken();
+                        inQuotes = false;
+                    }
+                    else
+                    {
+                        if (builder.Length > 0)
+                        {
+                            CommitCurrentToken();
+                        }
+
+                        inQuotes = true;
+                    }
+                }
+                else if (!inQuotes && char.IsWhiteSpace(ch))
+                {
+                    if (builder.Length > 0)
+                    {
+                        CommitCurrentToken();
+                    }
+                }
+                else if (!inQuotes && ch == '-')
+                {
+                    if (builder.Length == 0)
+                    {
+                        excludeNext = true;
+                    }
+                    else
+                    {
+                        builder.Append(ch);
+                    }
+                }
+                else
+                {
+                    builder.Append(ch);
+                }
+            }
+
+            if (builder.Length > 0)
+            {
+                CommitCurrentToken();
+            }
+
+            bool containsOr = false;
+            bool containsAnd = false;
+            for (int i = includeTerms.Count - 1; i >= 0; i--)
+            {
+                string term = includeTerms[i];
+                if (term == "or")
+                {
+                    includeTerms.RemoveAt(i);
+                    containsOr = true;
+                }
+                else if (term == "and")
+                {
+                    includeTerms.RemoveAt(i);
+                    containsAnd = true;
+                }
+            }
+
+            string[] includes = includeTerms.ToArray();
+            string[] excludes = excludeTerms.ToArray();
+            bool requireAllMatches = containsOr ? false : includes.Length > 1 || containsAnd;
+
+            return new SearchQuery(includes, excludes, requireAllMatches);
         }
 
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
