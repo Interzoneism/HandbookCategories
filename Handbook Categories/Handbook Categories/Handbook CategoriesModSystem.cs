@@ -578,11 +578,6 @@ namespace Handbook_Categories
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
         {
-            if (!HandbookCategoryManager.IsManagedCategory(__instance.currentCatgoryCode))
-            {
-                return true;
-            }
-
             if (ShownPagesField?.GetValue(__instance) is not List<IFlatListItem> shownPages)
             {
                 return true;
@@ -593,7 +588,31 @@ namespace Handbook_Categories
             var loading = LoadingPagesField != null && (bool)LoadingPagesField.GetValue(__instance);
             double listHeight = ListHeightField != null ? (double)ListHeightField.GetValue(__instance) : 500d;
 
-            HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, shownPages, overviewGui, currentSearch, loading, listHeight);
+            IEnumerable<GuiHandbookPage> candidatePages = null;
+
+            if (HandbookCategoryManager.TryGetCategoryPages(__instance.currentCatgoryCode, out List<GuiHandbookPage> managedPages))
+            {
+                candidatePages = managedPages;
+            }
+            else if (AllPagesField?.GetValue(__instance) is List<GuiHandbookPage> allPages)
+            {
+                if (__instance.currentCatgoryCode == null)
+                {
+                    candidatePages = allPages;
+                }
+                else
+                {
+                    string currentCode = __instance.currentCatgoryCode;
+                    candidatePages = allPages.Where(page => page != null && page.CategoryCode == currentCode);
+                }
+            }
+
+            if (candidatePages == null)
+            {
+                return true;
+            }
+
+            HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, candidatePages, shownPages, overviewGui, currentSearch, loading, listHeight);
 
             return false;
         }

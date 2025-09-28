@@ -235,6 +235,18 @@ namespace Handbook_Categories
             return !string.IsNullOrEmpty(categoryCode) && pagesByCategory.ContainsKey(categoryCode);
         }
 
+        internal static bool TryGetCategoryPages(string categoryCode, out List<GuiHandbookPage> pages)
+        {
+            if (!string.IsNullOrEmpty(categoryCode) && pagesByCategory.TryGetValue(categoryCode, out List<GuiHandbookPage> managedPages))
+            {
+                pages = managedPages;
+                return true;
+            }
+
+            pages = null;
+            return false;
+        }
+
         internal static string GetTabDisplayName(string categoryCode)
         {
             if (categoryCode == null)
@@ -453,7 +465,7 @@ namespace Handbook_Categories
             }
         }
 
-        internal static void ApplyCategoryFilter(string categoryCode, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
+        internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
         {
             if (shownPages == null)
             {
@@ -462,16 +474,29 @@ namespace Handbook_Categories
 
             shownPages.Clear();
 
-            if (!pagesByCategory.TryGetValue(categoryCode, out List<GuiHandbookPage> pages) || loadingPages)
+            if (loadingPages)
             {
                 UpdateScrollArea(overviewGui, listHeight);
                 return;
             }
 
+            IEnumerable<GuiHandbookPage> pagesToFilter = candidatePages;
+
+            if (pagesToFilter == null)
+            {
+                if (!TryGetCategoryPages(categoryCode, out List<GuiHandbookPage> managedPages))
+                {
+                    UpdateScrollArea(overviewGui, listHeight);
+                    return;
+                }
+
+                pagesToFilter = managedPages;
+            }
+
             SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
 
             List<WeightedHandbookPage> weightedPages = new();
-            foreach (GuiHandbookPage page in pages)
+            foreach (GuiHandbookPage page in pagesToFilter)
             {
                 if (page == null || page.IsDuplicate)
                 {
