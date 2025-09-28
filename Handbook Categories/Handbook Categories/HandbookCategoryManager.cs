@@ -531,6 +531,9 @@ namespace Handbook_Categories
                 return true;
             }
 
+            string normalizedTitle = GetNormalizedTitle(page);
+            HashSet<string> titleWords = ExtractWords(normalizedTitle);
+
             float bestWeight = 0f;
 
             if (searchQuery.IncludeTerms.Length > 0)
@@ -540,10 +543,11 @@ namespace Handbook_Categories
 
                 for (int i = 0; i < searchQuery.IncludeTerms.Length; i++)
                 {
-                    float termWeight = page.GetTextMatchWeight(searchQuery.IncludeTerms[i]);
-                    if (termWeight > 0f)
+                    string term = searchQuery.IncludeTerms[i];
+                    if (DoesTitleContainTerm(normalizedTitle, titleWords, term))
                     {
                         hasMatch = true;
+                        float termWeight = page.GetTextMatchWeight(term);
                         if (termWeight > bestWeight)
                         {
                             bestWeight = termWeight;
@@ -563,7 +567,7 @@ namespace Handbook_Categories
 
             for (int i = 0; i < searchQuery.ExcludeTerms.Length; i++)
             {
-                if (page.GetTextMatchWeight(searchQuery.ExcludeTerms[i]) > 0f)
+                if (DoesTitleContainTerm(normalizedTitle, titleWords, searchQuery.ExcludeTerms[i]))
                 {
                     return false;
                 }
@@ -571,6 +575,47 @@ namespace Handbook_Categories
 
             weight = bestWeight > 0f ? bestWeight : 1f;
             return true;
+        }
+
+        private static bool DoesTitleContainTerm(string normalizedTitle, HashSet<string> titleWords, string term)
+        {
+            if (string.IsNullOrEmpty(term) || string.IsNullOrEmpty(normalizedTitle))
+            {
+                return false;
+            }
+
+            if (term.IndexOf(' ', StringComparison.Ordinal) >= 0)
+            {
+                return normalizedTitle.IndexOf(term, StringComparison.Ordinal) >= 0;
+            }
+
+            return titleWords != null && titleWords.Contains(term);
+        }
+
+        private static string GetNormalizedTitle(GuiHandbookPage page)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string rawTitle = page switch
+            {
+                GuiHandbookGroupedItemstackPage groupedPage when !string.IsNullOrWhiteSpace(groupedPage.Name) => groupedPage.Name,
+                GuiHandbookItemStackPage itemPage when !string.IsNullOrWhiteSpace(itemPage.TextCacheTitle) => itemPage.TextCacheTitle,
+                GuiHandbookItemStackPage itemPage when itemPage.Stack != null => itemPage.Stack.GetName(),
+                GuiHandbookCommandPage commandPage => commandPage.TextCacheTitle,
+                GuiHandbookMealRecipePage mealPage when !string.IsNullOrWhiteSpace(mealPage.Title) => Lang.Get(mealPage.Title),
+                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Title) => Lang.Get(textPage.Title),
+                _ => page.PageCode
+            } ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(rawTitle))
+            {
+                return string.Empty;
+            }
+
+            return rawTitle.ToSearchFriendly().ToLowerInvariant().Trim();
         }
 
         private static SearchQuery PrepareSearchTerms(string currentSearchText)
@@ -644,7 +689,7 @@ namespace Handbook_Categories
                         CommitCurrentToken();
                     }
                 }
-                else if (!inQuotes && ch == '-')
+                else if (!inQuotes && ch == '!')
                 {
                     if (builder.Length == 0)
                     {
