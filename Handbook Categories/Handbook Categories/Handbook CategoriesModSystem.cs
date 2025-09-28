@@ -627,6 +627,11 @@ namespace Handbook_Categories
 
         public static void GenTabsPostfix(GuiDialogSurvivalHandbook __instance, ref GuiTab[] __result, ref int curTab)
         {
+            if (__instance != null && AllPagesField?.GetValue(__instance) is List<GuiHandbookPage> pages && pages.Count > 0)
+            {
+                HandbookCategoryManager.RebuildCategories(pages);
+            }
+
             if (!HandbookCategoryManager.HasCategories)
             {
                 return;
