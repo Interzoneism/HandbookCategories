@@ -679,6 +679,22 @@ namespace Handbook_Categories
             }
 
             string text = currentSearchText.ToLowerInvariant();
+            int startIndex = 0;
+            while (startIndex < text.Length && char.IsWhiteSpace(text[startIndex]))
+            {
+                startIndex++;
+            }
+
+            bool additiveSearch = startIndex < text.Length && text[startIndex] == '#';
+            if (additiveSearch)
+            {
+                startIndex++;
+            }
+
+            if (startIndex > 0)
+            {
+                text = text.Substring(startIndex);
+            }
             List<SearchTerm> includeTerms = new();
             List<SearchTerm> excludeTerms = new();
             StringBuilder builder = new();
@@ -787,7 +803,9 @@ namespace Handbook_Categories
 
             SearchTerm[] includes = includeTerms.ToArray();
             SearchTerm[] excludes = excludeTerms.ToArray();
-            bool requireAllMatches = containsOr ? false : includes.Length > 1 || containsAnd;
+            bool requireAllMatches = additiveSearch
+                ? false
+                : containsOr ? false : includes.Length > 1 || containsAnd;
 
             return new SearchQuery(includes, excludes, requireAllMatches);
         }
