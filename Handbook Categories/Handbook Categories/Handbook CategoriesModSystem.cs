@@ -396,7 +396,24 @@ namespace Handbook_Categories
 
                     if (ch == quoteChar)
                     {
+                        if (builder.Length == 0)
+                        {
+                            continue;
+                        }
+
                         inQuotes = false;
+
+                        int endQuoteIndex = i + 1;
+                        while (endQuoteIndex < input.Length && input[endQuoteIndex] == quoteChar)
+                        {
+                            endQuoteIndex++;
+                        }
+
+                        if (endQuoteIndex >= input.Length || char.IsWhiteSpace(input[endQuoteIndex]))
+                        {
+                            i = endQuoteIndex - 1;
+                        }
+
                         continue;
                     }
 
