@@ -196,15 +196,18 @@ namespace Handbook_Categories
 
         private readonly struct SearchTerm
         {
-            internal SearchTerm(string term, bool isExactMatch)
+            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch)
             {
                 Term = term;
                 IsExactMatch = isExactMatch;
+                RequiresTitleMatch = requiresTitleMatch;
             }
 
             internal string Term { get; }
 
             internal bool IsExactMatch { get; }
+
+            internal bool RequiresTitleMatch { get; }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -705,7 +708,7 @@ namespace Handbook_Categories
                 for (int i = 0; i < searchQuery.IncludeTerms.Length; i++)
                 {
                     SearchTerm term = searchQuery.IncludeTerms[i];
-                    if (MatchesTerm(page, term, searchableContent, searchableWords, out float termWeight))
+                    if (MatchesTerm(page, normalizedTitle, term, searchableContent, searchableWords, out float termWeight))
                     {
                         hasMatch = true;
                         if (termWeight > bestWeight)
@@ -727,7 +730,7 @@ namespace Handbook_Categories
 
             for (int i = 0; i < searchQuery.ExcludeTerms.Length; i++)
             {
-                if (MatchesTerm(page, searchQuery.ExcludeTerms[i], searchableContent, searchableWords, out _))
+                if (MatchesTerm(page, normalizedTitle, searchQuery.ExcludeTerms[i], searchableContent, searchableWords, out _))
                 {
                     return false;
                 }
@@ -737,13 +740,24 @@ namespace Handbook_Categories
             return true;
         }
 
-        private static bool MatchesTerm(GuiHandbookPage page, SearchTerm term, string searchableContent, HashSet<string> searchableWords, out float weight)
+        private static bool MatchesTerm(GuiHandbookPage page, string normalizedTitle, SearchTerm term, string searchableContent, HashSet<string> searchableWords, out float weight)
         {
             weight = 0f;
 
             if (page == null || string.IsNullOrEmpty(term.Term))
             {
                 return false;
+            }
+
+            if (term.RequiresTitleMatch)
+            {
+                if (!string.Equals(normalizedTitle, term.Term, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                weight = float.MaxValue;
+                return true;
             }
 
             float matchWeight = page.GetTextMatchWeight(term.Term);
@@ -895,11 +909,15 @@ namespace Handbook_Categories
             bool inQuotes = false;
             bool excludeNext = false;
             bool buildingExactMatch = false;
+            bool currentTokenRequiresTitleMatch = false;
 
-            void CommitCurrentToken(bool exactMatch)
+            void CommitCurrentToken(bool exactMatch, bool requiresTitleMatch)
             {
                 if (builder.Length == 0)
                 {
+                    excludeNext = false;
+                    buildingExactMatch = false;
+                    currentTokenRequiresTitleMatch = false;
                     return;
                 }
 
@@ -911,20 +929,22 @@ namespace Handbook_Categories
                 {
                     excludeNext = false;
                     buildingExactMatch = false;
+                    currentTokenRequiresTitleMatch = false;
                     return;
                 }
 
                 if (excludeNext)
                 {
-                    excludeTerms.Add(new SearchTerm(term, exactMatch));
+                    excludeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch));
                 }
                 else
                 {
-                    includeTerms.Add(new SearchTerm(term, exactMatch));
+                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch));
                 }
 
                 excludeNext = false;
                 buildingExactMatch = false;
+                currentTokenRequiresTitleMatch = false;
             }
 
             for (int i = 0; i < text.Length; i++)
@@ -935,25 +955,46 @@ namespace Handbook_Categories
                 {
                     if (inQuotes)
                     {
-                        CommitCurrentToken(true);
-                        inQuotes = false;
+                        if (currentTokenRequiresTitleMatch && i + 1 < text.Length && text[i + 1] == '"')
+                        {
+                            CommitCurrentToken(true, true);
+                            inQuotes = false;
+                            i++;
+                        }
+                        else
+                        {
+                            CommitCurrentToken(true, currentTokenRequiresTitleMatch);
+                            inQuotes = false;
+                        }
+                        currentTokenRequiresTitleMatch = false;
                     }
                     else
                     {
                         if (builder.Length > 0)
                         {
-                            CommitCurrentToken(false);
+                            CommitCurrentToken(false, currentTokenRequiresTitleMatch);
                         }
 
-                        inQuotes = true;
-                        buildingExactMatch = true;
+                        if (i + 1 < text.Length && text[i + 1] == '"')
+                        {
+                            inQuotes = true;
+                            buildingExactMatch = true;
+                            currentTokenRequiresTitleMatch = true;
+                            i++;
+                        }
+                        else
+                        {
+                            inQuotes = true;
+                            buildingExactMatch = true;
+                            currentTokenRequiresTitleMatch = false;
+                        }
                     }
                 }
                 else if (!inQuotes && char.IsWhiteSpace(ch))
                 {
                     if (builder.Length > 0)
                     {
-                        CommitCurrentToken(false);
+                        CommitCurrentToken(false, currentTokenRequiresTitleMatch);
                     }
                 }
                 else if (!inQuotes && ch == '!')
@@ -975,7 +1016,7 @@ namespace Handbook_Categories
 
             if (builder.Length > 0)
             {
-                CommitCurrentToken(buildingExactMatch);
+                CommitCurrentToken(buildingExactMatch, currentTokenRequiresTitleMatch);
             }
 
             bool containsOr = false;
