@@ -797,9 +797,10 @@ namespace Handbook_Categories
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
         {
+            string searchText = GetActiveSearchText(dialog);
             bool stateChanged = HandbookCategoryManager.TrySetRecipesOnly(enabled);
 
-            RefreshActiveTab(dialog, clearSearch: false);
+            RefreshActiveTab(dialog, clearSearch: false, searchTextToRestore: searchText);
 
             if (stateChanged)
             {
@@ -807,12 +808,15 @@ namespace Handbook_Categories
             }
         }
 
-        private static void RefreshActiveTab(GuiDialogHandbook dialog, bool clearSearch)
+        private static void RefreshActiveTab(GuiDialogHandbook dialog, bool clearSearch, string searchTextToRestore = null)
         {
             if (dialog == null)
             {
                 return;
             }
+
+            string textToRestore = clearSearch ? null : searchTextToRestore;
+            bool shouldRestoreSearch = textToRestore != null;
 
             GuiComposer overview = OverviewGuiField?.GetValue(dialog) as GuiComposer;
 
@@ -829,6 +833,10 @@ namespace Handbook_Categories
                     dialog.FilterItems();
                 }
             }
+            else if (shouldRestoreSearch)
+            {
+                CurrentSearchTextField?.SetValue(dialog, textToRestore);
+            }
 
             if (overview?.GetVerticalTab("verticalTabs") is GuiElementVerticalTabs tabsElement)
             {
@@ -842,11 +850,22 @@ namespace Handbook_Categories
                     }
 
                     tabsElement.SetValue(activeIndex, true);
+
+                    if (!clearSearch && shouldRestoreSearch)
+                    {
+                        RestoreSearchInputText(dialog, textToRestore);
+                    }
+
                     return;
                 }
             }
 
             dialog.selectTab(dialog.currentCatgoryCode);
+
+            if (!clearSearch && shouldRestoreSearch)
+            {
+                RestoreSearchInputText(dialog, textToRestore);
+            }
         }
 
         private static int GetTabCount(GuiElementVerticalTabs tabsElement)
@@ -884,6 +903,44 @@ namespace Handbook_Categories
             }
 
             instance.ReloadPage();
+        }
+
+        private static string GetActiveSearchText(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return null;
+            }
+
+            if (CurrentSearchTextField?.GetValue(dialog) is string storedText)
+            {
+                return storedText;
+            }
+
+            if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
+            {
+                return overview.GetTextInput("searchField")?.GetText();
+            }
+
+            return null;
+        }
+
+        private static void RestoreSearchInputText(GuiDialogHandbook dialog, string textToRestore)
+        {
+            if (dialog == null || textToRestore == null)
+            {
+                return;
+            }
+
+            if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
+            {
+                GuiElementTextInput searchInput = overview.GetTextInput("searchField");
+
+                if (searchInput != null && !string.Equals(searchInput.GetText(), textToRestore, StringComparison.Ordinal))
+                {
+                    searchInput.SetValue(textToRestore);
+                }
+            }
         }
 
         public static void GenTabsPostfix(GuiDialogSurvivalHandbook __instance, ref GuiTab[] __result, ref int curTab)
