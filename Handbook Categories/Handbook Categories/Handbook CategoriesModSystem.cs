@@ -675,19 +675,38 @@ namespace Handbook_Categories
             }
 
             ICoreClientAPI api = HandbookCategoryManager.ClientApi;
-            GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
 
-            if (api == null || searchInput?.Bounds == null)
+            if (api == null)
             {
                 return;
             }
 
-            const double spacing = 18.0;
-            const double minWidth = 140.0;
+            const double fallbackSpacing = 18.0;
+            const double fallbackMinWidth = 140.0;
+            const double pauseButtonSpacing = 10.0;
 
-            ElementBounds bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + spacing, 0.0);
-            bounds.fixedWidth = minWidth;
-            bounds.fixedHeight = searchInput.Bounds.fixedHeight;
+            ElementBounds bounds = null;
+            GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
+
+            if (pauseButton?.Bounds != null)
+            {
+                bounds = pauseButton.Bounds.CopyOffsetedSibling(-(pauseButton.Bounds.fixedWidth + pauseButtonSpacing), 0.0);
+                bounds.fixedWidth = pauseButton.Bounds.fixedWidth;
+                bounds.fixedHeight = pauseButton.Bounds.fixedHeight;
+            }
+            else
+            {
+                GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
+
+                if (searchInput?.Bounds == null)
+                {
+                    return;
+                }
+
+                bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
+                bounds.fixedWidth = fallbackMinWidth;
+                bounds.fixedHeight = searchInput.Bounds.fixedHeight;
+            }
 
             CairoFont font = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
 
