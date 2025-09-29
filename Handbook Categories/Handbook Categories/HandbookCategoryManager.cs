@@ -120,9 +120,15 @@ namespace Handbook_Categories
                     return false;
                 }
 
+                string normalized = NormalizePhrase(normalizedTitle);
+                if (string.IsNullOrEmpty(normalized))
+                {
+                    return false;
+                }
+
                 for (int i = 0; i < MatchPhrases.Length; i++)
                 {
-                    if (normalizedTitle.IndexOf(MatchPhrases[i], StringComparison.Ordinal) >= 0)
+                    if (normalized.Equals(MatchPhrases[i], StringComparison.Ordinal))
                     {
                         return true;
                     }
@@ -1495,11 +1501,47 @@ namespace Handbook_Categories
             }
 
             return rawWords
-                .Select(word => word?.Trim())
+                .Select(NormalizePhrase)
                 .Where(word => !string.IsNullOrEmpty(word))
-                .Select(word => word.ToLowerInvariant())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        private static string NormalizePhrase(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return string.Empty;
+            }
+
+            StringBuilder builder = new(text.Length);
+            bool previousWasWhitespace = false;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char ch = text[i];
+
+                if (char.IsWhiteSpace(ch))
+                {
+                    if (!previousWasWhitespace && builder.Length > 0)
+                    {
+                        builder.Append(' ');
+                        previousWasWhitespace = true;
+                    }
+
+                    continue;
+                }
+
+                builder.Append(char.ToLowerInvariant(ch));
+                previousWasWhitespace = false;
+            }
+
+            if (builder.Length > 0 && builder[^1] == ' ')
+            {
+                builder.Length--;
+            }
+
+            return builder.ToString();
         }
     }
 }
