@@ -642,14 +642,12 @@ namespace Handbook_Categories
                 return;
             }
 
-            if (overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey) != null)
+            GuiElementTextButton existingButton = overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
+            if (existingButton != null)
             {
-                return;
-            }
-
-            var searchInput = overviewGui.GetTextInput("searchField");
-            if (searchInput == null)
-            {
+                existingButton.Text = "Create Category";
+                existingButton.Visible = true;
+                existingButton.Enabled = true;
                 return;
             }
 
@@ -659,20 +657,59 @@ namespace Handbook_Categories
                 return;
             }
 
-            ElementBounds buttonBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + 6.0)
-                .WithFixedWidth(90.0)
-                .WithFixedHeight(searchInput.Bounds.fixedHeight);
+            ElementBounds buttonBounds = BuildCreateButtonBounds(overviewGui);
+            if (buttonBounds == null)
+            {
+                return;
+            }
 
             CairoFont baseFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             CairoFont hoverFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             hoverFont.Color = (double[])GuiStyle.ActiveButtonTextColor.Clone();
 
-            GuiElementTextButton button = new(api, "Create", baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
+            GuiElementTextButton button = new(api, "Create Category", baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
             button.SetOrientation(baseFont.Orientation);
-            button.Visible = false;
-            button.Enabled = false;
+            button.Visible = true;
+            button.Enabled = true;
+            button.Bounds.CalcWorldBounds();
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
+        }
+
+        private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
+        {
+            const double spacing = 8.0;
+            const double minWidth = 130.0;
+
+            if (overviewGui?.LastAddedElement is GuiElementTextButton closeButton && closeButton.Bounds != null && closeButton.Bounds.Alignment == EnumDialogArea.RightFixed)
+            {
+                double width = Math.Max(minWidth, closeButton.Bounds.fixedWidth);
+                ElementBounds bounds = closeButton.Bounds.CopyOffsetedSibling(-(width + spacing), 0.0);
+                bounds.fixedWidth = width;
+                bounds.fixedHeight = closeButton.Bounds.fixedHeight;
+                return bounds;
+            }
+
+            GuiElementTextButton backButton = overviewGui?.GetButton("backButton");
+            if (backButton != null)
+            {
+                double width = Math.Max(minWidth, backButton.Bounds.fixedWidth);
+                ElementBounds bounds = backButton.Bounds.CopyOffsetedSibling(backButton.Bounds.fixedWidth + spacing, 0.0);
+                bounds.fixedWidth = width;
+                bounds.fixedHeight = backButton.Bounds.fixedHeight;
+                return bounds;
+            }
+
+            GuiElementTextInput searchInput = overviewGui?.GetTextInput("searchField");
+            if (searchInput != null)
+            {
+                ElementBounds bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + spacing, 0.0);
+                bounds.fixedWidth = minWidth;
+                bounds.fixedHeight = searchInput.Bounds.fixedHeight;
+                return bounds;
+            }
+
+            return null;
         }
 
         private static bool OnCreateButtonClicked(GuiDialogHandbook dialog)
@@ -683,6 +720,11 @@ namespace Handbook_Categories
             }
 
             string searchText = CurrentSearchTextField?.GetValue(dialog) as string;
+            if (string.IsNullOrWhiteSpace(searchText) && OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
+            {
+                searchText = overview.GetTextInput("searchField")?.GetText();
+            }
+
             if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(searchText))
             {
                 return false;
