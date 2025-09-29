@@ -691,17 +691,7 @@ namespace Handbook_Categories
             GuiElementTextButton existingButton = overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
             if (existingButton != null)
             {
-                bool textChanged = !string.Equals(existingButton.Text, "Create Category", StringComparison.Ordinal);
-                if (textChanged)
-                {
-                    existingButton.Text = "Create Category";
-                }
-
-                if (textChanged)
-                {
-                    overviewGui.ReCompose();
-                }
-
+                HandbookCategoryManager.RegisterCreateButton(overviewGui, existingButton);
                 return;
             }
 
@@ -726,6 +716,7 @@ namespace Handbook_Categories
             button.Bounds.CalcWorldBounds();
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
+            HandbookCategoryManager.RegisterCreateButton(overviewGui, button);
             overviewGui.ReCompose();
         }
 
@@ -779,6 +770,12 @@ namespace Handbook_Categories
             if (dialog == null)
             {
                 return false;
+            }
+
+            if (HandbookCategoryManager.TryExecuteCategoryDeleteCommand(dialog))
+            {
+                HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
+                return true;
             }
 
             string searchText = CurrentSearchTextField?.GetValue(dialog) as string;
