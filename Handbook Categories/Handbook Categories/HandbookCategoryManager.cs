@@ -580,7 +580,8 @@ namespace Handbook_Categories
             }
 
             string normalizedTitle = GetNormalizedTitle(page);
-            HashSet<string> titleWords = ExtractWords(normalizedTitle);
+            string searchableContent = GetSearchableContent(page, normalizedTitle);
+            HashSet<string> searchableWords = ExtractWords(searchableContent);
 
             float bestWeight = 0f;
 
@@ -592,10 +593,9 @@ namespace Handbook_Categories
                 for (int i = 0; i < searchQuery.IncludeTerms.Length; i++)
                 {
                     SearchTerm term = searchQuery.IncludeTerms[i];
-                    if (DoesTitleContainTerm(normalizedTitle, titleWords, term))
+                    if (MatchesTerm(page, term, searchableContent, searchableWords, out float termWeight))
                     {
                         hasMatch = true;
-                        float termWeight = page.GetTextMatchWeight(term.Term);
                         if (termWeight > bestWeight)
                         {
                             bestWeight = termWeight;
@@ -615,7 +615,7 @@ namespace Handbook_Categories
 
             for (int i = 0; i < searchQuery.ExcludeTerms.Length; i++)
             {
-                if (DoesTitleContainTerm(normalizedTitle, titleWords, searchQuery.ExcludeTerms[i]))
+                if (MatchesTerm(page, searchQuery.ExcludeTerms[i], searchableContent, searchableWords, out _))
                 {
                     return false;
                 }
@@ -625,34 +625,101 @@ namespace Handbook_Categories
             return true;
         }
 
-        private static bool DoesTitleContainTerm(string normalizedTitle, HashSet<string> titleWords, SearchTerm term)
+        private static bool MatchesTerm(GuiHandbookPage page, SearchTerm term, string searchableContent, HashSet<string> searchableWords, out float weight)
         {
-            if (string.IsNullOrEmpty(term.Term) || string.IsNullOrEmpty(normalizedTitle))
+            weight = 0f;
+
+            if (page == null || string.IsNullOrEmpty(term.Term))
             {
                 return false;
             }
 
-            if (term.IsExactMatch)
+            float matchWeight = page.GetTextMatchWeight(term.Term);
+            if (matchWeight <= 0f)
             {
-                if (term.Term.IndexOf(' ', StringComparison.Ordinal) >= 0)
+                return false;
+            }
+
+            if (term.IsExactMatch && !MatchesExactTerm(searchableContent, searchableWords, term.Term))
+            {
+                return false;
+            }
+
+            weight = matchWeight;
+            return true;
+        }
+
+        private static bool MatchesExactTerm(string searchableContent, HashSet<string> searchableWords, string term)
+        {
+            if (string.IsNullOrEmpty(searchableContent) || string.IsNullOrEmpty(term))
+            {
+                return false;
+            }
+
+            if (term.IndexOf(' ', StringComparison.Ordinal) >= 0)
+            {
+                return searchableContent.IndexOf(term, StringComparison.Ordinal) >= 0;
+            }
+
+            return searchableWords != null && searchableWords.Contains(term);
+        }
+
+        private static string GetSearchableContent(GuiHandbookPage page, string normalizedTitle)
+        {
+            StringBuilder builder = new();
+
+            if (!string.IsNullOrWhiteSpace(normalizedTitle))
+            {
+                builder.Append(normalizedTitle);
+            }
+
+            string additional = GetAdditionalSearchText(page);
+            if (!string.IsNullOrWhiteSpace(additional))
+            {
+                if (builder.Length > 0)
                 {
-                    return normalizedTitle.IndexOf(term.Term, StringComparison.Ordinal) >= 0;
+                    builder.Append(' ');
                 }
 
-                return titleWords != null && titleWords.Contains(term.Term);
+                builder.Append(additional);
             }
 
-            if (normalizedTitle.IndexOf(term.Term, StringComparison.Ordinal) >= 0)
+            return builder.Length > 0 ? builder.ToString() : string.Empty;
+        }
+
+        private static string GetAdditionalSearchText(GuiHandbookPage page)
+        {
+            return page switch
             {
-                return true;
-            }
+                GuiHandbookItemStackPage itemPage when !string.IsNullOrWhiteSpace(itemPage.TextCacheAll)
+                    => itemPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
+                GuiHandbookCommandPage commandPage when !string.IsNullOrWhiteSpace(commandPage.TextCacheAll)
+                    => commandPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
+                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Text)
+                    => textPage.Text.ToSearchFriendly().ToLowerInvariant(),
+                GuiHandbookMealRecipePage mealPage
+                    => GetMealRecipeSearchKeywords(mealPage),
+                _ => string.Empty
+            };
+        }
 
-            if (term.Term.IndexOf(' ', StringComparison.Ordinal) >= 0)
+        private static string GetMealRecipeSearchKeywords(GuiHandbookMealRecipePage mealPage)
+        {
+            if (mealPage == null)
             {
-                return false;
+                return string.Empty;
             }
 
-            return titleWords != null && titleWords.Contains(term.Term);
+            string pageCode = mealPage.PageCode ?? string.Empty;
+            string typeKey = pageCode.EndsWith("-pie", StringComparison.Ordinal) ? "pie" : "meal";
+            string keywords = Lang.Get($"handbook-mealrecipe-{typeKey}searchkeywords");
+
+            if (string.IsNullOrWhiteSpace(keywords))
+            {
+                return string.Empty;
+            }
+
+            return keywords.ToSearchFriendly().ToLowerInvariant();
         }
 
         private static string GetNormalizedTitle(GuiHandbookPage page)
