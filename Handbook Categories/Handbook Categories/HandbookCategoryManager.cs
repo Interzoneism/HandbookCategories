@@ -34,6 +34,9 @@ namespace Handbook_Categories
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
 
+        private static bool categoriesInitialized;
+        private static bool categoriesDirty = true;
+
         private static readonly HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> recipesOnlyExemptCategories = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -54,7 +57,13 @@ namespace Handbook_Categories
             }
 
             onlyGridPages = enabled;
+            MarkCategoriesDirty();
             return true;
+        }
+
+        internal static void MarkCategoriesDirty()
+        {
+            categoriesDirty = true;
         }
 
         internal static void RequestTabsRebuild()
@@ -231,6 +240,8 @@ namespace Handbook_Categories
         internal static void Initialize(ICoreClientAPI api)
         {
             capi = api;
+            categoriesInitialized = false;
+            categoriesDirty = true;
             ReloadConfiguration();
 
             if (capi?.Event != null)
@@ -247,6 +258,9 @@ namespace Handbook_Categories
 
         internal static void ReloadConfiguration()
         {
+            categoriesDirty = true;
+            categoriesInitialized = false;
+
             if (capi == null)
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -329,6 +343,8 @@ namespace Handbook_Categories
             }
 
             trackedCreateButtonComposer = null;
+            categoriesInitialized = false;
+            categoriesDirty = true;
 
         }
 
@@ -386,6 +402,11 @@ namespace Handbook_Categories
 
         internal static void RebuildCategories(List<GuiHandbookPage> allPages)
         {
+            if (!categoriesDirty && categoriesInitialized)
+            {
+                return;
+            }
+
             if (capi?.World == null || allPages == null || allPages.Count == 0)
             {
                 Clear();
@@ -482,6 +503,9 @@ namespace Handbook_Categories
                 orderedCategories.Add(categoryCode);
                 tabBackgroundByCategory[categoryCode] = definition.BackgroundColor;
             }
+
+            categoriesInitialized = true;
+            categoriesDirty = false;
         }
 
         private static void AddWordFromBuilder(StringBuilder builder, HashSet<string> words)
