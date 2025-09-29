@@ -153,6 +153,8 @@ namespace Handbook_Categories
 
             List<string> addedMatches = new();
             List<string> addedForbidden = new();
+            List<string> removedFromMatches = new();
+            List<string> removedFromForbidden = new();
             List<string> skipped = new();
 
             bool nextIsForbidden = false;
@@ -192,9 +194,34 @@ namespace Handbook_Categories
                 }
 
                 List<string> targetList = isForbidden ? category.ForbiddenWords : category.MatchWords;
+                List<string> conflictingList = isForbidden ? category.MatchWords : category.ForbiddenWords;
+
+                bool removedFromConflicting = RemoveWordCaseInsensitive(conflictingList, word);
+                if (removedFromConflicting)
+                {
+                    if (isForbidden)
+                    {
+                        if (!removedFromMatches.Any(existing => existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            removedFromMatches.Add(word);
+                        }
+                    }
+                    else
+                    {
+                        if (!removedFromForbidden.Any(existing => existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            removedFromForbidden.Add(word);
+                        }
+                    }
+                }
+
                 if (targetList.Any(existing => existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
                 {
-                    skipped.Add(token);
+                    if (!removedFromConflicting)
+                    {
+                        skipped.Add(token);
+                    }
+
                     continue;
                 }
 
@@ -212,7 +239,22 @@ namespace Handbook_Categories
 
             if (addedMatches.Count == 0 && addedForbidden.Count == 0)
             {
-                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.");
+                List<string> noAdditionParts = new();
+                if (removedFromMatches.Count > 0)
+                {
+                    noAdditionParts.Add($"removed from matches: {string.Join(", ", removedFromMatches)}");
+                }
+
+                if (removedFromForbidden.Count > 0)
+                {
+                    noAdditionParts.Add($"removed from forbidden words: {string.Join(", ", removedFromForbidden)}");
+                }
+
+                string removalMessage = noAdditionParts.Count > 0
+                    ? $" {string.Join(". ", noAdditionParts)}."
+                    : string.Empty;
+
+                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.{removalMessage}");
             }
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
@@ -232,6 +274,16 @@ namespace Handbook_Categories
                 parts.Add($"added forbidden words: {string.Join(", ", addedForbidden)}");
             }
 
+            if (removedFromMatches.Count > 0)
+            {
+                parts.Add($"removed from matches: {string.Join(", ", removedFromMatches)}");
+            }
+
+            if (removedFromForbidden.Count > 0)
+            {
+                parts.Add($"removed from forbidden words: {string.Join(", ", removedFromForbidden)}");
+            }
+
             if (skipped.Count > 0)
             {
                 parts.Add($"skipped existing: {string.Join(", ", skipped)}");
@@ -240,6 +292,28 @@ namespace Handbook_Categories
             parts.Add("Handbook tabs refreshed");
 
             return TextCommandResult.Success(string.Join(". ", parts) + ".");
+        }
+
+        private static bool RemoveWordCaseInsensitive(List<string> list, string word)
+        {
+            if (list == null || string.IsNullOrWhiteSpace(word))
+            {
+                return false;
+            }
+
+            bool removedAny = false;
+
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                string existing = list[i];
+                if (existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase))
+                {
+                    list.RemoveAt(i);
+                    removedAny = true;
+                }
+            }
+
+            return removedAny;
         }
 
         private TextCommandResult OnCategoryModDeleteCommand(TextCommandCallingArgs args)
