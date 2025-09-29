@@ -797,13 +797,14 @@ namespace Handbook_Categories
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
         {
-            if (!HandbookCategoryManager.TrySetRecipesOnly(enabled))
-            {
-                return;
-            }
+            bool stateChanged = HandbookCategoryManager.TrySetRecipesOnly(enabled);
 
             RefreshActiveTab(dialog, clearSearch: false);
-            HandbookCategoryManager.RequestTabsRebuild();
+
+            if (stateChanged)
+            {
+                HandbookCategoryManager.RequestTabsRebuild();
+            }
         }
 
         private static void RefreshActiveTab(GuiDialogHandbook dialog, bool clearSearch)
