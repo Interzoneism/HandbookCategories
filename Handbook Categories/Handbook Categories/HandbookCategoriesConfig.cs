@@ -8,7 +8,7 @@ namespace Handbook_Categories
         internal const string ConfigFileName = "HandbookCategories.json";
 
         [JsonProperty("onlyGridPages")]
-        public bool OnlyGridPages { get; set; } = true;
+        public bool OnlyGridPages { get; set; } = false;
 
         [JsonProperty("disableTutorialTab")]
         public bool DisableTutorialTab { get; set; }
@@ -26,7 +26,7 @@ namespace Handbook_Categories
         {
             return new HandbookCategoriesConfig
             {
-                OnlyGridPages = true,
+                OnlyGridPages = false,
                 DisableTutorialTab = false,
                 DisableBlocksAndItemsTab = false,
                 DisableGuidesTab = false,
