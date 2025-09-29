@@ -685,8 +685,8 @@ namespace Handbook_Categories
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
         {
-            const double spacing = 8.0;
-            const double minWidth = 130.0;
+            const double spacing = 32.0;
+            const double minWidth = 120.0;
 
             if (overviewGui?.LastAddedElement is GuiElementTextButton closeButton && closeButton.Bounds != null && closeButton.Bounds.Alignment == EnumDialogArea.RightFixed)
             {

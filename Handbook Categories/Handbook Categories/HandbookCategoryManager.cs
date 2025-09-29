@@ -862,7 +862,7 @@ namespace Handbook_Categories
 
             string command = $".categorymod {categoryName} {trimmedRemainder}";
             capi.ShowChatMessage($"[Handbook Categories] Creating category '{categoryName}' with keywords: {trimmedRemainder}.");
-            capi.SendChatMessage(command);
+            capi.TriggerChatMessage(command);
             return true;
         }
 
