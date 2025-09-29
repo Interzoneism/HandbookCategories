@@ -567,6 +567,7 @@ namespace Handbook_Categories
         private static readonly System.Reflection.FieldInfo LoadingPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "loadingPagesAsync");
         private static readonly System.Reflection.FieldInfo ListHeightField = AccessTools.Field(typeof(GuiDialogHandbook), "listHeight");
         private static readonly System.Reflection.FieldInfo CategoryCodesField = AccessTools.Field(typeof(GuiDialogHandbook), "categoryCodes");
+        private static readonly System.Reflection.FieldInfo VerticalTabsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabs");
 
         public static void AfterPagesLoaded(GuiDialogHandbook __instance)
         {
@@ -790,6 +791,7 @@ namespace Handbook_Categories
             }
 
             HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
+            RefreshActiveTab(dialog, clearSearch: true);
             return true;
         }
 
@@ -800,7 +802,60 @@ namespace Handbook_Categories
                 return;
             }
 
+            RefreshActiveTab(dialog, clearSearch: false);
             HandbookCategoryManager.RequestTabsRebuild();
+        }
+
+        private static void RefreshActiveTab(GuiDialogHandbook dialog, bool clearSearch)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            GuiComposer overview = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+
+            if (clearSearch)
+            {
+                CurrentSearchTextField?.SetValue(dialog, null);
+
+                if (overview?.GetTextInput("searchField") is GuiElementTextInput searchInput)
+                {
+                    searchInput.SetValue(string.Empty);
+                }
+                else
+                {
+                    dialog.FilterItems();
+                }
+            }
+
+            if (overview?.GetVerticalTab("verticalTabs") is GuiElementVerticalTabs tabsElement)
+            {
+                int tabCount = GetTabCount(tabsElement);
+                if (tabCount > 0)
+                {
+                    int activeIndex = tabsElement.ActiveElement;
+                    if (activeIndex < 0 || activeIndex >= tabCount)
+                    {
+                        activeIndex = Math.Clamp(activeIndex, 0, tabCount - 1);
+                    }
+
+                    tabsElement.SetValue(activeIndex, true);
+                    return;
+                }
+            }
+
+            dialog.selectTab(dialog.currentCatgoryCode);
+        }
+
+        private static int GetTabCount(GuiElementVerticalTabs tabsElement)
+        {
+            if (VerticalTabsField?.GetValue(tabsElement) is GuiTab[] tabs && tabs != null)
+            {
+                return tabs.Length;
+            }
+
+            return 0;
         }
 
         public static void RebuildTabs(GuiDialogSurvivalHandbook instance)
