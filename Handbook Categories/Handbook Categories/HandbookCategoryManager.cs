@@ -22,13 +22,60 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
         internal const string CreateCategoryButtonKey = "handbookcategories-create-button";
+
+        internal const string RecipesOnlyToggleKey = "handbookcategories-recipes-toggle";
         private const string CreateCategoryButtonText = "Create Category";
         private const string DeleteCategoryButtonText = "Delete Category";
 
-        private static bool onlyGridPages = true;
+
+        private static bool onlyGridPages = false;
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
+
+        private static readonly HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> recipesOnlyExemptCategories = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "tutorial",
+            "blocksitems",
+            "stack",
+            "guide",
+            "guides"
+        };
+
+        internal static bool RecipesOnlyEnabled => onlyGridPages;
+
+        internal static bool TrySetRecipesOnly(bool enabled)
+        {
+            if (onlyGridPages == enabled)
+            {
+                return false;
+            }
+
+            onlyGridPages = enabled;
+            return true;
+        }
+
+        internal static void RequestTabsRebuild()
+        {
+            if (capi?.Gui == null)
+            {
+                return;
+            }
+
+            capi.Event.EnqueueMainThreadTask(() =>
+            {
+                if (capi?.Gui?.OpenedGuis == null)
+                {
+                    return;
+                }
+
+                foreach (GuiDialogSurvivalHandbook dialog in capi.Gui.OpenedGuis.OfType<GuiDialogSurvivalHandbook>())
+                {
+                    HandbookCategoryPatches.RebuildTabs(dialog);
+                }
+            }, "handbookcategories-rebuildtabs-toggle");
+        }
 
         private sealed class WordCategoryDefinition
         {
@@ -218,7 +265,7 @@ namespace Handbook_Categories
                 shouldStoreConfig = true;
             }
 
-            onlyGridPages = config?.OnlyGridPages ?? true;
+            onlyGridPages = config?.OnlyGridPages ?? false;
             showTutorialTab = !(config?.DisableTutorialTab ?? false);
             showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
@@ -262,6 +309,9 @@ namespace Handbook_Categories
             orderedCategories.Clear();
             tabBackgroundByCategory.Clear();
 
+            gridRecipePageCodes.Clear();
+
+
             if (createButtonListenerId != 0)
             {
                 capi?.Event?.UnregisterGameTickListener(createButtonListenerId);
@@ -269,6 +319,7 @@ namespace Handbook_Categories
             }
 
             trackedCreateButtonComposer = null;
+
         }
 
         internal static bool HasCategories => orderedCategories.Count > 0;
@@ -347,7 +398,30 @@ namespace Handbook_Categories
             Dictionary<string, HashSet<string>> seenPageCodes = new();
             Dictionary<string, string> displayNames = new();
             Dictionary<string, string> translationKeys = new();
-            ISet<string> gridRecipePageCodes = onlyGridPages ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) : null;
+
+            gridRecipePageCodes.Clear();
+
+            if (capi.World.GridRecipes != null)
+            {
+                foreach (GridRecipe recipe in capi.World.GridRecipes)
+                {
+                    if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                    {
+                        continue;
+                    }
+
+                    GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
+                    if (page == null)
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(page.PageCode))
+                    {
+                        gridRecipePageCodes.Add(page.PageCode);
+                    }
+                }
+            }
 
             void AddPageToCategory(WordCategoryDefinition definition, GuiHandbookPage page)
             {
@@ -373,29 +447,7 @@ namespace Handbook_Categories
                 }
             }
 
-            if (onlyGridPages)
-            {
-                foreach (GridRecipe recipe in capi.World.GridRecipes)
-                {
-                    if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
-                    {
-                        continue;
-                    }
-
-                    GuiHandbookItemStackPage page = FindPageForRecipe(recipe, itemPagesByCode);
-                    if (page == null)
-                    {
-                        continue;
-                    }
-
-                    if (!string.IsNullOrEmpty(page.PageCode))
-                    {
-                        gridRecipePageCodes?.Add(page.PageCode);
-                    }
-                }
-            }
-
-            ApplyWordBasedCategories(itemPagesByCode.Values, gridRecipePageCodes, AddPageToCategory);
+            ApplyWordBasedCategories(itemPagesByCode.Values, onlyGridPages ? gridRecipePageCodes : null, AddPageToCategory);
 
 
             pagesByCategory.Clear();
@@ -433,7 +485,7 @@ namespace Handbook_Categories
             builder.Clear();
         }
 
-        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipePageCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
+        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
         {
             if (pages == null || addPageAction == null)
             {
@@ -445,7 +497,7 @@ namespace Handbook_Categories
                 return;
             }
 
-            bool requireGridPages = onlyGridPages;
+            bool requireGridPages = gridRecipeCodes != null;
             HashSet<WordCategoryDefinition> matchedDefinitions = new();
 
             foreach (GuiHandbookItemStackPage page in pages)
@@ -463,7 +515,7 @@ namespace Handbook_Categories
 
                 if (requireGridPages)
                 {
-                    if (gridRecipePageCodes == null || !gridRecipePageCodes.Contains(pageCode))
+                    if (gridRecipeCodes == null || !gridRecipeCodes.Contains(pageCode))
                     {
                         continue;
                     }
@@ -510,6 +562,35 @@ namespace Handbook_Categories
             }
         }
 
+        private static bool ShouldRestrictToGridRecipes(string categoryCode)
+        {
+            if (!onlyGridPages)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(categoryCode))
+            {
+                return true;
+            }
+
+            return !recipesOnlyExemptCategories.Contains(categoryCode);
+        }
+
+        private static bool IsGridRecipePage(GuiHandbookPage page)
+        {
+            if (page is GuiHandbookItemStackPage itemPage)
+            {
+                string pageCode = itemPage.PageCode;
+                if (!string.IsNullOrEmpty(pageCode))
+                {
+                    return gridRecipePageCodes.Contains(pageCode);
+                }
+            }
+
+            return false;
+        }
+
         internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
         {
             SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
@@ -541,10 +622,17 @@ namespace Handbook_Categories
                 pagesToFilter = managedPages;
             }
 
+            bool restrictToRecipes = ShouldRestrictToGridRecipes(categoryCode);
+
             List<WeightedHandbookPage> weightedPages = new();
             foreach (GuiHandbookPage page in pagesToFilter)
             {
                 if (page == null || page.IsDuplicate)
+                {
+                    continue;
+                }
+
+                if (restrictToRecipes && !IsGridRecipePage(page))
                 {
                     continue;
                 }
