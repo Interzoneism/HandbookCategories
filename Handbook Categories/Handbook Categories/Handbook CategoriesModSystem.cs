@@ -666,6 +666,7 @@ namespace Handbook_Categories
             {
                 if (AllPagesField?.GetValue(__instance) is List<GuiHandbookPage> pages)
                 {
+                    HandbookCategoryManager.MarkCategoriesDirty();
                     HandbookCategoryManager.RebuildCategories(pages);
                 }
             }
