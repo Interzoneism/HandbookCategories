@@ -49,7 +49,7 @@ namespace Handbook_Categories
                             "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
                             "Skirt", "Cloak", "Mantle"
                         },
-                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch's", "Mourning" },
+                        ForbiddenWords = new List<string> { "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch", "Mourning" },
                         TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                     },
                     new HandbookCategoryConfigEntry
