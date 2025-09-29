@@ -651,9 +651,6 @@ namespace Handbook_Categories
                     existingButton.Text = "Create Category";
                 }
 
-                existingButton.Visible = true;
-                existingButton.Enabled = true;
-
                 if (textChanged)
                 {
                     overviewGui.ReCompose();
@@ -680,8 +677,6 @@ namespace Handbook_Categories
 
             GuiElementTextButton button = new(api, "Create Category", baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
             button.SetOrientation(baseFont.Orientation);
-            button.Visible = true;
-            button.Enabled = true;
             button.Bounds.CalcWorldBounds();
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);

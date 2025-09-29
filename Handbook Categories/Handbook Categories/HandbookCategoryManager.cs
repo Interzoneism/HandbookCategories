@@ -862,23 +862,11 @@ namespace Handbook_Categories
                 return;
             }
 
-            if (!searchQuery.HasCategoryName)
-            {
-                createButton.Visible = false;
-                createButton.Enabled = false;
-                createButton.Bounds.CalcWorldBounds();
-                return;
-            }
-
             if (!string.Equals(createButton.Text, "Create Category", StringComparison.Ordinal))
             {
                 createButton.Text = "Create Category";
                 overviewGui.ReCompose();
             }
-
-            createButton.Visible = true;
-            createButton.Enabled = true;
-            createButton.Bounds.CalcWorldBounds();
         }
 
         private static bool TryExtractCategorySegments(string searchText, out string categoryName, out string beforeHash, out string afterCategory)
