@@ -53,6 +53,9 @@ namespace Handbook_Categories
             harmony.Patch(AccessTools.Method(baseType, "LoadPages_Async"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.AfterPagesLoaded)));
 
+            harmony.Patch(AccessTools.Method(baseType, "initOverviewGui"),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.InitOverviewGuiPostfix)));
+
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.FilterItems)),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.FilterItemsPrefix)));
 
@@ -167,7 +170,7 @@ namespace Handbook_Categories
                     continue;
                 }
 
-                if (trimmedToken.Equals("-", StringComparison.Ordinal))
+                if (trimmedToken.Equals("-", StringComparison.Ordinal) || trimmedToken.Equals("!", StringComparison.Ordinal))
                 {
                     nextIsForbidden = true;
                     continue;
@@ -176,7 +179,7 @@ namespace Handbook_Categories
                 bool isForbidden = nextIsForbidden;
                 nextIsForbidden = false;
 
-                if (trimmedToken.StartsWith("-", StringComparison.Ordinal))
+                if (trimmedToken.StartsWith("-", StringComparison.Ordinal) || trimmedToken.StartsWith("!", StringComparison.Ordinal))
                 {
                     isForbidden = true;
                     trimmedToken = trimmedToken.Substring(1);
@@ -576,6 +579,21 @@ namespace Handbook_Categories
             }
         }
 
+        public static void InitOverviewGuiPostfix(GuiDialogHandbook __instance)
+        {
+            if (__instance == null)
+            {
+                return;
+            }
+
+            if (OverviewGuiField?.GetValue(__instance) is not GuiComposer overviewGui)
+            {
+                return;
+            }
+
+            EnsureCreateButton(__instance, overviewGui);
+        }
+
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
         {
             if (ShownPagesField?.GetValue(__instance) is not List<IFlatListItem> shownPages)
@@ -615,6 +633,63 @@ namespace Handbook_Categories
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, candidatePages, shownPages, overviewGui, currentSearch, loading, listHeight);
 
             return false;
+        }
+
+        private static void EnsureCreateButton(GuiDialogHandbook dialog, GuiComposer overviewGui)
+        {
+            if (overviewGui == null)
+            {
+                return;
+            }
+
+            if (overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey) != null)
+            {
+                return;
+            }
+
+            var searchInput = overviewGui.GetTextInput("searchField");
+            if (searchInput == null)
+            {
+                return;
+            }
+
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+            if (api == null)
+            {
+                return;
+            }
+
+            ElementBounds buttonBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + 6.0)
+                .WithFixedWidth(90.0)
+                .WithFixedHeight(searchInput.Bounds.fixedHeight);
+
+            CairoFont baseFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
+            CairoFont hoverFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
+            hoverFont.Color = (double[])GuiStyle.ActiveButtonTextColor.Clone();
+
+            GuiElementTextButton button = new(api, "Create", baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
+            button.SetOrientation(baseFont.Orientation);
+            button.Visible = false;
+            button.Enabled = false;
+
+            overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
+        }
+
+        private static bool OnCreateButtonClicked(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            string searchText = CurrentSearchTextField?.GetValue(dialog) as string;
+            if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(searchText))
+            {
+                return false;
+            }
+
+            HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
+            return true;
         }
 
         public static void RebuildTabs(GuiDialogSurvivalHandbook instance)

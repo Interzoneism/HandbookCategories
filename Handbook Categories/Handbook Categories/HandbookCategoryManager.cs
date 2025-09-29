@@ -21,6 +21,8 @@ namespace Handbook_Categories
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
+        internal const string CreateCategoryButtonKey = "handbookcategories-create-button";
+
         private static bool onlyGridPages = true;
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
@@ -121,11 +123,12 @@ namespace Handbook_Categories
 
         private readonly struct SearchQuery
         {
-            internal SearchQuery(SearchTerm[] includeTerms, SearchTerm[] excludeTerms, bool requiresAllMatches)
+            internal SearchQuery(SearchTerm[] includeTerms, SearchTerm[] excludeTerms, bool requiresAllMatches, string categoryName)
             {
                 IncludeTerms = includeTerms ?? Array.Empty<SearchTerm>();
                 ExcludeTerms = excludeTerms ?? Array.Empty<SearchTerm>();
                 RequiresAllMatches = requiresAllMatches && IncludeTerms.Length > 0;
+                CategoryName = string.IsNullOrWhiteSpace(categoryName) ? null : categoryName;
             }
 
             internal SearchTerm[] IncludeTerms { get; }
@@ -133,6 +136,10 @@ namespace Handbook_Categories
             internal SearchTerm[] ExcludeTerms { get; }
 
             internal bool RequiresAllMatches { get; }
+
+            internal string CategoryName { get; }
+
+            internal bool HasCategoryName => !string.IsNullOrWhiteSpace(CategoryName);
 
             internal bool HasFilters => IncludeTerms.Length > 0 || ExcludeTerms.Length > 0;
         }
@@ -155,6 +162,8 @@ namespace Handbook_Categories
         private static WordCategoryDefinition[] categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
 
         private static ICoreClientAPI capi;
+
+        internal static ICoreClientAPI ClientApi => capi;
 
         internal static bool IsReady => capi?.World != null && (capi.World.GridRecipes != null || !onlyGridPages);
 
@@ -480,6 +489,9 @@ namespace Handbook_Categories
 
         internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
         {
+            SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
+            UpdateCreateButton(overviewGui, searchQuery);
+
             if (shownPages == null)
             {
                 return;
@@ -505,8 +517,6 @@ namespace Handbook_Categories
 
                 pagesToFilter = managedPages;
             }
-
-            SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
 
             List<WeightedHandbookPage> weightedPages = new();
             foreach (GuiHandbookPage page in pagesToFilter)
@@ -675,18 +685,22 @@ namespace Handbook_Categories
         {
             if (string.IsNullOrWhiteSpace(currentSearchText))
             {
-                return new SearchQuery(Array.Empty<SearchTerm>(), Array.Empty<SearchTerm>(), false);
+                return new SearchQuery(Array.Empty<SearchTerm>(), Array.Empty<SearchTerm>(), false, null);
             }
 
-            string text = currentSearchText.ToLowerInvariant();
+            bool hashFound = TryExtractCategorySegments(currentSearchText, out string rawCategoryName, out string beforeHash, out string afterCategory);
+            string categoryName = NormalizeCategoryName(rawCategoryName);
+            string searchPortion = CombineCategorySegments(beforeHash, afterCategory);
+
+            if (string.IsNullOrWhiteSpace(searchPortion))
+            {
+                return new SearchQuery(Array.Empty<SearchTerm>(), Array.Empty<SearchTerm>(), false, categoryName);
+            }
+
+            string text = searchPortion.ToLowerInvariant();
+
             int startIndex = 0;
             while (startIndex < text.Length && char.IsWhiteSpace(text[startIndex]))
-            {
-                startIndex++;
-            }
-
-            bool additiveSearch = startIndex < text.Length && text[startIndex] == '#';
-            if (additiveSearch)
             {
                 startIndex++;
             }
@@ -695,6 +709,7 @@ namespace Handbook_Categories
             {
                 text = text.Substring(startIndex);
             }
+
             List<SearchTerm> includeTerms = new();
             List<SearchTerm> excludeTerms = new();
             StringBuilder builder = new();
@@ -803,11 +818,125 @@ namespace Handbook_Categories
 
             SearchTerm[] includes = includeTerms.ToArray();
             SearchTerm[] excludes = excludeTerms.ToArray();
-            bool requireAllMatches = additiveSearch
+            bool requireAllMatches = hashFound
                 ? false
                 : containsOr ? false : includes.Length > 1 || containsAnd;
 
-            return new SearchQuery(includes, excludes, requireAllMatches);
+            return new SearchQuery(includes, excludes, requireAllMatches, categoryName);
+        }
+
+        internal static bool TryExecuteCategoryCreateCommand(string searchText)
+        {
+            if (string.IsNullOrWhiteSpace(searchText) || capi == null)
+            {
+                return false;
+            }
+
+            bool hashFound = TryExtractCategorySegments(searchText, out string rawCategoryName, out string beforeHash, out string afterCategory);
+            string categoryName = NormalizeCategoryName(rawCategoryName);
+            if (!hashFound || categoryName == null)
+            {
+                return false;
+            }
+
+            string remainder = CombineCategorySegments(beforeHash, afterCategory);
+            string trimmedRemainder = remainder?.Trim();
+            string command = string.IsNullOrEmpty(trimmedRemainder)
+                ? $".categorymod {categoryName}"
+                : $".categorymod {categoryName} {trimmedRemainder}";
+
+            capi.SendChatMessage(command);
+            return true;
+        }
+
+        private static void UpdateCreateButton(GuiComposer overviewGui, SearchQuery searchQuery)
+        {
+            if (overviewGui == null)
+            {
+                return;
+            }
+
+            GuiElementTextButton createButton = overviewGui.GetButton(CreateCategoryButtonKey);
+            if (createButton == null)
+            {
+                return;
+            }
+
+            bool shouldShow = searchQuery.HasCategoryName;
+            createButton.Visible = shouldShow;
+            createButton.Enabled = shouldShow;
+
+            if (shouldShow)
+            {
+                createButton.Bounds.CalcWorldBounds();
+            }
+        }
+
+        private static bool TryExtractCategorySegments(string searchText, out string categoryName, out string beforeHash, out string afterCategory)
+        {
+            categoryName = null;
+            beforeHash = string.Empty;
+            afterCategory = string.Empty;
+
+            if (string.IsNullOrEmpty(searchText))
+            {
+                return false;
+            }
+
+            int hashIndex = searchText.IndexOf('#');
+            if (hashIndex < 0)
+            {
+                beforeHash = searchText;
+                return false;
+            }
+
+            beforeHash = searchText.Substring(0, hashIndex);
+
+            int categoryStart = hashIndex + 1;
+            if (categoryStart >= searchText.Length)
+            {
+                afterCategory = string.Empty;
+                return true;
+            }
+
+            int categoryEnd = categoryStart;
+            while (categoryEnd < searchText.Length && !char.IsWhiteSpace(searchText[categoryEnd]))
+            {
+                categoryEnd++;
+            }
+
+            categoryName = searchText.Substring(categoryStart, categoryEnd - categoryStart);
+            afterCategory = categoryEnd < searchText.Length ? searchText.Substring(categoryEnd) : string.Empty;
+            return true;
+        }
+
+        private static string CombineCategorySegments(string beforeHash, string afterCategory)
+        {
+            string first = string.IsNullOrWhiteSpace(beforeHash) ? string.Empty : beforeHash.Trim();
+            string second = string.IsNullOrWhiteSpace(afterCategory) ? string.Empty : afterCategory.Trim();
+
+            if (first.Length == 0)
+            {
+                return second;
+            }
+
+            if (second.Length == 0)
+            {
+                return first;
+            }
+
+            return string.Concat(first, " ", second);
+        }
+
+        private static string NormalizeCategoryName(string categoryName)
+        {
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                return null;
+            }
+
+            string trimmed = categoryName.Trim();
+            return trimmed.Length == 0 ? null : trimmed;
         }
 
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
