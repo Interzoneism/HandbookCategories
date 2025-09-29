@@ -14,5 +14,5 @@
 - Test: `dotnet test --nologo --verbosity=minimal`
 - Lint (optional): `dotnet format --verify-no-changes`
 
-## Project paths
-- Solution: `./Handbook Categories/Handbook Categories/Handbook Categories.sln`
+## Project
+- Solution: `Handbook Categories.sln`
