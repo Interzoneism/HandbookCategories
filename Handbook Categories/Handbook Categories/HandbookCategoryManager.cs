@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
@@ -1121,6 +1122,7 @@ namespace Handbook_Categories
 
         private static void UpdateCreateButtonTextInternal(GuiComposer composer, GuiElementTextButton button)
         {
+            _ = composer;
             if (button == null)
             {
                 return;
@@ -1130,8 +1132,24 @@ namespace Handbook_Categories
             if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
             {
                 button.Text = desiredText;
-                composer?.ReCompose();
+                RecomposeTextButton(button);
             }
+        }
+
+        private static void RecomposeTextButton(GuiElementTextButton button)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            using var surface = new ImageSurface(Format.Argb32, 1, 1);
+            using var ctx = new Context(surface);
+
+            button.BeforeCalcBounds();
+            button.ComposeElements(ctx, surface);
+            button.Bounds?.MarkDirtyRecursive();
+            button.Bounds?.CalcWorldBounds();
         }
 
         private static bool ShouldShowDeleteText(GuiElementTextButton button)
