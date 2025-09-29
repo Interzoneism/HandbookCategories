@@ -827,24 +827,41 @@ namespace Handbook_Categories
 
         internal static bool TryExecuteCategoryCreateCommand(string searchText)
         {
-            if (string.IsNullOrWhiteSpace(searchText) || capi == null)
+            if (capi == null)
             {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                capi.ShowChatMessage("[Handbook Categories] Type some keywords and include #CategoryName before clicking Create Category.");
                 return false;
             }
 
             bool hashFound = TryExtractCategorySegments(searchText, out string rawCategoryName, out string beforeHash, out string afterCategory);
             string categoryName = NormalizeCategoryName(rawCategoryName);
-            if (!hashFound || categoryName == null)
+            if (!hashFound)
             {
+                capi.ShowChatMessage("[Handbook Categories] Add #CategoryName to your search to choose the category you want to create.");
+                return false;
+            }
+
+            if (categoryName == null)
+            {
+                capi.ShowChatMessage("[Handbook Categories] Unable to read the category name after #. Please try again.");
                 return false;
             }
 
             string remainder = CombineCategorySegments(beforeHash, afterCategory);
             string trimmedRemainder = remainder?.Trim();
-            string command = string.IsNullOrEmpty(trimmedRemainder)
-                ? $".categorymod {categoryName}"
-                : $".categorymod {categoryName} {trimmedRemainder}";
+            if (string.IsNullOrEmpty(trimmedRemainder))
+            {
+                capi.ShowChatMessage($"[Handbook Categories] Add at least one word before or after #{categoryName} to include in the new category.");
+                return false;
+            }
 
+            string command = $".categorymod {categoryName} {trimmedRemainder}";
+            capi.ShowChatMessage($"[Handbook Categories] Creating category '{categoryName}' with keywords: {trimmedRemainder}.");
             capi.SendChatMessage(command);
             return true;
         }
