@@ -22,6 +22,8 @@ namespace Handbook_Categories
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
         internal const string CreateCategoryButtonKey = "handbookcategories-create-button";
+        private const string CreateCategoryButtonText = "Create Category";
+        private const string DeleteCategoryButtonText = "Delete Category";
 
         private static bool onlyGridPages = true;
         private static bool showTutorialTab = true;
@@ -162,6 +164,8 @@ namespace Handbook_Categories
         private static WordCategoryDefinition[] categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
 
         private static ICoreClientAPI capi;
+        private static GuiComposer trackedCreateButtonComposer;
+        private static long createButtonListenerId;
 
         internal static ICoreClientAPI ClientApi => capi;
 
@@ -171,6 +175,17 @@ namespace Handbook_Categories
         {
             capi = api;
             ReloadConfiguration();
+
+            if (capi?.Event != null)
+            {
+                if (createButtonListenerId != 0)
+                {
+                    capi.Event.UnregisterGameTickListener(createButtonListenerId);
+                    createButtonListenerId = 0;
+                }
+
+                createButtonListenerId = capi.Event.RegisterGameTickListener(MonitorCreateButtonState, 50);
+            }
         }
 
         internal static void ReloadConfiguration()
@@ -246,6 +261,14 @@ namespace Handbook_Categories
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
             tabBackgroundByCategory.Clear();
+
+            if (createButtonListenerId != 0)
+            {
+                capi?.Event?.UnregisterGameTickListener(createButtonListenerId);
+                createButtonListenerId = 0;
+            }
+
+            trackedCreateButtonComposer = null;
         }
 
         internal static bool HasCategories => orderedCategories.Count > 0;
@@ -946,11 +969,115 @@ namespace Handbook_Categories
                 return;
             }
 
-            if (!string.Equals(createButton.Text, "Create Category", StringComparison.Ordinal))
+            RegisterCreateButton(overviewGui, createButton);
+        }
+
+        internal static void RegisterCreateButton(GuiComposer overviewGui, GuiElementTextButton button)
+        {
+            if (overviewGui == null || button == null)
             {
-                createButton.Text = "Create Category";
-                overviewGui.ReCompose();
+                return;
             }
+
+            trackedCreateButtonComposer = overviewGui;
+            button.Bounds?.CalcWorldBounds();
+            UpdateCreateButtonTextInternal(overviewGui, button);
+        }
+
+        internal static bool TryExecuteCategoryDeleteCommand(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || capi == null)
+            {
+                return false;
+            }
+
+            if (!IsControlKeyHeld())
+            {
+                return false;
+            }
+
+            string categoryCode = dialog.currentCatgoryCode;
+            string tabName = GetTabDisplayName(categoryCode)?.Trim();
+            if (string.IsNullOrWhiteSpace(tabName))
+            {
+                tabName = categoryCode?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(tabName))
+            {
+                return false;
+            }
+
+            string command = $".categorymoddelete {tabName}";
+            capi.TriggerChatMessage(command);
+            return true;
+        }
+
+        private static void MonitorCreateButtonState(float deltaTime)
+        {
+            GuiComposer composer = trackedCreateButtonComposer;
+            if (composer == null)
+            {
+                return;
+            }
+
+            GuiElementTextButton button = composer.GetButton(CreateCategoryButtonKey);
+            if (button == null)
+            {
+                trackedCreateButtonComposer = null;
+                return;
+            }
+
+            UpdateCreateButtonTextInternal(composer, button);
+        }
+
+        private static void UpdateCreateButtonTextInternal(GuiComposer composer, GuiElementTextButton button)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            string desiredText = ShouldShowDeleteText(button) ? DeleteCategoryButtonText : CreateCategoryButtonText;
+            if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
+            {
+                button.Text = desiredText;
+                composer?.ReCompose();
+            }
+        }
+
+        private static bool ShouldShowDeleteText(GuiElementTextButton button)
+        {
+            if (button?.Bounds == null || capi?.Input == null)
+            {
+                return false;
+            }
+
+            if (!IsControlKeyHeld())
+            {
+                return false;
+            }
+
+            ElementBounds bounds = button.Bounds;
+            bounds.CalcWorldBounds();
+            return bounds.PointInside(capi.Input.MouseX, capi.Input.MouseY);
+        }
+
+        private static bool IsControlKeyHeld()
+        {
+            bool[] keys = capi?.Input?.KeyboardKeyState;
+            if (keys == null)
+            {
+                return false;
+            }
+
+            int leftIndex = (int)GlKeys.ControlLeft;
+            int rightIndex = (int)GlKeys.ControlRight;
+
+            bool leftDown = leftIndex >= 0 && leftIndex < keys.Length && keys[leftIndex];
+            bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
+
+            return leftDown || rightDown;
         }
 
         private static bool TryExtractCategorySegments(string searchText, out string categoryName, out string beforeHash, out string afterCategory)
