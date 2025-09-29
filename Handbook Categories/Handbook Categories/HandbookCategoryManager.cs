@@ -862,7 +862,20 @@ namespace Handbook_Categories
                 return;
             }
 
-            createButton.Text = "Create Category";
+            if (!searchQuery.HasCategoryName)
+            {
+                createButton.Visible = false;
+                createButton.Enabled = false;
+                createButton.Bounds.CalcWorldBounds();
+                return;
+            }
+
+            if (!string.Equals(createButton.Text, "Create Category", StringComparison.Ordinal))
+            {
+                createButton.Text = "Create Category";
+                overviewGui.ReCompose();
+            }
+
             createButton.Visible = true;
             createButton.Enabled = true;
             createButton.Bounds.CalcWorldBounds();

@@ -645,9 +645,20 @@ namespace Handbook_Categories
             GuiElementTextButton existingButton = overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
             if (existingButton != null)
             {
-                existingButton.Text = "Create Category";
+                bool textChanged = !string.Equals(existingButton.Text, "Create Category", StringComparison.Ordinal);
+                if (textChanged)
+                {
+                    existingButton.Text = "Create Category";
+                }
+
                 existingButton.Visible = true;
                 existingButton.Enabled = true;
+
+                if (textChanged)
+                {
+                    overviewGui.ReCompose();
+                }
+
                 return;
             }
 
@@ -674,6 +685,7 @@ namespace Handbook_Categories
             button.Bounds.CalcWorldBounds();
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
+            overviewGui.ReCompose();
         }
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
