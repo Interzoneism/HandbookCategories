@@ -543,7 +543,7 @@ namespace Enhanced_Handbook
                 {
                     if (IsQuoteCharacter(ch))
                     {
-                        if (builder.Length == 0 || (builder.Length == 1 && builder[0] == '-'))
+                        if (builder.Length == 0 || (builder.Length == 1 && (builder[0] == '-' || builder[0] == '!')))
                         {
                             inQuotes = true;
                             quoteChar = ch;
