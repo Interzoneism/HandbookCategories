@@ -580,7 +580,7 @@ namespace Enhanced_Handbook
                 }
 
                 string normalizedTitle = GetNormalizedTitle(page);
-                string searchableContent = GetSearchableContent(page, normalizedTitle);
+                string searchableContent = GetSearchableContent(normalizedTitle);
                 HashSet<string> searchableWords = ExtractWords(searchableContent);
 
                 for (int i = 0; i < wordCategories.Length; i++)
@@ -728,7 +728,7 @@ namespace Enhanced_Handbook
             }
 
             string normalizedTitle = GetNormalizedTitle(page);
-            string searchableContent = GetSearchableContent(page, normalizedTitle);
+            string searchableContent = GetSearchableContent(normalizedTitle);
             HashSet<string> searchableWords = ExtractWords(searchableContent);
 
             float bestWeight = 0f;
@@ -793,7 +793,7 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            float matchWeight = page.GetTextMatchWeight(term.Term);
+            float matchWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
             if (matchWeight <= 0f)
             {
                 return false;
@@ -823,62 +823,39 @@ namespace Enhanced_Handbook
             return searchableWords != null && searchableWords.Contains(term);
         }
 
-        private static string GetSearchableContent(GuiHandbookPage page, string normalizedTitle)
+        private static float GetTitleMatchWeight(string normalizedTitle, string term)
         {
-            StringBuilder builder = new();
-
-            if (!string.IsNullOrWhiteSpace(normalizedTitle))
+            if (string.IsNullOrWhiteSpace(normalizedTitle) || string.IsNullOrWhiteSpace(term))
             {
-                builder.Append(normalizedTitle);
+                return 0f;
             }
 
-            string additional = GetAdditionalSearchText(page);
-            if (!string.IsNullOrWhiteSpace(additional))
+            if (string.Equals(normalizedTitle, term, StringComparison.Ordinal))
             {
-                if (builder.Length > 0)
-                {
-                    builder.Append(' ');
-                }
-
-                builder.Append(additional);
+                return 4f;
             }
 
-            return builder.Length > 0 ? builder.ToString() : string.Empty;
+            if (normalizedTitle.StartsWith(term + " ", StringComparison.Ordinal))
+            {
+                return 3.75f;
+            }
+
+            if (normalizedTitle.StartsWith(term, StringComparison.Ordinal))
+            {
+                return 3.5f;
+            }
+
+            if (normalizedTitle.IndexOf(term, StringComparison.Ordinal) >= 0)
+            {
+                return 3f;
+            }
+
+            return 0f;
         }
 
-        private static string GetAdditionalSearchText(GuiHandbookPage page)
+        private static string GetSearchableContent(string normalizedTitle)
         {
-            return page switch
-            {
-                GuiHandbookItemStackPage itemPage when !string.IsNullOrWhiteSpace(itemPage.TextCacheAll)
-                    => itemPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookCommandPage commandPage when !string.IsNullOrWhiteSpace(commandPage.TextCacheAll)
-                    => commandPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Text)
-                    => textPage.Text.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookMealRecipePage mealPage
-                    => GetMealRecipeSearchKeywords(mealPage),
-                _ => string.Empty
-            };
-        }
-
-        private static string GetMealRecipeSearchKeywords(GuiHandbookMealRecipePage mealPage)
-        {
-            if (mealPage == null)
-            {
-                return string.Empty;
-            }
-
-            string pageCode = mealPage.PageCode ?? string.Empty;
-            string typeKey = pageCode.EndsWith("-pie", StringComparison.Ordinal) ? "pie" : "meal";
-            string keywords = Lang.Get($"handbook-mealrecipe-{typeKey}searchkeywords");
-
-            if (string.IsNullOrWhiteSpace(keywords))
-            {
-                return string.Empty;
-            }
-
-            return keywords.ToSearchFriendly().ToLowerInvariant();
+            return normalizedTitle ?? string.Empty;
         }
 
         private static string GetNormalizedTitle(GuiHandbookPage page)
