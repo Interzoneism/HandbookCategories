@@ -90,6 +90,8 @@ namespace Enhanced_Handbook
         private sealed class WordCategoryDefinition
         {
             private readonly double[] tabBackgroundColor;
+            private readonly SearchTerm[] includeTerms;
+            private readonly SearchTerm[] excludeTerms;
 
             internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases, double[] backgroundColor)
             {
@@ -102,6 +104,9 @@ namespace Enhanced_Handbook
                 ForbiddenWords = forbiddenWords ?? Array.Empty<string>();
                 ForbiddenPhrases = forbiddenPhrases ?? Array.Empty<string>();
                 tabBackgroundColor = NormalizeColor(backgroundColor);
+
+                includeTerms = BuildSearchTerms(MatchWords, MatchPhrases);
+                excludeTerms = BuildSearchTerms(ForbiddenWords, ForbiddenPhrases);
             }
 
             internal string CategoryName { get; }
@@ -122,51 +127,28 @@ namespace Enhanced_Handbook
 
             internal double[] BackgroundColor => (double[])tabBackgroundColor.Clone();
 
-            internal bool MatchesAnyPhrase(string normalizedTitle)
+            internal bool HasSearchTerms => includeTerms.Length > 0;
+
+            internal bool MatchesPage(GuiHandbookPage page, string normalizedTitle, string searchableContent, HashSet<string> searchableWords)
             {
-                if (MatchPhrases.Length == 0 || string.IsNullOrEmpty(normalizedTitle))
+                if (page == null || includeTerms.Length == 0)
                 {
                     return false;
                 }
 
-                string normalized = NormalizePhrase(normalizedTitle);
-                if (string.IsNullOrEmpty(normalized))
+                for (int i = 0; i < excludeTerms.Length; i++)
                 {
-                    return false;
+                    if (MatchesTerm(page, normalizedTitle, excludeTerms[i], searchableContent, searchableWords, out _))
+                    {
+                        return false;
+                    }
                 }
 
-                for (int i = 0; i < MatchPhrases.Length; i++)
+                for (int i = 0; i < includeTerms.Length; i++)
                 {
-                    if (normalized.Equals(MatchPhrases[i], StringComparison.Ordinal))
+                    if (MatchesTerm(page, normalizedTitle, includeTerms[i], searchableContent, searchableWords, out _))
                     {
                         return true;
-                    }
-                }
-
-                return false;
-            }
-
-            internal bool IsForbidden(string normalizedTitle, HashSet<string> wordsInTitle)
-            {
-                if (ForbiddenWords.Length > 0 && wordsInTitle != null)
-                {
-                    foreach (string forbidden in ForbiddenWords)
-                    {
-                        if (wordsInTitle.Contains(forbidden))
-                        {
-                            return true;
-                        }
-                    }
-                }
-
-                if (ForbiddenPhrases.Length > 0 && !string.IsNullOrEmpty(normalizedTitle))
-                {
-                    foreach (string phrase in ForbiddenPhrases)
-                    {
-                        if (normalizedTitle.IndexOf(phrase, StringComparison.Ordinal) >= 0)
-                        {
-                            return true;
-                        }
                     }
                 }
 
@@ -183,6 +165,51 @@ namespace Enhanced_Handbook
                 double[] copy = new double[4];
                 Array.Copy(color, copy, 4);
                 return copy;
+            }
+
+            private static SearchTerm[] BuildSearchTerms(string[] words, string[] phrases)
+            {
+                if ((words == null || words.Length == 0) && (phrases == null || phrases.Length == 0))
+                {
+                    return Array.Empty<SearchTerm>();
+                }
+
+                List<SearchTerm> terms = new();
+                HashSet<string> seen = new(StringComparer.Ordinal);
+
+                static void AddTerms(IEnumerable<string> source, List<SearchTerm> target, HashSet<string> seenCache)
+                {
+                    if (source == null)
+                    {
+                        return;
+                    }
+
+                    foreach (string raw in source)
+                    {
+                        string normalized = NormalizeSearchTerm(raw);
+                        if (normalized.Length == 0 || !seenCache.Add(normalized))
+                        {
+                            continue;
+                        }
+
+                        target.Add(new SearchTerm(normalized, false, false));
+                    }
+                }
+
+                AddTerms(words, terms, seen);
+                AddTerms(phrases, terms, seen);
+
+                return terms.ToArray();
+            }
+
+            private static string NormalizeSearchTerm(string term)
+            {
+                if (string.IsNullOrWhiteSpace(term))
+                {
+                    return string.Empty;
+                }
+
+                return term.ToSearchFriendly().ToLowerInvariant().Trim();
             }
         }
 
@@ -226,8 +253,6 @@ namespace Enhanced_Handbook
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
-        private static readonly Dictionary<string, List<WordCategoryDefinition>> categoriesByMatchWord = new(StringComparer.OrdinalIgnoreCase);
-        private static WordCategoryDefinition[] categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
 
         private static ICoreClientAPI capi;
         private static GuiComposer trackedCreateButtonComposer;
@@ -526,13 +551,12 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (categoriesByMatchWord.Count == 0 && categoriesWithMatchPhrases.Length == 0)
+            if (wordCategories == null || wordCategories.Length == 0)
             {
                 return;
             }
 
             bool requireGridPages = gridRecipeCodes != null;
-            HashSet<WordCategoryDefinition> matchedDefinitions = new();
 
             foreach (GuiHandbookItemStackPage page in pages)
             {
@@ -555,41 +579,20 @@ namespace Enhanced_Handbook
                     }
                 }
 
-                string title = page.Stack.GetName();
-                if (string.IsNullOrWhiteSpace(title))
-                {
-                    continue;
-                }
+                string normalizedTitle = GetNormalizedTitle(page);
+                string searchableContent = GetSearchableContent(normalizedTitle);
+                HashSet<string> searchableWords = ExtractWords(searchableContent);
 
-                string normalizedTitle = title.ToLowerInvariant();
-                HashSet<string> wordsInTitle = ExtractWords(normalizedTitle);
-                matchedDefinitions.Clear();
-
-                foreach (string word in wordsInTitle)
+                for (int i = 0; i < wordCategories.Length; i++)
                 {
-                    if (!categoriesByMatchWord.TryGetValue(word, out List<WordCategoryDefinition> definitions))
+                    WordCategoryDefinition definition = wordCategories[i];
+                    if (definition == null || !definition.HasSearchTerms)
                     {
                         continue;
                     }
 
-                    foreach (WordCategoryDefinition definition in definitions)
+                    if (definition.MatchesPage(page, normalizedTitle, searchableContent, searchableWords))
                     {
-                        if (!matchedDefinitions.Add(definition) || definition.IsForbidden(normalizedTitle, wordsInTitle))
-                        {
-                            continue;
-                        }
-
-                        addPageAction(definition, page);
-                    }
-                }
-
-                for (int i = 0; i < categoriesWithMatchPhrases.Length; i++)
-                {
-                    WordCategoryDefinition definition = categoriesWithMatchPhrases[i];
-
-                    if (!matchedDefinitions.Contains(definition) && definition.MatchesAnyPhrase(normalizedTitle) && !definition.IsForbidden(normalizedTitle, wordsInTitle))
-                    {
-                        matchedDefinitions.Add(definition);
                         addPageAction(definition, page);
                     }
                 }
@@ -725,7 +728,7 @@ namespace Enhanced_Handbook
             }
 
             string normalizedTitle = GetNormalizedTitle(page);
-            string searchableContent = GetSearchableContent(page, normalizedTitle);
+            string searchableContent = GetSearchableContent(normalizedTitle);
             HashSet<string> searchableWords = ExtractWords(searchableContent);
 
             float bestWeight = 0f;
@@ -790,7 +793,7 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            float matchWeight = page.GetTextMatchWeight(term.Term);
+            float matchWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
             if (matchWeight <= 0f)
             {
                 return false;
@@ -820,62 +823,39 @@ namespace Enhanced_Handbook
             return searchableWords != null && searchableWords.Contains(term);
         }
 
-        private static string GetSearchableContent(GuiHandbookPage page, string normalizedTitle)
+        private static float GetTitleMatchWeight(string normalizedTitle, string term)
         {
-            StringBuilder builder = new();
-
-            if (!string.IsNullOrWhiteSpace(normalizedTitle))
+            if (string.IsNullOrWhiteSpace(normalizedTitle) || string.IsNullOrWhiteSpace(term))
             {
-                builder.Append(normalizedTitle);
+                return 0f;
             }
 
-            string additional = GetAdditionalSearchText(page);
-            if (!string.IsNullOrWhiteSpace(additional))
+            if (string.Equals(normalizedTitle, term, StringComparison.Ordinal))
             {
-                if (builder.Length > 0)
-                {
-                    builder.Append(' ');
-                }
-
-                builder.Append(additional);
+                return 4f;
             }
 
-            return builder.Length > 0 ? builder.ToString() : string.Empty;
+            if (normalizedTitle.StartsWith(term + " ", StringComparison.Ordinal))
+            {
+                return 3.75f;
+            }
+
+            if (normalizedTitle.StartsWith(term, StringComparison.Ordinal))
+            {
+                return 3.5f;
+            }
+
+            if (normalizedTitle.IndexOf(term, StringComparison.Ordinal) >= 0)
+            {
+                return 3f;
+            }
+
+            return 0f;
         }
 
-        private static string GetAdditionalSearchText(GuiHandbookPage page)
+        private static string GetSearchableContent(string normalizedTitle)
         {
-            return page switch
-            {
-                GuiHandbookItemStackPage itemPage when !string.IsNullOrWhiteSpace(itemPage.TextCacheAll)
-                    => itemPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookCommandPage commandPage when !string.IsNullOrWhiteSpace(commandPage.TextCacheAll)
-                    => commandPage.TextCacheAll.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Text)
-                    => textPage.Text.ToSearchFriendly().ToLowerInvariant(),
-                GuiHandbookMealRecipePage mealPage
-                    => GetMealRecipeSearchKeywords(mealPage),
-                _ => string.Empty
-            };
-        }
-
-        private static string GetMealRecipeSearchKeywords(GuiHandbookMealRecipePage mealPage)
-        {
-            if (mealPage == null)
-            {
-                return string.Empty;
-            }
-
-            string pageCode = mealPage.PageCode ?? string.Empty;
-            string typeKey = pageCode.EndsWith("-pie", StringComparison.Ordinal) ? "pie" : "meal";
-            string keywords = Lang.Get($"handbook-mealrecipe-{typeKey}searchkeywords");
-
-            if (string.IsNullOrWhiteSpace(keywords))
-            {
-                return string.Empty;
-            }
-
-            return keywords.ToSearchFriendly().ToLowerInvariant();
+            return normalizedTitle ?? string.Empty;
         }
 
         private static string GetNormalizedTitle(GuiHandbookPage page)
@@ -1474,9 +1454,6 @@ namespace Enhanced_Handbook
 
         private static WordCategoryDefinition[] BuildWordCategories(HandbookCategoriesConfig config)
         {
-            categoriesByMatchWord.Clear();
-            categoriesWithMatchPhrases = Array.Empty<WordCategoryDefinition>();
-
             if (config?.Categories == null)
             {
                 return Array.Empty<WordCategoryDefinition>();
@@ -1550,20 +1527,7 @@ namespace Enhanced_Handbook
                 WordCategoryDefinition definition = new(name, sanitized, matchSingles, matchPhrases, forbiddenSingles, forbiddenPhrases, backgroundColor);
                 definitions.Add(definition);
 
-                for (int i = 0; i < matchSingles.Length; i++)
-                {
-                    string word = matchSingles[i];
-                    if (!categoriesByMatchWord.TryGetValue(word, out List<WordCategoryDefinition> list))
-                    {
-                        list = new List<WordCategoryDefinition>();
-                        categoriesByMatchWord[word] = list;
-                    }
-
-                    list.Add(definition);
-                }
             }
-
-            categoriesWithMatchPhrases = definitions.Where(definition => definition.MatchPhrases.Length > 0).ToArray();
 
             return definitions.ToArray();
         }
