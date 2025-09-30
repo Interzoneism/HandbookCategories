@@ -192,7 +192,7 @@ namespace Enhanced_Handbook
                             continue;
                         }
 
-                        target.Add(new SearchTerm(normalized, false, false));
+                        target.Add(new SearchTerm(normalized, true, false));
                     }
                 }
 
@@ -1048,11 +1048,38 @@ namespace Enhanced_Handbook
 
             SearchTerm[] includes = includeTerms.ToArray();
             SearchTerm[] excludes = excludeTerms.ToArray();
+
+            bool categoryBuilderMode = hashFound && string.IsNullOrWhiteSpace(beforeHash);
+            if (categoryBuilderMode)
+            {
+                includes = ForceExactTerms(includes);
+                excludes = ForceExactTerms(excludes);
+            }
+
             bool requireAllMatches = hashFound
                 ? false
                 : containsOr ? false : includes.Length > 1 || containsAnd;
 
             return new SearchQuery(includes, excludes, requireAllMatches, categoryName);
+
+            static SearchTerm[] ForceExactTerms(SearchTerm[] terms)
+            {
+                if (terms == null || terms.Length == 0)
+                {
+                    return terms ?? Array.Empty<SearchTerm>();
+                }
+
+                SearchTerm[] copy = new SearchTerm[terms.Length];
+                for (int i = 0; i < terms.Length; i++)
+                {
+                    SearchTerm term = terms[i];
+                    copy[i] = term.IsExactMatch
+                        ? term
+                        : new SearchTerm(term.Term, true, term.RequiresTitleMatch);
+                }
+
+                return copy;
+            }
         }
 
         internal static bool TryExecuteCategoryCreateCommand(string searchText)
