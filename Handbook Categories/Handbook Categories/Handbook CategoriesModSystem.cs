@@ -19,6 +19,19 @@ namespace Enhanced_Handbook
 
         private static readonly char[] QuoteCharacters = { '"', '\'' };
 
+        private readonly struct CommandToken
+        {
+            internal CommandToken(string value, bool requiresTitleMatch)
+            {
+                Value = value;
+                RequiresTitleMatch = requiresTitleMatch;
+            }
+
+            internal string Value { get; }
+
+            internal bool RequiresTitleMatch { get; }
+        }
+
         public override bool ShouldLoad(EnumAppSide side)
         {
             return side == EnumAppSide.Client;
@@ -105,13 +118,13 @@ namespace Enhanced_Handbook
                 return TextCommandResult.Error("Usage: .categorymod [category] [words]");
             }
 
-            List<string> parsedTokens = TokenizeArguments(rawInput);
+            List<CommandToken> parsedTokens = TokenizeArguments(rawInput);
             if (parsedTokens.Count == 0)
             {
                 return TextCommandResult.Error("Usage: .categorymod [category] [words]");
             }
 
-            string categoryNameInput = parsedTokens[0];
+            string categoryNameInput = parsedTokens[0].Value;
             if (string.IsNullOrWhiteSpace(categoryNameInput))
             {
                 return TextCommandResult.Error("You must specify a category name");
@@ -142,7 +155,9 @@ namespace Enhanced_Handbook
                 {
                     Name = categoryNameInput,
                     MatchWords = new List<string>(),
-                    ForbiddenWords = new List<string>()
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string>(),
+                    ForbiddenTitleWords = new List<string>()
                 };
 
                 config.Categories.Add(category);
@@ -150,7 +165,9 @@ namespace Enhanced_Handbook
             }
 
             category.MatchWords ??= new List<string>();
+            category.MatchTitleWords ??= new List<string>();
             category.ForbiddenWords ??= new List<string>();
+            category.ForbiddenTitleWords ??= new List<string>();
 
             List<string> addedMatches = new();
             List<string> addedForbidden = new();
@@ -161,13 +178,14 @@ namespace Enhanced_Handbook
             bool nextIsForbidden = false;
             for (int i = 1; i < parsedTokens.Count; i++)
             {
-                string token = parsedTokens[i];
-                if (string.IsNullOrWhiteSpace(token))
+                CommandToken token = parsedTokens[i];
+                string tokenValue = token.Value;
+                if (string.IsNullOrWhiteSpace(tokenValue))
                 {
                     continue;
                 }
 
-                string trimmedToken = token.Trim();
+                string trimmedToken = tokenValue.Trim();
                 if (trimmedToken.Length == 0)
                 {
                     continue;
@@ -181,10 +199,13 @@ namespace Enhanced_Handbook
 
                 bool isForbidden = nextIsForbidden;
                 nextIsForbidden = false;
+                bool requiresTitleMatch = token.RequiresTitleMatch;
+                char? inlinePrefix = null;
 
                 if (trimmedToken.StartsWith("-", StringComparison.Ordinal) || trimmedToken.StartsWith("!", StringComparison.Ordinal))
                 {
                     isForbidden = true;
+                    inlinePrefix = trimmedToken[0];
                     trimmedToken = trimmedToken.Substring(1);
                 }
 
@@ -194,24 +215,39 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                List<string> targetList = isForbidden ? category.ForbiddenWords : category.MatchWords;
-                List<string> conflictingList = isForbidden ? category.MatchWords : category.ForbiddenWords;
+                List<string> targetList;
+                List<string> conflictingList;
+                bool conflictingRequiresTitleMatch;
+
+                if (requiresTitleMatch)
+                {
+                    targetList = isForbidden ? category.ForbiddenTitleWords : category.MatchTitleWords;
+                    conflictingList = isForbidden ? category.MatchTitleWords : category.ForbiddenTitleWords;
+                    conflictingRequiresTitleMatch = true;
+                }
+                else
+                {
+                    targetList = isForbidden ? category.ForbiddenWords : category.MatchWords;
+                    conflictingList = isForbidden ? category.MatchWords : category.ForbiddenWords;
+                    conflictingRequiresTitleMatch = false;
+                }
 
                 bool removedFromConflicting = RemoveWordCaseInsensitive(conflictingList, word);
                 if (removedFromConflicting)
                 {
+                    string removedWord = FormatWordForMessage(word, conflictingRequiresTitleMatch);
                     if (isForbidden)
                     {
-                        if (!removedFromMatches.Any(existing => existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
+                        if (!removedFromMatches.Any(existing => existing.Equals(removedWord, StringComparison.OrdinalIgnoreCase)))
                         {
-                            removedFromMatches.Add(word);
+                            removedFromMatches.Add(removedWord);
                         }
                     }
                     else
                     {
-                        if (!removedFromForbidden.Any(existing => existing.Equals(word, StringComparison.OrdinalIgnoreCase)))
+                        if (!removedFromForbidden.Any(existing => existing.Equals(removedWord, StringComparison.OrdinalIgnoreCase)))
                         {
-                            removedFromForbidden.Add(word);
+                            removedFromForbidden.Add(removedWord);
                         }
                     }
                 }
@@ -220,7 +256,13 @@ namespace Enhanced_Handbook
                 {
                     if (!removedFromConflicting)
                     {
-                        skipped.Add(token);
+                        string skippedToken = FormatWordForMessage(word, requiresTitleMatch);
+                        if (inlinePrefix.HasValue)
+                        {
+                            skippedToken = inlinePrefix.Value + skippedToken;
+                        }
+
+                        skipped.Add(skippedToken);
                     }
 
                     continue;
@@ -228,13 +270,14 @@ namespace Enhanced_Handbook
 
                 targetList.Add(word);
 
+                string formattedWord = FormatWordForMessage(word, requiresTitleMatch);
                 if (isForbidden)
                 {
-                    addedForbidden.Add(word);
+                    addedForbidden.Add(formattedWord);
                 }
                 else
                 {
-                    addedMatches.Add(word);
+                    addedMatches.Add(formattedWord);
                 }
             }
 
@@ -393,13 +436,13 @@ namespace Enhanced_Handbook
                 return TextCommandResult.Error("Usage: .categorymodsave [category]");
             }
 
-            List<string> tokens = TokenizeArguments(rawInput);
+            List<CommandToken> tokens = TokenizeArguments(rawInput);
             if (tokens.Count == 0)
             {
                 return TextCommandResult.Error("Usage: .categorymodsave [category]");
             }
 
-            string categoryNameInput = tokens[0];
+            string categoryNameInput = tokens[0].Value;
             if (string.IsNullOrWhiteSpace(categoryNameInput))
             {
                 return TextCommandResult.Error("You must specify a category name");
@@ -443,9 +486,9 @@ namespace Enhanced_Handbook
             return TextCommandResult.Success(string.Join(" ", messageParts));
         }
 
-        private static List<string> TokenizeArguments(string input)
+        private static List<CommandToken> TokenizeArguments(string input)
         {
-            List<string> tokens = new();
+            List<CommandToken> tokens = new();
 
             if (string.IsNullOrWhiteSpace(input))
             {
@@ -455,6 +498,7 @@ namespace Enhanced_Handbook
             StringBuilder builder = new();
             bool inQuotes = false;
             char quoteChar = '\0';
+            bool currentRequiresTitleMatch = false;
 
             for (int i = 0; i < input.Length; i++)
             {
@@ -473,6 +517,7 @@ namespace Enhanced_Handbook
                     {
                         if (builder.Length == 0)
                         {
+                            currentRequiresTitleMatch = false;
                             continue;
                         }
 
@@ -502,6 +547,14 @@ namespace Enhanced_Handbook
                         {
                             inQuotes = true;
                             quoteChar = ch;
+                            currentRequiresTitleMatch = false;
+
+                            if (i + 1 < input.Length && input[i + 1] == ch)
+                            {
+                                currentRequiresTitleMatch = true;
+                                i++;
+                            }
+
                             continue;
                         }
 
@@ -511,7 +564,7 @@ namespace Enhanced_Handbook
 
                     if (char.IsWhiteSpace(ch))
                     {
-                        AddToken(builder, tokens);
+                        AddToken(builder, tokens, ref currentRequiresTitleMatch);
                         continue;
                     }
 
@@ -519,20 +572,22 @@ namespace Enhanced_Handbook
                 }
             }
 
-            AddToken(builder, tokens);
+            AddToken(builder, tokens, ref currentRequiresTitleMatch);
 
             return tokens;
         }
 
-        private static void AddToken(StringBuilder builder, List<string> tokens)
+        private static void AddToken(StringBuilder builder, List<CommandToken> tokens, ref bool requiresTitleMatch)
         {
             if (builder.Length == 0)
             {
+                requiresTitleMatch = false;
                 return;
             }
 
-            tokens.Add(builder.ToString());
+            tokens.Add(new CommandToken(builder.ToString(), requiresTitleMatch));
             builder.Clear();
+            requiresTitleMatch = false;
         }
 
         private static bool IsQuoteCharacter(char ch)
@@ -568,6 +623,18 @@ namespace Enhanced_Handbook
                 }
             }
 
+            if (category?.MatchTitleWords != null)
+            {
+                foreach (string word in category.MatchTitleWords)
+                {
+                    string formatted = FormatCommandToken(word, isForbidden: false, requiresTitleMatch: true);
+                    if (!string.IsNullOrWhiteSpace(formatted))
+                    {
+                        parts.Add(formatted);
+                    }
+                }
+            }
+
             if (category?.ForbiddenWords != null)
             {
                 foreach (string word in category.ForbiddenWords)
@@ -580,10 +647,22 @@ namespace Enhanced_Handbook
                 }
             }
 
+            if (category?.ForbiddenTitleWords != null)
+            {
+                foreach (string word in category.ForbiddenTitleWords)
+                {
+                    string formatted = FormatCommandToken(word, isForbidden: true, requiresTitleMatch: true);
+                    if (!string.IsNullOrWhiteSpace(formatted))
+                    {
+                        parts.Add(formatted);
+                    }
+                }
+            }
+
             return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
         }
 
-        private static string FormatCommandToken(string value, bool isForbidden)
+        private static string FormatCommandToken(string value, bool isForbidden, bool requiresTitleMatch = false)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -592,6 +671,12 @@ namespace Enhanced_Handbook
 
             string trimmed = value.Trim();
             string prefix = isForbidden ? "-" : string.Empty;
+
+            if (requiresTitleMatch)
+            {
+                string escapedTitle = trimmed.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return prefix + "\"\"" + escapedTitle + "\"\"";
+            }
 
             bool needsQuotes = trimmed.Any(char.IsWhiteSpace);
 
@@ -616,6 +701,17 @@ namespace Enhanced_Handbook
             }
 
             return prefix + quoteChar + escaped + quoteChar;
+        }
+
+        private static string FormatWordForMessage(string word, bool requiresTitleMatch)
+        {
+            if (string.IsNullOrWhiteSpace(word))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = word.Trim();
+            return requiresTitleMatch ? $"\"\"{trimmed}\"\"" : trimmed;
         }
 
         private void RebuildHandbookTabs()
