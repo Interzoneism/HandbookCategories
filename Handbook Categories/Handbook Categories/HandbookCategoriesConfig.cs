@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     internal sealed class HandbookCategoriesConfig
     {

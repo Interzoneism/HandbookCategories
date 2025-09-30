@@ -7,7 +7,7 @@ using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.GameContent;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     public class Handbook_CategoriesModSystem : ModSystem
     {

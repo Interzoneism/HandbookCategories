@@ -209,7 +209,6 @@ namespace CakeBuild
 
                     var stamped = (JObject)baseJson.DeepClone();
                     var versionForThis = (label == "VS1.20") ? v120 : v121;
-                    stamped["Version"] = versionForThis;
                     stamped.Remove("VersionMap");
 
                     var outModInfo = Path.Combine(outDir, "modinfo.json");

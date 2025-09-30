@@ -9,7 +9,7 @@ using Vintagestory.API.Config;
 using Vintagestory.API.Util;
 using Vintagestory.GameContent;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     internal static class HandbookCategoryManager
     {

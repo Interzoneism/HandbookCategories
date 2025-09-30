@@ -1,6 +1,6 @@
 using Vintagestory.GameContent;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     internal interface IHandbookTabBackground
     {

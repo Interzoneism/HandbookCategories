@@ -5,7 +5,7 @@ using Cairo;
 using HarmonyLib;
 using Vintagestory.API.Client;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     internal static class GuiElementVerticalTabsWithBackgrounds
     {

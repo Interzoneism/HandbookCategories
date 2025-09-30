@@ -4,7 +4,7 @@ using System.Globalization;
 using Vintagestory.API.Client;
 using Vintagestory.API.MathTools;
 
-namespace Handbook_Categories
+namespace Enhanced_Handbook
 {
     internal static class HandbookCategoryColors
     {
