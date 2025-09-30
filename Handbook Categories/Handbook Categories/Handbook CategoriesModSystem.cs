@@ -783,7 +783,7 @@ namespace Enhanced_Handbook
                 bounds.fixedHeight = searchInput.Bounds.fixedHeight;
             }
 
-            CairoFont font = pauseButton.Font;
+            CairoFont font = pauseButton?.Font ?? CairoFont.WhiteDetailText();
 
             GuiElementToggleButton toggleButton = new(api, string.Empty, "Recipes Only", font, on => OnRecipesOnlyToggled(dialog, on), bounds, toggleable: true);
             toggleButton.SetValue(desiredState);
