@@ -1139,8 +1139,12 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            if (!overviewGui.Composed)
+            {
+                return;
+            }
+
             trackedCreateButtonComposer = overviewGui;
-            button.Bounds?.CalcWorldBounds();
             UpdateCreateButtonTextInternal(overviewGui, button);
         }
 
@@ -1176,8 +1180,9 @@ namespace Enhanced_Handbook
         private static void MonitorCreateButtonState(float deltaTime)
         {
             GuiComposer composer = trackedCreateButtonComposer;
-            if (composer == null)
+            if (composer == null || !composer.Composed)
             {
+                trackedCreateButtonComposer = null;
                 return;
             }
 
@@ -1188,13 +1193,23 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            if (!TryEnsureButtonBounds(composer, button))
+            {
+                trackedCreateButtonComposer = null;
+                return;
+            }
+
             UpdateCreateButtonTextInternal(composer, button);
         }
 
         private static void UpdateCreateButtonTextInternal(GuiComposer composer, GuiElementTextButton button)
         {
-            _ = composer;
-            if (button == null)
+            if (composer == null || button == null || !composer.Composed)
+            {
+                return;
+            }
+
+            if (!TryEnsureButtonBounds(composer, button))
             {
                 return;
             }
@@ -1219,8 +1234,17 @@ namespace Enhanced_Handbook
 
             button.BeforeCalcBounds();
             button.ComposeElements(ctx, surface);
-            button.Bounds?.MarkDirtyRecursive();
-            button.Bounds?.CalcWorldBounds();
+
+            ElementBounds bounds = button.Bounds;
+            if (bounds?.ParentBounds != null)
+            {
+                bounds.MarkDirtyRecursive();
+
+                if (bounds.RequiresRecalculation)
+                {
+                    bounds.CalcWorldBounds();
+                }
+            }
         }
 
         private static bool ShouldShowDeleteText(GuiElementTextButton button)
@@ -1236,7 +1260,16 @@ namespace Enhanced_Handbook
             }
 
             ElementBounds bounds = button.Bounds;
-            bounds.CalcWorldBounds();
+            if (bounds.ParentBounds == null)
+            {
+                return false;
+            }
+
+            if (bounds.RequiresRecalculation)
+            {
+                bounds.CalcWorldBounds();
+            }
+
             return bounds.PointInside(capi.Input.MouseX, capi.Input.MouseY);
         }
 
@@ -1322,6 +1355,38 @@ namespace Enhanced_Handbook
 
             string trimmed = categoryName.Trim();
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private static bool TryEnsureButtonBounds(GuiComposer composer, GuiElementTextButton button)
+        {
+            if (composer == null || button == null)
+            {
+                return false;
+            }
+
+            ElementBounds bounds = button.Bounds;
+            if (bounds == null)
+            {
+                return false;
+            }
+
+            if (bounds.ParentBounds == null)
+            {
+                ElementBounds composerBounds = composer.Bounds;
+                if (composerBounds == null)
+                {
+                    return false;
+                }
+
+                bounds.ParentBounds = composerBounds;
+            }
+
+            if (bounds.RequiresRecalculation)
+            {
+                bounds.CalcWorldBounds();
+            }
+
+            return true;
         }
 
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
