@@ -5,7 +5,7 @@ namespace Handbook_Categories
 {
     internal sealed class HandbookCategoriesConfig
     {
-        internal const string ConfigFileName = "HandbookCategories.json";
+        internal const string ConfigFileName = "EnhancedHandbook.json";
 
         [JsonProperty("onlyGridPages")]
         public bool OnlyGridPages { get; set; } = false;

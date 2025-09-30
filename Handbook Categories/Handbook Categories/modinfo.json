@@ -1,11 +1,11 @@
 {
   "type": "code",
-  "modid": "handbookcategories",
-  "name": "Handbook Categories",
+  "modid": "enhancedhandbook",
+  "name": "Enhanced Handbook",
   "authors": [
     "Interzoneism"
   ],
-  "description": "Adds category tabs to the handbook.",
+  "description": "Adds category tabs to the handbook and improves search",
   "version": "1.0.0",
   "dependencies": {
     "game": ""
