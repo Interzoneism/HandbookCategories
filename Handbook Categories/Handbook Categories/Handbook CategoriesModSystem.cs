@@ -757,7 +757,7 @@ namespace Handbook_Categories
             }
 
             const double fallbackSpacing = 18.0;
-            const double fallbackMinWidth = 140.0;
+            const double minimumWidth = 150.0;
             const double pauseButtonSpacing = 10.0;
 
             ElementBounds bounds = null;
@@ -766,7 +766,7 @@ namespace Handbook_Categories
             if (pauseButton?.Bounds != null)
             {
                 bounds = pauseButton.Bounds.CopyOffsetedSibling(-(pauseButton.Bounds.fixedWidth + pauseButtonSpacing), 0.0);
-                bounds.fixedWidth = pauseButton.Bounds.fixedWidth;
+                bounds.fixedWidth = Math.Max(minimumWidth, pauseButton.Bounds.fixedWidth);
                 bounds.fixedHeight = pauseButton.Bounds.fixedHeight;
             }
             else
@@ -779,9 +779,11 @@ namespace Handbook_Categories
                 }
 
                 bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
-                bounds.fixedWidth = fallbackMinWidth;
+                bounds.fixedWidth = minimumWidth;
                 bounds.fixedHeight = searchInput.Bounds.fixedHeight;
             }
+
+            bounds.fixedWidth = Math.Max(bounds.fixedWidth, minimumWidth);
 
             CairoFont font = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
 
@@ -834,47 +836,71 @@ namespace Handbook_Categories
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
         {
-            const double spacing = 100.0;
             const double minWidth = 120.0;
+
+            ElementBounds referenceBounds = null;
+            double width = minWidth;
+            double height = minWidth;
+            double fixedY = 0.0;
+            double fixedOffsetY = 0.0;
 
             if (overviewGui?.LastAddedElement is GuiElementTextButton closeButton && closeButton.Bounds != null && closeButton.Bounds.Alignment == EnumDialogArea.RightFixed)
             {
-                double width = Math.Max(minWidth, closeButton.Bounds.fixedWidth);
-                ElementBounds bounds = closeButton.Bounds.CopyOffsetedSibling(-(width + spacing), 0.0);
-                bounds.fixedWidth = width;
-                bounds.fixedHeight = closeButton.Bounds.fixedHeight;
-                return bounds;
+                referenceBounds = closeButton.Bounds;
+                width = Math.Max(minWidth, closeButton.Bounds.fixedWidth);
+                height = closeButton.Bounds.fixedHeight;
+                fixedY = closeButton.Bounds.fixedY;
+                fixedOffsetY = closeButton.Bounds.fixedOffsetY;
             }
 
-            GuiElementTextButton backButton = overviewGui?.GetButton("backButton");
-            if (backButton != null)
+            if (referenceBounds == null)
             {
-                double width = Math.Max(minWidth, backButton.Bounds.fixedWidth);
-                ElementBounds bounds = backButton.Bounds.CopyOffsetedSibling(backButton.Bounds.fixedWidth + spacing, 0.0);
-                bounds.fixedWidth = width;
-                bounds.fixedHeight = backButton.Bounds.fixedHeight;
-                return bounds;
+                GuiElementTextButton backButton = overviewGui?.GetButton("backButton");
+                if (backButton?.Bounds != null)
+                {
+                    referenceBounds = backButton.Bounds;
+                    width = Math.Max(minWidth, backButton.Bounds.fixedWidth);
+                    height = backButton.Bounds.fixedHeight;
+                    fixedY = backButton.Bounds.fixedY;
+                    fixedOffsetY = backButton.Bounds.fixedOffsetY;
+                }
             }
 
-            GuiElementToggleButton recipesToggle = overviewGui?.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
-            if (recipesToggle != null && recipesToggle.Bounds != null)
+            if (referenceBounds == null)
             {
-                ElementBounds bounds = recipesToggle.Bounds.CopyOffsetedSibling(recipesToggle.Bounds.fixedWidth + spacing, 0.0);
-                bounds.fixedWidth = Math.Max(minWidth, recipesToggle.Bounds.fixedWidth);
-                bounds.fixedHeight = recipesToggle.Bounds.fixedHeight;
-                return bounds;
+                GuiElementToggleButton recipesToggle = overviewGui?.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
+                if (recipesToggle?.Bounds != null)
+                {
+                    referenceBounds = recipesToggle.Bounds;
+                    width = Math.Max(minWidth, recipesToggle.Bounds.fixedWidth);
+                    height = recipesToggle.Bounds.fixedHeight;
+                    fixedY = recipesToggle.Bounds.fixedY;
+                    fixedOffsetY = recipesToggle.Bounds.fixedOffsetY;
+                }
             }
 
-            GuiElementTextInput searchInput = overviewGui?.GetTextInput("searchField");
-            if (searchInput != null)
+            if (referenceBounds == null)
             {
-                ElementBounds bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + spacing, 0.0);
-                bounds.fixedWidth = minWidth;
-                bounds.fixedHeight = searchInput.Bounds.fixedHeight;
-                return bounds;
+                GuiElementTextInput searchInput = overviewGui?.GetTextInput("searchField");
+                if (searchInput?.Bounds != null)
+                {
+                    referenceBounds = searchInput.Bounds;
+                    width = minWidth;
+                    height = searchInput.Bounds.fixedHeight;
+                    fixedY = searchInput.Bounds.fixedY;
+                    fixedOffsetY = searchInput.Bounds.fixedOffsetY;
+                }
             }
 
-            return null;
+            if (referenceBounds == null)
+            {
+                return null;
+            }
+
+            ElementBounds centeredBounds = ElementBounds.Fixed(EnumDialogArea.CenterFixed, 0.0, fixedY, width, height);
+            centeredBounds.fixedOffsetY = fixedOffsetY;
+            centeredBounds.ParentBounds = referenceBounds.ParentBounds;
+            return centeredBounds;
         }
 
         private static bool OnCreateButtonClicked(GuiDialogHandbook dialog)
