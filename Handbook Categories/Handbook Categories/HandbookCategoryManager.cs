@@ -93,7 +93,16 @@ namespace Enhanced_Handbook
             private readonly SearchTerm[] includeTerms;
             private readonly SearchTerm[] excludeTerms;
 
-            internal WordCategoryDefinition(string categoryName, string sanitizedName, string[] matchWords, string[] matchPhrases, string[] forbiddenWords, string[] forbiddenPhrases, double[] backgroundColor)
+            internal WordCategoryDefinition(
+                string categoryName,
+                string sanitizedName,
+                string[] matchWords,
+                string[] matchPhrases,
+                string[] matchTitleWords,
+                string[] forbiddenWords,
+                string[] forbiddenPhrases,
+                string[] forbiddenTitleWords,
+                double[] backgroundColor)
             {
                 CategoryName = categoryName ?? string.Empty;
                 SanitizedName = sanitizedName ?? string.Empty;
@@ -101,12 +110,14 @@ namespace Enhanced_Handbook
                 TranslationKey = $"{TranslationPrefix}{SanitizedName}";
                 MatchWords = matchWords ?? Array.Empty<string>();
                 MatchPhrases = matchPhrases ?? Array.Empty<string>();
+                MatchTitleWords = matchTitleWords ?? Array.Empty<string>();
                 ForbiddenWords = forbiddenWords ?? Array.Empty<string>();
                 ForbiddenPhrases = forbiddenPhrases ?? Array.Empty<string>();
+                ForbiddenTitleWords = forbiddenTitleWords ?? Array.Empty<string>();
                 tabBackgroundColor = NormalizeColor(backgroundColor);
 
-                includeTerms = BuildSearchTerms(MatchWords, MatchPhrases);
-                excludeTerms = BuildSearchTerms(ForbiddenWords, ForbiddenPhrases);
+                includeTerms = BuildSearchTerms(MatchWords, MatchPhrases, MatchTitleWords);
+                excludeTerms = BuildSearchTerms(ForbiddenWords, ForbiddenPhrases, ForbiddenTitleWords);
             }
 
             internal string CategoryName { get; }
@@ -121,9 +132,13 @@ namespace Enhanced_Handbook
 
             internal string[] MatchPhrases { get; }
 
+            internal string[] MatchTitleWords { get; }
+
             internal string[] ForbiddenWords { get; }
 
             internal string[] ForbiddenPhrases { get; }
+
+            internal string[] ForbiddenTitleWords { get; }
 
             internal double[] BackgroundColor => (double[])tabBackgroundColor.Clone();
 
@@ -167,9 +182,11 @@ namespace Enhanced_Handbook
                 return copy;
             }
 
-            private static SearchTerm[] BuildSearchTerms(string[] words, string[] phrases)
+            private static SearchTerm[] BuildSearchTerms(string[] words, string[] phrases, string[] titleMatchWords)
             {
-                if ((words == null || words.Length == 0) && (phrases == null || phrases.Length == 0))
+                if ((words == null || words.Length == 0)
+                    && (phrases == null || phrases.Length == 0)
+                    && (titleMatchWords == null || titleMatchWords.Length == 0))
                 {
                     return Array.Empty<SearchTerm>();
                 }
@@ -177,7 +194,7 @@ namespace Enhanced_Handbook
                 List<SearchTerm> terms = new();
                 HashSet<string> seen = new(StringComparer.Ordinal);
 
-                static void AddTerms(IEnumerable<string> source, List<SearchTerm> target, HashSet<string> seenCache)
+                static void AddTerms(IEnumerable<string> source, List<SearchTerm> target, HashSet<string> seenCache, bool requiresTitleMatch)
                 {
                     if (source == null)
                     {
@@ -187,17 +204,24 @@ namespace Enhanced_Handbook
                     foreach (string raw in source)
                     {
                         string normalized = NormalizeSearchTerm(raw);
-                        if (normalized.Length == 0 || !seenCache.Add(normalized))
+                        if (normalized.Length == 0)
                         {
                             continue;
                         }
 
-                        target.Add(new SearchTerm(normalized, true, false));
+                        string cacheKey = requiresTitleMatch ? $"title:{normalized}" : $"term:{normalized}";
+                        if (!seenCache.Add(cacheKey))
+                        {
+                            continue;
+                        }
+
+                        target.Add(new SearchTerm(normalized, true, requiresTitleMatch));
                     }
                 }
 
-                AddTerms(words, terms, seen);
-                AddTerms(phrases, terms, seen);
+                AddTerms(words, terms, seen, requiresTitleMatch: false);
+                AddTerms(phrases, terms, seen, requiresTitleMatch: false);
+                AddTerms(titleMatchWords, terms, seen, requiresTitleMatch: true);
 
                 return terms.ToArray();
             }
@@ -1508,7 +1532,9 @@ namespace Enhanced_Handbook
                 }
 
                 string[] matchWords = NormalizeWords(entry.MatchWords);
+                string[] matchTitleWords = NormalizeWords(entry.MatchTitleWords);
                 string[] forbiddenWords = NormalizeWords(entry.ForbiddenWords);
+                string[] forbiddenTitleWords = NormalizeWords(entry.ForbiddenTitleWords);
 
                 List<string> matchSinglesList = new(matchWords.Length);
                 List<string> matchPhrasesList = new();
@@ -1551,7 +1577,16 @@ namespace Enhanced_Handbook
                     capi?.Logger?.Warning("[HandbookCategories] Unknown tab background color \"{0}\" for category \"{1}\". Using default color.", entry.TabBackgroundColor, name);
                 }
 
-                WordCategoryDefinition definition = new(name, sanitized, matchSingles, matchPhrases, forbiddenSingles, forbiddenPhrases, backgroundColor);
+                WordCategoryDefinition definition = new(
+                    name,
+                    sanitized,
+                    matchSingles,
+                    matchPhrases,
+                    matchTitleWords,
+                    forbiddenSingles,
+                    forbiddenPhrases,
+                    forbiddenTitleWords,
+                    backgroundColor);
                 definitions.Add(definition);
 
             }

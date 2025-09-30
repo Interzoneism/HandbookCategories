@@ -102,8 +102,14 @@ namespace Enhanced_Handbook
         [JsonProperty("matchWords")]
         public List<string> MatchWords { get; set; } = new();
 
+        [JsonProperty("matchTitleWords")]
+        public List<string> MatchTitleWords { get; set; } = new();
+
         [JsonProperty("forbiddenWords")]
         public List<string> ForbiddenWords { get; set; } = new();
+
+        [JsonProperty("forbiddenTitleWords")]
+        public List<string> ForbiddenTitleWords { get; set; } = new();
 
         [JsonProperty("tabBackgroundColor")]
         public string TabBackgroundColor { get; set; } = HandbookCategoryColors.DefaultColorName;
