@@ -757,7 +757,7 @@ namespace Handbook_Categories
             }
 
             const double fallbackSpacing = 18.0;
-            const double fallbackMinWidth = 140.0;
+            const double fallbackMinWidth = 160.0;
             const double pauseButtonSpacing = 10.0;
 
             ElementBounds bounds = null;
@@ -783,7 +783,7 @@ namespace Handbook_Categories
                 bounds.fixedHeight = searchInput.Bounds.fixedHeight;
             }
 
-            CairoFont font = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
+            CairoFont font = pauseButton.Font;
 
             GuiElementToggleButton toggleButton = new(api, string.Empty, "Recipes Only", font, on => OnRecipesOnlyToggled(dialog, on), bounds, toggleable: true);
             toggleButton.SetValue(desiredState);
@@ -818,7 +818,7 @@ namespace Handbook_Categories
             {
                 return;
             }
-
+            
             CairoFont baseFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             CairoFont hoverFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             hoverFont.Color = (double[])GuiStyle.ActiveButtonTextColor.Clone();
@@ -834,8 +834,8 @@ namespace Handbook_Categories
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
         {
-            const double spacing = 100.0;
-            const double minWidth = 120.0;
+            const double spacing = 160.0;
+            const double minWidth = 60.0;
 
             if (overviewGui?.LastAddedElement is GuiElementTextButton closeButton && closeButton.Bounds != null && closeButton.Bounds.Alignment == EnumDialogArea.RightFixed)
             {
