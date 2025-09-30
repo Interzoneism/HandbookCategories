@@ -11,6 +11,7 @@ namespace Enhanced_Handbook
 {
     public class Handbook_CategoriesModSystem : ModSystem
     {
+        //Hi Dana! Legend!
         private const string HarmonyId = "handbookcategories.core";
 
         private Harmony harmony;
