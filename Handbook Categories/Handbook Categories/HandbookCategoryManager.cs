@@ -16,6 +16,11 @@ namespace Enhanced_Handbook
         private const string CategoryCodePrefix = "handbookcategories-";
         private const string TranslationPrefix = "handbookcategories:tab-";
 
+        internal const string RecipesOnlyToggleTranslationKey = "enhancedhandbook:toggle-recipes-only";
+        internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
+        private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
+        private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
+
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
@@ -29,10 +34,6 @@ namespace Enhanced_Handbook
 
         internal const string RecipesOnlyToggleKey = "handbookcategories-recipes-toggle";
         internal const string OriginalSearchToggleKey = "handbookcategories-original-search-toggle";
-        private const string CreateCategoryButtonText = "Create Category";
-        private const string DeleteCategoryButtonText = "Delete Category";
-
-
         private static bool onlyGridPages = false;
         private static bool useOriginalSearch = false;
         private static bool showTutorialTab = true;
@@ -55,6 +56,26 @@ namespace Enhanced_Handbook
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
         internal static bool OriginalSearchEnabled => useOriginalSearch;
+
+        internal static string GetCreateCategoryButtonText()
+        {
+            return Lang.Get(CreateCategoryButtonTranslationKey);
+        }
+
+        internal static string GetDeleteCategoryButtonText()
+        {
+            return Lang.Get(DeleteCategoryButtonTranslationKey);
+        }
+
+        internal static string GetRecipesOnlyToggleText()
+        {
+            return Lang.Get(RecipesOnlyToggleTranslationKey);
+        }
+
+        internal static string GetOriginalSearchToggleText()
+        {
+            return Lang.Get(OriginalSearchToggleTranslationKey);
+        }
 
         internal static bool TrySetRecipesOnly(bool enabled)
         {
@@ -1761,7 +1782,7 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string desiredText = ShouldShowDeleteText(button) ? DeleteCategoryButtonText : CreateCategoryButtonText;
+            string desiredText = ShouldShowDeleteText(button) ? GetDeleteCategoryButtonText() : GetCreateCategoryButtonText();
             if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
             {
                 button.Text = desiredText;

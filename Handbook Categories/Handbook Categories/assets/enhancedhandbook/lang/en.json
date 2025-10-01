@@ -1,3 +1,7 @@
 {
-  "tab-armor": "Armor"
+  "button-create-category": "Create Category",
+  "button-delete-category": "Delete Category",
+  "tab-armor": "Armor",
+  "toggle-original-search": "Orig. Search",
+  "toggle-recipes-only": "Recipes Only"
 }
