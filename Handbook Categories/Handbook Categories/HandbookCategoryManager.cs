@@ -1201,9 +1201,13 @@ namespace Enhanced_Handbook
                 for (int i = 0; i < terms.Length; i++)
                 {
                     SearchTerm term = terms[i];
-                    copy[i] = term.IsExactMatch
-                        ? term
-                        : new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch);
+                    if (term.IsExactMatch || term.RequiresPageCodeMatch)
+                    {
+                        copy[i] = term;
+                        continue;
+                    }
+
+                    copy[i] = new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch);
                 }
 
                 return copy;
