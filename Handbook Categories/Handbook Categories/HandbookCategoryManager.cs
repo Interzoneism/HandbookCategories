@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using Cairo;
 using Vintagestory.API.Client;
@@ -20,6 +21,8 @@ namespace Enhanced_Handbook
         internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
         private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
         private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
+        private const double CreateButtonMinimumWidth = 60.0;
+        private const double CreateButtonCloseSpacing = 10.0;
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -40,6 +43,8 @@ namespace Enhanced_Handbook
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
+
+        private static readonly FieldInfo composerInteractiveElementsField = typeof(GuiComposer).GetField("interactiveElements", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static bool categoriesInitialized;
         private static bool categoriesDirty = true;
@@ -447,6 +452,8 @@ namespace Enhanced_Handbook
 
         private static ICoreClientAPI capi;
         private static GuiComposer trackedCreateButtonComposer;
+        private static GuiElementTextButton trackedCreateButton;
+        private static GuiElementTextButton trackedCloseButton;
         private static long createButtonListenerId;
 
         internal static ICoreClientAPI ClientApi => capi;
@@ -1730,6 +1737,7 @@ namespace Enhanced_Handbook
             }
 
             trackedCreateButtonComposer = overviewGui;
+            trackedCreateButton = button;
             UpdateCreateButtonTextInternal(overviewGui, button);
         }
 
@@ -1768,6 +1776,8 @@ namespace Enhanced_Handbook
             if (composer == null || !composer.Composed)
             {
                 trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
                 return;
             }
 
@@ -1775,12 +1785,18 @@ namespace Enhanced_Handbook
             if (button == null)
             {
                 trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
                 return;
             }
+
+            trackedCreateButton = button;
 
             if (!TryEnsureButtonBounds(composer, button))
             {
                 trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
                 return;
             }
 
@@ -1804,6 +1820,7 @@ namespace Enhanced_Handbook
             {
                 button.Text = desiredText;
                 RecomposeTextButton(button);
+                TryEnsureButtonBounds(composer, button);
             }
         }
 
@@ -1966,12 +1983,147 @@ namespace Enhanced_Handbook
                 bounds.ParentBounds = composerBounds;
             }
 
-            if (bounds.RequiresRecalculation)
+            GuiElementTextButton closeButton = GetCloseButton(composer);
+            bool changed = false;
+
+            if (closeButton?.Bounds != null)
             {
+                ElementBounds closeBounds = closeButton.Bounds;
+
+                if (closeBounds.RequiresRecalculation)
+                {
+                    closeBounds.CalcWorldBounds();
+                }
+
+                double previousWidth = bounds.fixedWidth;
+                if (previousWidth < CreateButtonMinimumWidth)
+                {
+                    bounds.fixedWidth = CreateButtonMinimumWidth;
+                }
+
+                double previousHeight = bounds.fixedHeight;
+                if (closeBounds.fixedHeight > 0.0)
+                {
+                    bounds.fixedHeight = closeBounds.fixedHeight;
+                }
+
+                double previousX = bounds.fixedX;
+                bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
+
+                changed = ValuesDiffer(previousWidth, bounds.fixedWidth) || ValuesDiffer(previousHeight, bounds.fixedHeight) || ValuesDiffer(previousX, bounds.fixedX);
+            }
+
+            if (bounds.RequiresRecalculation || changed)
+            {
+                bounds.MarkDirtyRecursive();
                 bounds.CalcWorldBounds();
             }
 
             return true;
+        }
+
+        private static bool ValuesDiffer(double left, double right)
+        {
+            return Math.Abs(left - right) > 0.001;
+        }
+
+        private static GuiElementTextButton GetCloseButton(GuiComposer composer)
+        {
+            if (composer == null)
+            {
+                return null;
+            }
+
+            if (trackedCloseButton?.Bounds?.ParentBounds == composer.Bounds)
+            {
+                return trackedCloseButton;
+            }
+
+            GuiElementTextButton closeButton = TryFindCloseButton(composer);
+            if (closeButton != null)
+            {
+                trackedCloseButton = closeButton;
+                return closeButton;
+            }
+
+            return trackedCloseButton;
+        }
+
+        private static GuiElementTextButton TryFindCloseButton(GuiComposer composer)
+        {
+            if (composer == null)
+            {
+                return null;
+            }
+
+            string closeText = Lang.Get("Close Handbook")?.Trim();
+            GuiElementTextButton candidate = composer.LastAddedElement as GuiElementTextButton;
+            if (IsCloseButtonCandidate(candidate, closeText))
+            {
+                return candidate;
+            }
+
+            if (composerInteractiveElementsField?.GetValue(composer) is Dictionary<string, GuiElement> interactiveElements)
+            {
+                GuiElementTextButton fallback = null;
+                double fallbackX = double.MinValue;
+
+                foreach (GuiElement element in interactiveElements.Values)
+                {
+                    if (element is GuiElementTextButton button)
+                    {
+                        if (button == trackedCreateButton)
+                        {
+                            continue;
+                        }
+
+                        if (IsCloseButtonCandidate(button, closeText))
+                        {
+                            return button;
+                        }
+
+                        ElementBounds elementBounds = button.Bounds;
+                        if (elementBounds?.Alignment == EnumDialogArea.RightFixed)
+                        {
+                            double candidateX = elementBounds.fixedX;
+                            if (candidateX > fallbackX)
+                            {
+                                fallbackX = candidateX;
+                                fallback = button;
+                            }
+                        }
+                    }
+                }
+
+                if (fallback != null)
+                {
+                    return fallback;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsCloseButtonCandidate(GuiElementTextButton button, string closeText)
+        {
+            if (button == null || button == trackedCreateButton)
+            {
+                return false;
+            }
+
+            ElementBounds bounds = button.Bounds;
+            if (bounds == null || bounds.Alignment != EnumDialogArea.RightFixed)
+            {
+                return false;
+            }
+
+            string text = button.Text?.Trim();
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(closeText))
+            {
+                return false;
+            }
+
+            return string.Equals(text, closeText, StringComparison.Ordinal);
         }
 
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
