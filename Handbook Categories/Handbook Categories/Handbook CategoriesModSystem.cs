@@ -897,10 +897,11 @@ namespace Enhanced_Handbook
 
             GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
             bool desiredOriginalState = HandbookCategoryManager.OriginalSearchEnabled;
+            string originalSearchText = HandbookCategoryManager.GetOriginalSearchToggleText();
 
             if (originalSearchToggle == null)
             {
-                originalSearchToggle = new GuiElementToggleButton(api, string.Empty, "Orig. Search", font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
+                originalSearchToggle = new GuiElementToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
                 originalSearchToggle.SetValue(desiredOriginalState);
                 originalSearchToggle.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
@@ -910,13 +911,19 @@ namespace Enhanced_Handbook
             {
                 originalSearchToggle.SetValue(desiredOriginalState);
             }
+            else if (!string.Equals(originalSearchToggle.Text, originalSearchText, StringComparison.Ordinal))
+            {
+                originalSearchToggle.Text = originalSearchText;
+                recompose = true;
+            }
 
             GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
             bool desiredRecipesState = HandbookCategoryManager.RecipesOnlyEnabled;
+            string recipesOnlyText = HandbookCategoryManager.GetRecipesOnlyToggleText();
 
             if (recipesToggle == null)
             {
-                recipesToggle = new GuiElementToggleButton(api, string.Empty, "Recipes Only", font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
+                recipesToggle = new GuiElementToggleButton(api, string.Empty, recipesOnlyText, font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
                 recipesToggle.SetValue(desiredRecipesState);
                 recipesToggle.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(recipesToggle, HandbookCategoryManager.RecipesOnlyToggleKey);
@@ -925,6 +932,11 @@ namespace Enhanced_Handbook
             else if (recipesToggle.On != desiredRecipesState)
             {
                 recipesToggle.SetValue(desiredRecipesState);
+            }
+            else if (!string.Equals(recipesToggle.Text, recipesOnlyText, StringComparison.Ordinal))
+            {
+                recipesToggle.Text = recipesOnlyText;
+                recompose = true;
             }
 
             if (recompose)
@@ -963,7 +975,7 @@ namespace Enhanced_Handbook
             CairoFont hoverFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             hoverFont.Color = (double[])GuiStyle.ActiveButtonTextColor.Clone();
 
-            GuiElementTextButton button = new(api, "Create Category", baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
+            GuiElementTextButton button = new(api, HandbookCategoryManager.GetCreateCategoryButtonText(), baseFont, hoverFont, () => OnCreateButtonClicked(dialog), buttonBounds, EnumButtonStyle.Normal);
             button.SetOrientation(baseFont.Orientation);
             button.Bounds.CalcWorldBounds();
 
