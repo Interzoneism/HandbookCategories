@@ -15,4 +15,4 @@
 - Lint (optional): `dotnet format --verify-no-changes`
 
 ## Project
-- Solution: `Handbook Categories.sln`
+- Solution: `Enhanced Handbook.sln`
