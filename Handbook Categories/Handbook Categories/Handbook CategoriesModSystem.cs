@@ -1044,13 +1044,14 @@ namespace Enhanced_Handbook
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
         {
-            const double spacing = 160.0;
             const double minWidth = 60.0;
+            const double closeButtonSpacing = 10.0;
+            const double defaultSpacing = 160.0;
 
             if (overviewGui?.LastAddedElement is GuiElementTextButton closeButton && closeButton.Bounds != null && closeButton.Bounds.Alignment == EnumDialogArea.RightFixed)
             {
                 double width = Math.Max(minWidth, closeButton.Bounds.fixedWidth);
-                ElementBounds bounds = closeButton.Bounds.CopyOffsetedSibling(-(width + spacing), 0.0);
+                ElementBounds bounds = closeButton.Bounds.CopyOffsetedSibling(-(width + closeButtonSpacing), 0.0);
                 bounds.fixedWidth = width;
                 bounds.fixedHeight = closeButton.Bounds.fixedHeight;
                 return bounds;
@@ -1060,7 +1061,7 @@ namespace Enhanced_Handbook
             if (backButton != null)
             {
                 double width = Math.Max(minWidth, backButton.Bounds.fixedWidth);
-                ElementBounds bounds = backButton.Bounds.CopyOffsetedSibling(backButton.Bounds.fixedWidth + spacing, 0.0);
+                ElementBounds bounds = backButton.Bounds.CopyOffsetedSibling(backButton.Bounds.fixedWidth + defaultSpacing, 0.0);
                 bounds.fixedWidth = width;
                 bounds.fixedHeight = backButton.Bounds.fixedHeight;
                 return bounds;
@@ -1069,7 +1070,7 @@ namespace Enhanced_Handbook
             GuiElementToggleButton recipesToggle = overviewGui?.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
             if (recipesToggle != null && recipesToggle.Bounds != null)
             {
-                ElementBounds bounds = recipesToggle.Bounds.CopyOffsetedSibling(recipesToggle.Bounds.fixedWidth + spacing, 0.0);
+                ElementBounds bounds = recipesToggle.Bounds.CopyOffsetedSibling(recipesToggle.Bounds.fixedWidth + defaultSpacing, 0.0);
                 bounds.fixedWidth = Math.Max(minWidth, recipesToggle.Bounds.fixedWidth);
                 bounds.fixedHeight = recipesToggle.Bounds.fixedHeight;
                 return bounds;
@@ -1078,7 +1079,7 @@ namespace Enhanced_Handbook
             GuiElementTextInput searchInput = overviewGui?.GetTextInput("searchField");
             if (searchInput != null)
             {
-                ElementBounds bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + spacing, 0.0);
+                ElementBounds bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + defaultSpacing, 0.0);
                 bounds.fixedWidth = minWidth;
                 bounds.fixedHeight = searchInput.Bounds.fixedHeight;
                 return bounds;
