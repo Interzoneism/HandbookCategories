@@ -857,7 +857,8 @@ namespace Enhanced_Handbook
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
             GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
 
-            ElementBounds originalSearchBounds;
+            bool shouldShowOriginalToggle = HandbookCategoryManager.ShouldShowOriginalSearchToggle;
+            ElementBounds originalSearchBounds = null;
             ElementBounds recipesOnlyBounds;
 
             if (pauseButton?.Bounds != null)
@@ -869,26 +870,42 @@ namespace Enhanced_Handbook
                 recipesOnlyBounds.fixedWidth = width;
                 recipesOnlyBounds.fixedHeight = height;
 
-                originalSearchBounds = recipesOnlyBounds.CopyOffsetedSibling(-(width + toggleSpacing), 0.0);
-                originalSearchBounds.fixedWidth = width;
-                originalSearchBounds.fixedHeight = height;
+                if (shouldShowOriginalToggle)
+                {
+                    originalSearchBounds = recipesOnlyBounds.CopyOffsetedSibling(-(width + toggleSpacing), 0.0);
+                    originalSearchBounds.fixedWidth = width;
+                    originalSearchBounds.fixedHeight = height;
+                }
             }
             else if (searchInput?.Bounds != null)
             {
                 double height = searchInput.Bounds.fixedHeight;
                 double width = fallbackMinWidth;
 
-                originalSearchBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
-                originalSearchBounds.fixedWidth = width;
-                originalSearchBounds.fixedHeight = height;
+                ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
+                baseBounds.fixedWidth = width;
+                baseBounds.fixedHeight = height;
 
-                recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
-                recipesOnlyBounds.fixedWidth = width;
-                recipesOnlyBounds.fixedHeight = height;
+                if (shouldShowOriginalToggle)
+                {
+                    originalSearchBounds = baseBounds;
+                    recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                    recipesOnlyBounds.fixedWidth = width;
+                    recipesOnlyBounds.fixedHeight = height;
+                }
+                else
+                {
+                    recipesOnlyBounds = baseBounds;
+                }
             }
             else
             {
                 return;
+            }
+
+            if (shouldShowOriginalToggle && originalSearchBounds == null)
+            {
+                shouldShowOriginalToggle = false;
             }
 
             CairoFont font = pauseButton?.Font ?? CairoFont.WhiteDetailText();
@@ -896,25 +913,57 @@ namespace Enhanced_Handbook
             bool recompose = false;
 
             GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
-            bool desiredOriginalState = HandbookCategoryManager.OriginalSearchEnabled;
-            string originalSearchText = HandbookCategoryManager.GetOriginalSearchToggleText();
 
-            if (originalSearchToggle == null)
+            if (shouldShowOriginalToggle)
             {
-                originalSearchToggle = new GuiElementToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
-                originalSearchToggle.SetValue(desiredOriginalState);
+                bool desiredOriginalState = HandbookCategoryManager.OriginalSearchEnabled;
+                string originalSearchText = HandbookCategoryManager.GetOriginalSearchToggleText();
+
+                if (originalSearchToggle == null)
+                {
+                    originalSearchToggle = new GuiElementToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
+                    originalSearchToggle.SetValue(desiredOriginalState);
+                    originalSearchToggle.Bounds.CalcWorldBounds();
+                    overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
+                    recompose = true;
+                }
+                else
+                {
+                    if (originalSearchBounds != null)
+                    {
+                        originalSearchToggle.Bounds = originalSearchBounds;
+                        originalSearchToggle.Bounds.CalcWorldBounds();
+                    }
+
+                    if (originalSearchToggle.On != desiredOriginalState)
+                    {
+                        originalSearchToggle.SetValue(desiredOriginalState);
+                    }
+                    if (!string.Equals(originalSearchToggle.Text, originalSearchText, StringComparison.Ordinal))
+                    {
+                        originalSearchToggle.Text = originalSearchText;
+                        recompose = true;
+                    }
+                    originalSearchToggle.Enabled = true;
+                }
+            }
+            else if (originalSearchToggle != null)
+            {
+                if (originalSearchToggle.On)
+                {
+                    originalSearchToggle.SetValue(false);
+                }
+
+                if (!string.IsNullOrEmpty(originalSearchToggle.Text))
+                {
+                    originalSearchToggle.Text = string.Empty;
+                    recompose = true;
+                }
+
+                originalSearchToggle.Enabled = false;
+                originalSearchToggle.Bounds.fixedWidth = 0.0;
+                originalSearchToggle.Bounds.fixedHeight = 0.0;
                 originalSearchToggle.Bounds.CalcWorldBounds();
-                overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
-                recompose = true;
-            }
-            else if (originalSearchToggle.On != desiredOriginalState)
-            {
-                originalSearchToggle.SetValue(desiredOriginalState);
-            }
-            else if (!string.Equals(originalSearchToggle.Text, originalSearchText, StringComparison.Ordinal))
-            {
-                originalSearchToggle.Text = originalSearchText;
-                recompose = true;
             }
 
             GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
@@ -929,14 +978,23 @@ namespace Enhanced_Handbook
                 overviewGui.AddInteractiveElement(recipesToggle, HandbookCategoryManager.RecipesOnlyToggleKey);
                 recompose = true;
             }
-            else if (recipesToggle.On != desiredRecipesState)
+            else
             {
-                recipesToggle.SetValue(desiredRecipesState);
-            }
-            else if (!string.Equals(recipesToggle.Text, recipesOnlyText, StringComparison.Ordinal))
-            {
-                recipesToggle.Text = recipesOnlyText;
-                recompose = true;
+                if (recipesOnlyBounds != null)
+                {
+                    recipesToggle.Bounds = recipesOnlyBounds;
+                    recipesToggle.Bounds.CalcWorldBounds();
+                }
+
+                if (recipesToggle.On != desiredRecipesState)
+                {
+                    recipesToggle.SetValue(desiredRecipesState);
+                }
+                if (!string.Equals(recipesToggle.Text, recipesOnlyText, StringComparison.Ordinal))
+                {
+                    recipesToggle.Text = recipesOnlyText;
+                    recompose = true;
+                }
             }
 
             if (recompose)
