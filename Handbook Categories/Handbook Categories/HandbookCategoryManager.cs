@@ -25,11 +25,13 @@ namespace Enhanced_Handbook
         internal const string CreateCategoryButtonKey = "handbookcategories-create-button";
 
         internal const string RecipesOnlyToggleKey = "handbookcategories-recipes-toggle";
+        internal const string OriginalSearchToggleKey = "handbookcategories-original-search-toggle";
         private const string CreateCategoryButtonText = "Create Category";
         private const string DeleteCategoryButtonText = "Delete Category";
 
 
         private static bool onlyGridPages = false;
+        private static bool useOriginalSearch = false;
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
@@ -49,6 +51,8 @@ namespace Enhanced_Handbook
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
+        internal static bool OriginalSearchEnabled => useOriginalSearch;
+
         internal static bool TrySetRecipesOnly(bool enabled)
         {
             if (onlyGridPages == enabled)
@@ -58,6 +62,17 @@ namespace Enhanced_Handbook
 
             onlyGridPages = enabled;
             MarkCategoriesDirty();
+            return true;
+        }
+
+        internal static bool TrySetOriginalSearch(bool enabled)
+        {
+            if (useOriginalSearch == enabled)
+            {
+                return false;
+            }
+
+            useOriginalSearch = enabled;
             return true;
         }
 
@@ -671,10 +686,20 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        internal static void UpdateSearchUi(GuiComposer overviewGui, string currentSearchText)
+        {
+            if (overviewGui == null)
+            {
+                return;
+            }
+
+            SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
+            UpdateCreateButton(overviewGui, searchQuery);
+        }
+
         internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
         {
             SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
-            UpdateCreateButton(overviewGui, searchQuery);
 
             if (shownPages == null)
             {

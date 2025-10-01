@@ -797,6 +797,13 @@ namespace Enhanced_Handbook
             var loading = LoadingPagesField != null && (bool)LoadingPagesField.GetValue(__instance);
             double listHeight = ListHeightField != null ? (double)ListHeightField.GetValue(__instance) : 500d;
 
+            HandbookCategoryManager.UpdateSearchUi(overviewGui, currentSearch);
+
+            if (HandbookCategoryManager.OriginalSearchEnabled)
+            {
+                return true;
+            }
+
             IEnumerable<GuiHandbookPage> candidatePages = null;
 
             if (HandbookCategoryManager.TryGetCategoryPages(__instance.currentCatgoryCode, out List<GuiHandbookPage> managedPages))
@@ -833,19 +840,6 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            GuiElementToggleButton existingToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
-            bool desiredState = HandbookCategoryManager.RecipesOnlyEnabled;
-
-            if (existingToggle != null)
-            {
-                if (existingToggle.On != desiredState)
-                {
-                    existingToggle.SetValue(desiredState);
-                }
-
-                return;
-            }
-
             ICoreClientAPI api = HandbookCategoryManager.ClientApi;
 
             if (api == null)
@@ -856,38 +850,85 @@ namespace Enhanced_Handbook
             const double fallbackSpacing = 18.0;
             const double fallbackMinWidth = 160.0;
             const double pauseButtonSpacing = 10.0;
+            const double toggleSpacing = 10.0;
 
-            ElementBounds bounds = null;
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
+            GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
+
+            ElementBounds originalSearchBounds;
+            ElementBounds recipesOnlyBounds;
 
             if (pauseButton?.Bounds != null)
             {
-                bounds = pauseButton.Bounds.CopyOffsetedSibling(-(pauseButton.Bounds.fixedWidth + pauseButtonSpacing), 0.0);
-                bounds.fixedWidth = pauseButton.Bounds.fixedWidth;
-                bounds.fixedHeight = pauseButton.Bounds.fixedHeight;
+                double width = pauseButton.Bounds.fixedWidth;
+                double height = pauseButton.Bounds.fixedHeight;
+
+                recipesOnlyBounds = pauseButton.Bounds.CopyOffsetedSibling(-(width + pauseButtonSpacing), 0.0);
+                recipesOnlyBounds.fixedWidth = width;
+                recipesOnlyBounds.fixedHeight = height;
+
+                originalSearchBounds = recipesOnlyBounds.CopyOffsetedSibling(-(width + toggleSpacing), 0.0);
+                originalSearchBounds.fixedWidth = width;
+                originalSearchBounds.fixedHeight = height;
+            }
+            else if (searchInput?.Bounds != null)
+            {
+                double height = searchInput.Bounds.fixedHeight;
+                double width = fallbackMinWidth;
+
+                originalSearchBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
+                originalSearchBounds.fixedWidth = width;
+                originalSearchBounds.fixedHeight = height;
+
+                recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                recipesOnlyBounds.fixedWidth = width;
+                recipesOnlyBounds.fixedHeight = height;
             }
             else
             {
-                GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
-
-                if (searchInput?.Bounds == null)
-                {
-                    return;
-                }
-
-                bounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
-                bounds.fixedWidth = fallbackMinWidth;
-                bounds.fixedHeight = searchInput.Bounds.fixedHeight;
+                return;
             }
 
             CairoFont font = pauseButton?.Font ?? CairoFont.WhiteDetailText();
 
-            GuiElementToggleButton toggleButton = new(api, string.Empty, "Recipes Only", font, on => OnRecipesOnlyToggled(dialog, on), bounds, toggleable: true);
-            toggleButton.SetValue(desiredState);
-            toggleButton.Bounds.CalcWorldBounds();
+            bool recompose = false;
 
-            overviewGui.AddInteractiveElement(toggleButton, HandbookCategoryManager.RecipesOnlyToggleKey);
-            overviewGui.ReCompose();
+            GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
+            bool desiredOriginalState = HandbookCategoryManager.OriginalSearchEnabled;
+
+            if (originalSearchToggle == null)
+            {
+                originalSearchToggle = new GuiElementToggleButton(api, string.Empty, "Orig. Search", font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
+                originalSearchToggle.SetValue(desiredOriginalState);
+                originalSearchToggle.Bounds.CalcWorldBounds();
+                overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
+                recompose = true;
+            }
+            else if (originalSearchToggle.On != desiredOriginalState)
+            {
+                originalSearchToggle.SetValue(desiredOriginalState);
+            }
+
+            GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
+            bool desiredRecipesState = HandbookCategoryManager.RecipesOnlyEnabled;
+
+            if (recipesToggle == null)
+            {
+                recipesToggle = new GuiElementToggleButton(api, string.Empty, "Recipes Only", font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
+                recipesToggle.SetValue(desiredRecipesState);
+                recipesToggle.Bounds.CalcWorldBounds();
+                overviewGui.AddInteractiveElement(recipesToggle, HandbookCategoryManager.RecipesOnlyToggleKey);
+                recompose = true;
+            }
+            else if (recipesToggle.On != desiredRecipesState)
+            {
+                recipesToggle.SetValue(desiredRecipesState);
+            }
+
+            if (recompose)
+            {
+                overviewGui.ReCompose();
+            }
         }
 
         private static void EnsureCreateButton(GuiDialogHandbook dialog, GuiComposer overviewGui)
@@ -1013,6 +1054,19 @@ namespace Enhanced_Handbook
             if (stateChanged)
             {
                 HandbookCategoryManager.RequestTabsRebuild();
+            }
+        }
+
+        private static void OnOriginalSearchToggled(GuiDialogHandbook dialog, bool enabled)
+        {
+            string searchText = CaptureActiveSearchText(dialog);
+            bool stateChanged = HandbookCategoryManager.TrySetOriginalSearch(enabled);
+
+            RefreshActiveTab(dialog, clearSearch: false, searchTextToRestore: searchText);
+
+            if (stateChanged)
+            {
+                HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
             }
         }
 
