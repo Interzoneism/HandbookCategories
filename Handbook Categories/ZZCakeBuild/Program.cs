@@ -181,7 +181,7 @@ namespace CakeBuild
 
                 var baseJson = JObject.Parse(File.ReadAllText(baseModInfoPath));
                 var modId = baseJson["ModID"]?.Value<string>() ?? Path.GetFileNameWithoutExtension(proj);
-                var baseVersion = baseJson["Version"]?.Value<string>() ?? "1.0.0";
+                var baseVersion = baseJson["version"]?.Value<string>() ?? "1.0.0";
 
                 var (v120, v121) = Versioning.ResolveVersions(baseJson, baseVersion,
                     ctx.VS120_VersionOverride, ctx.VS121_VersionOverride);
