@@ -204,18 +204,33 @@ namespace Enhanced_Handbook
                     foreach (string raw in source)
                     {
                         string normalized = NormalizeSearchTerm(raw);
+                        bool requiresCodeMatch = false;
+
+                        if (normalized.Length > 0 && normalized[0] == '%')
+                        {
+                            if (normalized.Length == 1)
+                            {
+                                continue;
+                            }
+
+                            normalized = normalized.Substring(1);
+                            requiresCodeMatch = true;
+                        }
+
                         if (normalized.Length == 0)
                         {
                             continue;
                         }
 
-                        string cacheKey = requiresTitleMatch ? $"title:{normalized}" : $"term:{normalized}";
+                        string cacheKey = requiresCodeMatch
+                            ? $"code:{normalized}"
+                            : requiresTitleMatch ? $"title:{normalized}" : $"term:{normalized}";
                         if (!seenCache.Add(cacheKey))
                         {
                             continue;
                         }
 
-                        target.Add(new SearchTerm(normalized, true, requiresTitleMatch));
+                        target.Add(new SearchTerm(normalized, true, requiresTitleMatch, requiresCodeMatch));
                     }
                 }
 
@@ -262,11 +277,12 @@ namespace Enhanced_Handbook
 
         private readonly struct SearchTerm
         {
-            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch)
+            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch)
             {
                 Term = term;
                 IsExactMatch = isExactMatch;
                 RequiresTitleMatch = requiresTitleMatch;
+                RequiresPageCodeMatch = requiresPageCodeMatch;
             }
 
             internal string Term { get; }
@@ -274,6 +290,8 @@ namespace Enhanced_Handbook
             internal bool IsExactMatch { get; }
 
             internal bool RequiresTitleMatch { get; }
+
+            internal bool RequiresPageCodeMatch { get; }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -817,6 +835,35 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (term.RequiresPageCodeMatch)
+            {
+                string normalizedPageCode = GetNormalizedPageCode(page);
+                if (string.IsNullOrEmpty(normalizedPageCode))
+                {
+                    return false;
+                }
+
+                if (term.IsExactMatch)
+                {
+                    if (!string.Equals(normalizedPageCode, term.Term, StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+
+                    weight = float.MaxValue;
+                    return true;
+                }
+
+                float codeWeight = GetPageCodeMatchWeight(normalizedPageCode, term.Term);
+                if (codeWeight <= 0f)
+                {
+                    return false;
+                }
+
+                weight = codeWeight;
+                return true;
+            }
+
             float matchWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
             if (matchWeight <= 0f)
             {
@@ -877,6 +924,36 @@ namespace Enhanced_Handbook
             return 0f;
         }
 
+        private static float GetPageCodeMatchWeight(string normalizedPageCode, string term)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedPageCode) || string.IsNullOrWhiteSpace(term))
+            {
+                return 0f;
+            }
+
+            if (string.Equals(normalizedPageCode, term, StringComparison.Ordinal))
+            {
+                return 4f;
+            }
+
+            if (normalizedPageCode.StartsWith(term + "-", StringComparison.Ordinal))
+            {
+                return 3.75f;
+            }
+
+            if (normalizedPageCode.StartsWith(term, StringComparison.Ordinal))
+            {
+                return 3.5f;
+            }
+
+            if (normalizedPageCode.IndexOf(term, StringComparison.Ordinal) >= 0)
+            {
+                return 3f;
+            }
+
+            return 0f;
+        }
+
         private static string GetSearchableContent(string normalizedTitle)
         {
             return normalizedTitle ?? string.Empty;
@@ -906,6 +983,17 @@ namespace Enhanced_Handbook
             }
 
             return rawTitle.ToSearchFriendly().ToLowerInvariant().Trim();
+        }
+
+        private static string GetNormalizedPageCode(GuiHandbookPage page)
+        {
+            string pageCode = page?.PageCode;
+            if (string.IsNullOrWhiteSpace(pageCode))
+            {
+                return string.Empty;
+            }
+
+            return pageCode.ToLowerInvariant();
         }
 
         private static SearchQuery PrepareSearchTerms(string currentSearchText)
@@ -958,6 +1046,22 @@ namespace Enhanced_Handbook
                 string raw = builder.ToString();
                 builder.Clear();
 
+                bool requiresCodeMatch = false;
+                if (!string.IsNullOrEmpty(raw) && raw[0] == '%')
+                {
+                    if (raw.Length == 1)
+                    {
+                        excludeNext = false;
+                        buildingExactMatch = false;
+                        currentTokenRequiresTitleMatch = false;
+                        return;
+                    }
+
+                    raw = raw.Substring(1);
+                    requiresCodeMatch = true;
+                    requiresTitleMatch = false;
+                }
+
                 string term = raw.ToSearchFriendly().Trim();
                 if (term.Length == 0)
                 {
@@ -969,11 +1073,11 @@ namespace Enhanced_Handbook
 
                 if (excludeNext)
                 {
-                    excludeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch));
+                    excludeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch));
                 }
                 else
                 {
-                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch));
+                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch));
                 }
 
                 excludeNext = false;
@@ -1099,7 +1203,7 @@ namespace Enhanced_Handbook
                     SearchTerm term = terms[i];
                     copy[i] = term.IsExactMatch
                         ? term
-                        : new SearchTerm(term.Term, true, term.RequiresTitleMatch);
+                        : new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch);
                 }
 
                 return copy;
