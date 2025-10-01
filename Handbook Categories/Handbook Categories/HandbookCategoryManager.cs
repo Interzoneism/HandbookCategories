@@ -1991,6 +1991,36 @@ namespace Enhanced_Handbook
                 changed = true;
             }
 
+            if (ValuesDiffer(bounds.fixedOffsetX, closeBounds.fixedOffsetX))
+            {
+                bounds.fixedOffsetX = closeBounds.fixedOffsetX;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedOffsetY, closeBounds.fixedOffsetY))
+            {
+                bounds.fixedOffsetY = closeBounds.fixedOffsetY;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedY, closeBounds.fixedY))
+            {
+                bounds.fixedY = closeBounds.fixedY;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedPaddingX, closeBounds.fixedPaddingX))
+            {
+                bounds.fixedPaddingX = closeBounds.fixedPaddingX;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedPaddingY, closeBounds.fixedPaddingY))
+            {
+                bounds.fixedPaddingY = closeBounds.fixedPaddingY;
+                changed = true;
+            }
+
             double targetWidth = bounds.fixedWidth;
             if (closeBounds.fixedWidth > 0.0)
             {
