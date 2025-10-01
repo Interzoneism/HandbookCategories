@@ -2069,7 +2069,10 @@ namespace Enhanced_Handbook
             }
 
             double previousX = bounds.fixedX;
-            bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
+            double createPadding = Math.Max(0.0, bounds.fixedPaddingX);
+            double closePadding = Math.Max(0.0, closeBounds.fixedPaddingX);
+            double spacing = CreateButtonCloseSpacing + createPadding + closePadding;
+            bounds.FixedLeftOf(closeBounds, spacing);
             if (ValuesDiffer(previousX, bounds.fixedX))
             {
                 changed = true;
