@@ -19,6 +19,9 @@ namespace Enhanced_Handbook
         [JsonProperty("disableGuidesTab")]
         public bool DisableGuidesTab { get; set; }
 
+        [JsonProperty("disableOriginalSearchButton")]
+        public bool DisableOriginalSearchButton { get; set; }
+
         [JsonProperty("usesEnglishDefaults")]
         public bool UsesEnglishDefaults { get; set; }
 
@@ -33,6 +36,7 @@ namespace Enhanced_Handbook
                 DisableTutorialTab = false,
                 DisableBlocksAndItemsTab = false,
                 DisableGuidesTab = false,
+                DisableOriginalSearchButton = false,
                 UsesEnglishDefaults = true,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {

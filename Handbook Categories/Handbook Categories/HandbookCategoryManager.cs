@@ -36,6 +36,7 @@ namespace Enhanced_Handbook
         internal const string OriginalSearchToggleKey = "handbookcategories-original-search-toggle";
         private static bool onlyGridPages = false;
         private static bool useOriginalSearch = false;
+        private static bool showOriginalSearchToggle = true;
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
@@ -55,7 +56,9 @@ namespace Enhanced_Handbook
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
-        internal static bool OriginalSearchEnabled => useOriginalSearch;
+        internal static bool OriginalSearchEnabled => showOriginalSearchToggle && useOriginalSearch;
+
+        internal static bool ShouldShowOriginalSearchToggle => showOriginalSearchToggle;
 
         internal static string GetCreateCategoryButtonText()
         {
@@ -92,6 +95,11 @@ namespace Enhanced_Handbook
 
         internal static bool TrySetOriginalSearch(bool enabled)
         {
+            if (!showOriginalSearchToggle)
+            {
+                return false;
+            }
+
             if (useOriginalSearch == enabled)
             {
                 return false;
@@ -473,6 +481,8 @@ namespace Enhanced_Handbook
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
                 onlyGridPages = true;
+                showOriginalSearchToggle = true;
+                useOriginalSearch = false;
                 showTutorialTab = true;
                 showBlocksAndItemsTab = true;
                 showGuidesTab = true;
@@ -511,6 +521,12 @@ namespace Enhanced_Handbook
             showTutorialTab = !(config?.DisableTutorialTab ?? false);
             showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
+            showOriginalSearchToggle = !(config?.DisableOriginalSearchButton ?? false);
+
+            if (!showOriginalSearchToggle)
+            {
+                useOriginalSearch = false;
+            }
 
             usingDefaultEnglishWordCategories = usingDefaultCategories;
 
@@ -1312,7 +1328,8 @@ namespace Enhanced_Handbook
             if (config.OnlyGridPages != defaultConfig.OnlyGridPages
                 || config.DisableTutorialTab != defaultConfig.DisableTutorialTab
                 || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
-                || config.DisableGuidesTab != defaultConfig.DisableGuidesTab)
+                || config.DisableGuidesTab != defaultConfig.DisableGuidesTab
+                || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton)
             {
                 return false;
             }
