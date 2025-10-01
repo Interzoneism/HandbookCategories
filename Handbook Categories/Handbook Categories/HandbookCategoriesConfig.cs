@@ -36,7 +36,7 @@ namespace Enhanced_Handbook
                 DisableTutorialTab = false,
                 DisableBlocksAndItemsTab = false,
                 DisableGuidesTab = false,
-                DisableOriginalSearchButton = false,
+                DisableOriginalSearchButton = true,
                 UsesEnglishDefaults = true,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
