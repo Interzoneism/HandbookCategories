@@ -64,6 +64,7 @@ namespace Enhanced_Handbook
             }
 
             onlyGridPages = enabled;
+            StoreRecipesOnlySetting();
             MarkCategoriesDirty();
             return true;
         }
@@ -82,6 +83,29 @@ namespace Enhanced_Handbook
         internal static void MarkCategoriesDirty()
         {
             categoriesDirty = true;
+        }
+
+        private static void StoreRecipesOnlySetting()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName);
+
+            if (config == null)
+            {
+                config = LoadDefaultConfiguration() ?? HandbookCategoriesConfig.CreateDefault();
+            }
+
+            if (config == null || config.OnlyGridPages == onlyGridPages)
+            {
+                return;
+            }
+
+            config.OnlyGridPages = onlyGridPages;
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
         }
 
         internal static void RequestTabsRebuild()
