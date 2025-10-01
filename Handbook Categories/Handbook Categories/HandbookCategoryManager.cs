@@ -1128,10 +1128,10 @@ namespace Enhanced_Handbook
                 return string.Empty;
             }
 
-            bool allowCachedTitles = string.IsNullOrEmpty(localeOverride);
-            string rawTitle = allowCachedTitles
-                ? GetRawTitle(page, allowCachedTitles)
-                : RunWithLocale(localeOverride, () => GetRawTitle(page, allowCachedTitles: false)) ?? string.Empty;
+            bool allowCachedItemStackTitle = string.IsNullOrEmpty(localeOverride);
+            string rawTitle = allowCachedItemStackTitle
+                ? GetRawTitle(page, allowCachedItemStackTitle)
+                : RunWithLocale(localeOverride, () => GetRawTitle(page, allowCachedItemStackTitle: false)) ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(rawTitle))
             {
