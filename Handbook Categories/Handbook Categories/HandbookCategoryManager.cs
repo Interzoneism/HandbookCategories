@@ -1738,6 +1738,8 @@ namespace Enhanced_Handbook
 
             trackedCreateButtonComposer = overviewGui;
             trackedCreateButton = button;
+
+            EnsureCreateButtonLayout(overviewGui, button);
             UpdateCreateButtonTextInternal(overviewGui, button);
         }
 
@@ -1792,11 +1794,13 @@ namespace Enhanced_Handbook
 
             trackedCreateButton = button;
 
+
             if (!TryEnsureButtonBounds(composer, button))
             {
                 trackedCreateButtonComposer = null;
                 trackedCreateButton = null;
                 trackedCloseButton = null;
+
                 return;
             }
 
@@ -1810,17 +1814,14 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (!TryEnsureButtonBounds(composer, button))
-            {
-                return;
-            }
-
             string desiredText = ShouldShowDeleteText(button) ? GetDeleteCategoryButtonText() : GetCreateCategoryButtonText();
             if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
             {
                 button.Text = desiredText;
                 RecomposeTextButton(button);
-                TryEnsureButtonBounds(composer, button);
+
+                EnsureCreateButtonLayout(composer, button);
+
             }
         }
 
@@ -1959,7 +1960,7 @@ namespace Enhanced_Handbook
             return trimmed.Length == 0 ? null : trimmed;
         }
 
-        private static bool TryEnsureButtonBounds(GuiComposer composer, GuiElementTextButton button)
+        private static bool EnsureCreateButtonLayout(GuiComposer composer, GuiElementTextButton button)
         {
             if (composer == null || button == null)
             {
@@ -1972,16 +1973,91 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (bounds.ParentBounds == null)
+            GuiElementTextButton closeButton = GetCloseButton(composer);
+            ElementBounds closeBounds = closeButton?.Bounds;
+            if (closeBounds == null)
             {
-                ElementBounds composerBounds = composer.Bounds;
-                if (composerBounds == null)
-                {
-                    return false;
-                }
-
-                bounds.ParentBounds = composerBounds;
+                return false;
             }
+
+            if (closeBounds.RequiresRecalculation)
+            {
+                closeBounds.CalcWorldBounds();
+            }
+
+
+            bool changed = false;
+
+            if (!ReferenceEquals(bounds.ParentBounds, closeBounds.ParentBounds) && closeBounds.ParentBounds != null)
+            {
+                bounds.ParentBounds = closeBounds.ParentBounds;
+                changed = true;
+            }
+
+            if (bounds.Alignment != closeBounds.Alignment)
+            {
+                bounds.Alignment = closeBounds.Alignment;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedOffsetX, closeBounds.fixedOffsetX))
+            {
+                bounds.fixedOffsetX = closeBounds.fixedOffsetX;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedOffsetY, closeBounds.fixedOffsetY))
+            {
+                bounds.fixedOffsetY = closeBounds.fixedOffsetY;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedY, closeBounds.fixedY))
+            {
+                bounds.fixedY = closeBounds.fixedY;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedPaddingX, closeBounds.fixedPaddingX))
+            {
+                bounds.fixedPaddingX = closeBounds.fixedPaddingX;
+                changed = true;
+            }
+
+            if (ValuesDiffer(bounds.fixedPaddingY, closeBounds.fixedPaddingY))
+            {
+                bounds.fixedPaddingY = closeBounds.fixedPaddingY;
+                changed = true;
+            }
+
+            double targetWidth = bounds.fixedWidth;
+            if (closeBounds.fixedWidth > 0.0)
+            {
+                targetWidth = closeBounds.fixedWidth;
+            }
+
+            if (targetWidth < CreateButtonMinimumWidth)
+            {
+                targetWidth = CreateButtonMinimumWidth;
+            }
+
+            if (ValuesDiffer(bounds.fixedWidth, targetWidth))
+            {
+                bounds.fixedWidth = targetWidth;
+                changed = true;
+            }
+
+            if (closeBounds.fixedHeight > 0.0 && ValuesDiffer(bounds.fixedHeight, closeBounds.fixedHeight))
+            {
+                bounds.fixedHeight = closeBounds.fixedHeight;
+                changed = true;
+            }
+
+            double previousX = bounds.fixedX;
+            bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
+            if (ValuesDiffer(previousX, bounds.fixedX))
+            {
+                changed = true;
 
             GuiElementTextButton closeButton = GetCloseButton(composer);
             bool changed = false;
@@ -2011,6 +2087,7 @@ namespace Enhanced_Handbook
                 bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
 
                 changed = ValuesDiffer(previousWidth, bounds.fixedWidth) || ValuesDiffer(previousHeight, bounds.fixedHeight) || ValuesDiffer(previousX, bounds.fixedX);
+
             }
 
             if (bounds.RequiresRecalculation || changed)
