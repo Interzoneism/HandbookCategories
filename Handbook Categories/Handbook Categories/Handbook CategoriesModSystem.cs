@@ -1093,6 +1093,8 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            string searchText = CaptureActiveSearchText(instance);
+
             if (AllPagesField?.GetValue(instance) is List<GuiHandbookPage> pages)
             {
                 HandbookCategoryManager.RebuildCategories(pages);
@@ -1111,6 +1113,11 @@ namespace Enhanced_Handbook
             }
 
             instance.ReloadPage();
+
+            if (searchText != null)
+            {
+                RestoreSearchInputText(instance, searchText);
+            }
         }
 
         private static string CaptureActiveSearchText(GuiDialogHandbook dialog)
