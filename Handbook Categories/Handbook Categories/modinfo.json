@@ -7,6 +7,8 @@
   ],
   "description": "Adds category tabs to the handbook and improves search",
   "version": "1.0.0",
+  "side": "Client",
+  "requiredOnServer": false,
   "dependencies": {
     "game": ""
   }
