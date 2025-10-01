@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using Cairo;
 using Vintagestory.API.Client;
@@ -20,6 +21,8 @@ namespace Enhanced_Handbook
         internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
         private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
         private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
+        private const double CreateButtonMinimumWidth = 60.0;
+        private const double CreateButtonCloseSpacing = 10.0;
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -40,6 +43,8 @@ namespace Enhanced_Handbook
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
+
+        private static readonly FieldInfo composerInteractiveElementsField = typeof(GuiComposer).GetField("interactiveElements", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static bool categoriesInitialized;
         private static bool categoriesDirty = true;
@@ -447,6 +452,8 @@ namespace Enhanced_Handbook
 
         private static ICoreClientAPI capi;
         private static GuiComposer trackedCreateButtonComposer;
+        private static GuiElementTextButton trackedCreateButton;
+        private static GuiElementTextButton trackedCloseButton;
         private static long createButtonListenerId;
 
         internal static ICoreClientAPI ClientApi => capi;
@@ -1730,6 +1737,8 @@ namespace Enhanced_Handbook
             }
 
             trackedCreateButtonComposer = overviewGui;
+            trackedCreateButton = button;
+            EnsureCreateButtonLayout(overviewGui, button);
             UpdateCreateButtonTextInternal(overviewGui, button);
         }
 
@@ -1768,6 +1777,8 @@ namespace Enhanced_Handbook
             if (composer == null || !composer.Composed)
             {
                 trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
                 return;
             }
 
@@ -1775,12 +1786,15 @@ namespace Enhanced_Handbook
             if (button == null)
             {
                 trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
                 return;
             }
 
-            if (!TryEnsureButtonBounds(composer, button))
+            trackedCreateButton = button;
+
+            if (!EnsureCreateButtonLayout(composer, button))
             {
-                trackedCreateButtonComposer = null;
                 return;
             }
 
@@ -1794,16 +1808,12 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (!TryEnsureButtonBounds(composer, button))
-            {
-                return;
-            }
-
             string desiredText = ShouldShowDeleteText(button) ? GetDeleteCategoryButtonText() : GetCreateCategoryButtonText();
             if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
             {
                 button.Text = desiredText;
                 RecomposeTextButton(button);
+                EnsureCreateButtonLayout(composer, button);
             }
         }
 
@@ -1942,7 +1952,7 @@ namespace Enhanced_Handbook
             return trimmed.Length == 0 ? null : trimmed;
         }
 
-        private static bool TryEnsureButtonBounds(GuiComposer composer, GuiElementTextButton button)
+        private static bool EnsureCreateButtonLayout(GuiComposer composer, GuiElementTextButton button)
         {
             if (composer == null || button == null)
             {
@@ -1955,23 +1965,173 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (bounds.ParentBounds == null)
+            GuiElementTextButton closeButton = GetCloseButton(composer);
+            ElementBounds closeBounds = closeButton?.Bounds;
+            if (closeBounds == null)
             {
-                ElementBounds composerBounds = composer.Bounds;
-                if (composerBounds == null)
-                {
-                    return false;
-                }
-
-                bounds.ParentBounds = composerBounds;
+                return false;
             }
 
-            if (bounds.RequiresRecalculation)
+            if (closeBounds.RequiresRecalculation)
             {
+                closeBounds.CalcWorldBounds();
+            }
+
+            bool changed = false;
+
+            if (!ReferenceEquals(bounds.ParentBounds, closeBounds.ParentBounds) && closeBounds.ParentBounds != null)
+            {
+                bounds.ParentBounds = closeBounds.ParentBounds;
+                changed = true;
+            }
+
+            if (bounds.Alignment != closeBounds.Alignment)
+            {
+                bounds.Alignment = closeBounds.Alignment;
+                changed = true;
+            }
+
+            double targetWidth = bounds.fixedWidth;
+            if (closeBounds.fixedWidth > 0.0)
+            {
+                targetWidth = closeBounds.fixedWidth;
+            }
+
+            if (targetWidth < CreateButtonMinimumWidth)
+            {
+                targetWidth = CreateButtonMinimumWidth;
+            }
+
+            if (ValuesDiffer(bounds.fixedWidth, targetWidth))
+            {
+                bounds.fixedWidth = targetWidth;
+                changed = true;
+            }
+
+            if (closeBounds.fixedHeight > 0.0 && ValuesDiffer(bounds.fixedHeight, closeBounds.fixedHeight))
+            {
+                bounds.fixedHeight = closeBounds.fixedHeight;
+                changed = true;
+            }
+
+            double previousX = bounds.fixedX;
+            bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
+            if (ValuesDiffer(previousX, bounds.fixedX))
+            {
+                changed = true;
+            }
+
+            if (bounds.RequiresRecalculation || changed)
+            {
+                bounds.MarkDirtyRecursive();
                 bounds.CalcWorldBounds();
             }
 
             return true;
+        }
+
+        private static bool ValuesDiffer(double left, double right)
+        {
+            return Math.Abs(left - right) > 0.001;
+        }
+
+        private static GuiElementTextButton GetCloseButton(GuiComposer composer)
+        {
+            if (composer == null)
+            {
+                return null;
+            }
+
+            if (trackedCloseButton?.Bounds?.ParentBounds == composer.Bounds)
+            {
+                return trackedCloseButton;
+            }
+
+            GuiElementTextButton closeButton = TryFindCloseButton(composer);
+            if (closeButton != null)
+            {
+                trackedCloseButton = closeButton;
+                return closeButton;
+            }
+
+            return trackedCloseButton;
+        }
+
+        private static GuiElementTextButton TryFindCloseButton(GuiComposer composer)
+        {
+            if (composer == null)
+            {
+                return null;
+            }
+
+            string closeText = Lang.Get("Close Handbook")?.Trim();
+            GuiElementTextButton candidate = composer.LastAddedElement as GuiElementTextButton;
+            if (IsCloseButtonCandidate(candidate, closeText))
+            {
+                return candidate;
+            }
+
+            if (composerInteractiveElementsField?.GetValue(composer) is Dictionary<string, GuiElement> interactiveElements)
+            {
+                GuiElementTextButton fallback = null;
+                double fallbackX = double.MinValue;
+
+                foreach (GuiElement element in interactiveElements.Values)
+                {
+                    if (element is GuiElementTextButton button)
+                    {
+                        if (button == trackedCreateButton)
+                        {
+                            continue;
+                        }
+
+                        if (IsCloseButtonCandidate(button, closeText))
+                        {
+                            return button;
+                        }
+
+                        ElementBounds elementBounds = button.Bounds;
+                        if (elementBounds?.Alignment == EnumDialogArea.RightFixed)
+                        {
+                            double candidateX = elementBounds.fixedX;
+                            if (candidateX > fallbackX)
+                            {
+                                fallbackX = candidateX;
+                                fallback = button;
+                            }
+                        }
+                    }
+                }
+
+                if (fallback != null)
+                {
+                    return fallback;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsCloseButtonCandidate(GuiElementTextButton button, string closeText)
+        {
+            if (button == null || button == trackedCreateButton)
+            {
+                return false;
+            }
+
+            ElementBounds bounds = button.Bounds;
+            if (bounds == null || bounds.Alignment != EnumDialogArea.RightFixed)
+            {
+                return false;
+            }
+
+            string text = button.Text?.Trim();
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(closeText))
+            {
+                return false;
+            }
+
+            return string.Equals(text, closeText, StringComparison.Ordinal);
         }
 
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
