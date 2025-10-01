@@ -22,6 +22,9 @@ namespace Enhanced_Handbook
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
 
+        private const string EnglishLocaleCode = "en";
+        private static bool usingDefaultEnglishWordCategories;
+
         internal const string CreateCategoryButtonKey = "handbookcategories-create-button";
 
         internal const string RecipesOnlyToggleKey = "handbookcategories-recipes-toggle";
@@ -428,6 +431,7 @@ namespace Enhanced_Handbook
                 showTutorialTab = true;
                 showBlocksAndItemsTab = true;
                 showGuidesTab = true;
+                usingDefaultEnglishWordCategories = false;
                 return;
             }
 
@@ -436,9 +440,17 @@ namespace Enhanced_Handbook
 
             if (config == null)
             {
-                config = LoadDefaultConfiguration() ?? HandbookCategoriesConfig.CreateDefault();
+                config = LoadDefaultConfiguration();
                 shouldStoreConfig = true;
             }
+
+            if (config == null)
+            {
+                config = HandbookCategoriesConfig.CreateDefault();
+                shouldStoreConfig = true;
+            }
+
+            bool usingDefaultCategories = DetermineIfEnglishDefault(config, ref shouldStoreConfig);
 
             wordCategories = BuildWordCategories(config);
 
@@ -447,12 +459,15 @@ namespace Enhanced_Handbook
                 config = HandbookCategoriesConfig.CreateDefault();
                 wordCategories = BuildWordCategories(config);
                 shouldStoreConfig = true;
+                usingDefaultCategories = true;
             }
 
             onlyGridPages = config?.OnlyGridPages ?? false;
             showTutorialTab = !(config?.DisableTutorialTab ?? false);
             showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
+
+            usingDefaultEnglishWordCategories = usingDefaultCategories;
 
             if (shouldStoreConfig)
             {
@@ -714,8 +729,9 @@ namespace Enhanced_Handbook
                     }
                 }
 
-                string normalizedTitle = GetNormalizedTitle(page);
-                string searchableContent = GetSearchableContent(normalizedTitle);
+                PageTitleData titleData = GetPageTitleData(page);
+                string normalizedTitle = titleData.NormalizedPrimaryTitle;
+                string searchableContent = GetSearchableContent(titleData);
                 HashSet<string> searchableWords = ExtractWords(searchableContent);
 
                 for (int i = 0; i < wordCategories.Length; i++)
@@ -872,8 +888,9 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            string normalizedTitle = GetNormalizedTitle(page);
-            string searchableContent = GetSearchableContent(normalizedTitle);
+            PageTitleData titleData = GetPageTitleData(page);
+            string normalizedTitle = titleData.NormalizedPrimaryTitle;
+            string searchableContent = GetSearchableContent(titleData);
             HashSet<string> searchableWords = ExtractWords(searchableContent);
 
             float bestWeight = 0f;
@@ -1075,28 +1092,46 @@ namespace Enhanced_Handbook
             return 0f;
         }
 
-        private static string GetSearchableContent(string normalizedTitle)
+        private static string GetSearchableContent(PageTitleData titleData)
         {
-            return normalizedTitle ?? string.Empty;
+            return titleData.SearchableContent;
+        }
+
+        private static PageTitleData GetPageTitleData(GuiHandbookPage page)
+        {
+            string localizedTitle = GetNormalizedTitle(page);
+
+            if (!ShouldUseEnglishFallbackForDefaultCategories())
+            {
+                return new PageTitleData(localizedTitle, localizedTitle);
+            }
+
+            string englishTitle = GetNormalizedTitle(page, EnglishLocaleCode);
+
+            if (string.IsNullOrEmpty(englishTitle))
+            {
+                englishTitle = localizedTitle;
+            }
+
+            return new PageTitleData(englishTitle, localizedTitle);
         }
 
         private static string GetNormalizedTitle(GuiHandbookPage page)
+        {
+            return GetNormalizedTitle(page, null);
+        }
+
+        private static string GetNormalizedTitle(GuiHandbookPage page, string localeOverride)
         {
             if (page == null)
             {
                 return string.Empty;
             }
 
-            string rawTitle = page switch
-            {
-                GuiHandbookGroupedItemstackPage groupedPage when !string.IsNullOrWhiteSpace(groupedPage.Name) => groupedPage.Name,
-                GuiHandbookItemStackPage itemPage when !string.IsNullOrWhiteSpace(itemPage.TextCacheTitle) => itemPage.TextCacheTitle,
-                GuiHandbookItemStackPage itemPage when itemPage.Stack != null => itemPage.Stack.GetName(),
-                GuiHandbookCommandPage commandPage => commandPage.TextCacheTitle,
-                GuiHandbookMealRecipePage mealPage when !string.IsNullOrWhiteSpace(mealPage.Title) => Lang.Get(mealPage.Title),
-                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Title) => Lang.Get(textPage.Title),
-                _ => page.PageCode
-            } ?? string.Empty;
+            bool allowCachedTitles = string.IsNullOrEmpty(localeOverride);
+            string rawTitle = allowCachedTitles
+                ? GetRawTitle(page, allowCachedTitles)
+                : RunWithLocale(localeOverride, () => GetRawTitle(page, allowCachedTitles: false)) ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(rawTitle))
             {
@@ -1104,6 +1139,204 @@ namespace Enhanced_Handbook
             }
 
             return rawTitle.ToSearchFriendly().ToLowerInvariant().Trim();
+        }
+
+        private static string GetRawTitle(GuiHandbookPage page, bool allowCachedItemStackTitle)
+        {
+            return page switch
+            {
+                GuiHandbookGroupedItemstackPage groupedPage when !string.IsNullOrWhiteSpace(groupedPage.Name) => groupedPage.Name,
+                GuiHandbookItemStackPage itemPage when allowCachedItemStackTitle && !string.IsNullOrWhiteSpace(itemPage.TextCacheTitle) => itemPage.TextCacheTitle,
+                GuiHandbookItemStackPage itemPage when itemPage.Stack != null => itemPage.Stack.GetName(),
+                GuiHandbookCommandPage commandPage => commandPage.TextCacheTitle,
+                GuiHandbookMealRecipePage mealPage when !string.IsNullOrWhiteSpace(mealPage.Title) => Lang.Get(mealPage.Title),
+                GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Title) => Lang.Get(textPage.Title),
+                _ => page.PageCode
+            } ?? string.Empty;
+        }
+
+        private static T RunWithLocale<T>(string localeCode, Func<T> action)
+        {
+            if (string.IsNullOrEmpty(localeCode) || action == null)
+            {
+                return action != null ? action() : default;
+            }
+
+            string originalLocale = Lang.CurrentLocale;
+            if (string.Equals(originalLocale, localeCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return action();
+            }
+
+            Lang.ChangeLanguage(localeCode);
+
+            try
+            {
+                return action();
+            }
+            finally
+            {
+                if (string.IsNullOrEmpty(originalLocale))
+                {
+                    Lang.ChangeLanguage(EnglishLocaleCode);
+                }
+                else
+                {
+                    Lang.ChangeLanguage(originalLocale);
+                }
+            }
+        }
+
+        private static bool ShouldUseEnglishFallbackForDefaultCategories()
+        {
+            return usingDefaultEnglishWordCategories && !IsEnglishLocale(Lang.CurrentLocale);
+        }
+
+        private static bool IsEnglishLocale(string locale)
+        {
+            if (string.IsNullOrEmpty(locale))
+            {
+                return true;
+            }
+
+            return string.Equals(locale, EnglishLocaleCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private readonly struct PageTitleData
+        {
+            internal PageTitleData(string normalizedPrimaryTitle, string localizedTitle)
+            {
+                NormalizedPrimaryTitle = normalizedPrimaryTitle ?? string.Empty;
+                LocalizedTitle = localizedTitle ?? string.Empty;
+            }
+
+            internal string NormalizedPrimaryTitle { get; }
+
+            internal string LocalizedTitle { get; }
+
+            internal string SearchableContent
+            {
+                get
+                {
+                    if (string.IsNullOrEmpty(LocalizedTitle) || string.Equals(LocalizedTitle, NormalizedPrimaryTitle, StringComparison.Ordinal))
+                    {
+                        return NormalizedPrimaryTitle;
+                    }
+
+                    if (string.IsNullOrEmpty(NormalizedPrimaryTitle))
+                    {
+                        return LocalizedTitle;
+                    }
+
+                    return string.Concat(NormalizedPrimaryTitle, " ", LocalizedTitle);
+                }
+            }
+        }
+
+        private static bool DetermineIfEnglishDefault(HandbookCategoriesConfig config, ref bool shouldStoreConfig)
+        {
+            if (config == null)
+            {
+                return false;
+            }
+
+            if (config.UsesEnglishDefaults)
+            {
+                return true;
+            }
+
+            if (!LooksLikeDefaultEnglishConfig(config))
+            {
+                return false;
+            }
+
+            config.UsesEnglishDefaults = true;
+            shouldStoreConfig = true;
+            return true;
+        }
+
+        private static bool LooksLikeDefaultEnglishConfig(HandbookCategoriesConfig config)
+        {
+            if (config == null)
+            {
+                return false;
+            }
+
+            HandbookCategoriesConfig defaultConfig = HandbookCategoriesConfig.CreateDefault();
+
+            if (config.OnlyGridPages != defaultConfig.OnlyGridPages
+                || config.DisableTutorialTab != defaultConfig.DisableTutorialTab
+                || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
+                || config.DisableGuidesTab != defaultConfig.DisableGuidesTab)
+            {
+                return false;
+            }
+
+            List<HandbookCategoryConfigEntry> categories = config.Categories ?? new List<HandbookCategoryConfigEntry>();
+            List<HandbookCategoryConfigEntry> defaultCategories = defaultConfig.Categories ?? new List<HandbookCategoryConfigEntry>();
+
+            if (categories.Count != defaultCategories.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < categories.Count; i++)
+            {
+                if (!CategoryEntryEquals(categories[i], defaultCategories[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool CategoryEntryEquals(HandbookCategoryConfigEntry left, HandbookCategoryConfigEntry right)
+        {
+            if (left == null || right == null)
+            {
+                return left == null && right == null;
+            }
+
+            if (!string.Equals(left.Name, right.Name, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!ListsEquivalent(left.MatchWords, right.MatchWords)
+                || !ListsEquivalent(left.MatchTitleWords, right.MatchTitleWords)
+                || !ListsEquivalent(left.ForbiddenWords, right.ForbiddenWords)
+                || !ListsEquivalent(left.ForbiddenTitleWords, right.ForbiddenTitleWords))
+            {
+                return false;
+            }
+
+            string leftColor = left.TabBackgroundColor ?? string.Empty;
+            string rightColor = right.TabBackgroundColor ?? string.Empty;
+            return string.Equals(leftColor, rightColor, StringComparison.Ordinal);
+        }
+
+        private static bool ListsEquivalent(IList<string> left, IList<string> right)
+        {
+            int leftCount = left?.Count ?? 0;
+            int rightCount = right?.Count ?? 0;
+
+            if (leftCount != rightCount)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < leftCount; i++)
+            {
+                string leftValue = left[i] ?? string.Empty;
+                string rightValue = right[i] ?? string.Empty;
+                if (!string.Equals(leftValue, rightValue, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string GetNormalizedPageCode(GuiHandbookPage page)
