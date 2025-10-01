@@ -799,14 +799,16 @@ namespace Enhanced_Handbook
 
             HandbookCategoryManager.UpdateSearchUi(overviewGui, currentSearch);
 
-            if (HandbookCategoryManager.OriginalSearchEnabled)
+            bool hasManagedPages = HandbookCategoryManager.TryGetCategoryPages(__instance.currentCatgoryCode, out List<GuiHandbookPage> managedPages);
+
+            if (HandbookCategoryManager.OriginalSearchEnabled && !hasManagedPages)
             {
                 return true;
             }
 
             IEnumerable<GuiHandbookPage> candidatePages = null;
 
-            if (HandbookCategoryManager.TryGetCategoryPages(__instance.currentCatgoryCode, out List<GuiHandbookPage> managedPages))
+            if (hasManagedPages)
             {
                 candidatePages = managedPages;
             }
