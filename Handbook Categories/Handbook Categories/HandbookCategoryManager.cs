@@ -230,7 +230,8 @@ namespace Enhanced_Handbook
                             continue;
                         }
 
-                        target.Add(new SearchTerm(normalized, true, requiresTitleMatch, requiresCodeMatch));
+                        bool isExactMatch = !requiresCodeMatch;
+                        target.Add(new SearchTerm(normalized, isExactMatch, requiresTitleMatch, requiresCodeMatch));
                     }
                 }
 
