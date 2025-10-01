@@ -157,7 +157,26 @@ namespace Enhanced_Handbook
 
             internal double[] BackgroundColor => (double[])tabBackgroundColor.Clone();
 
-            internal bool HasSearchTerms => includeTerms.Length > 0;
+            internal bool HasSearchTerms
+            {
+                get
+                {
+                    if (includeTerms == null || includeTerms.Length == 0)
+                    {
+                        return false;
+                    }
+
+                    for (int i = 0; i < includeTerms.Length; i++)
+                    {
+                        if (!includeTerms[i].IsRequired)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+            }
 
             internal bool MatchesPage(GuiHandbookPage page, string normalizedTitle, string searchableContent, HashSet<string> searchableWords)
             {
@@ -174,15 +193,35 @@ namespace Enhanced_Handbook
                     }
                 }
 
+                bool hasOptionalTerms = false;
+                bool optionalMatchFound = false;
+
                 for (int i = 0; i < includeTerms.Length; i++)
                 {
-                    if (MatchesTerm(page, normalizedTitle, includeTerms[i], searchableContent, searchableWords, out _))
+                    SearchTerm term = includeTerms[i];
+                    if (term.IsRequired)
                     {
-                        return true;
+                        if (!MatchesTerm(page, normalizedTitle, term, searchableContent, searchableWords, out _))
+                        {
+                            return false;
+                        }
+
+                        continue;
+                    }
+
+                    hasOptionalTerms = true;
+                    if (MatchesTerm(page, normalizedTitle, term, searchableContent, searchableWords, out _))
+                    {
+                        optionalMatchFound = true;
                     }
                 }
 
-                return false;
+                if (!hasOptionalTerms)
+                {
+                    return false;
+                }
+
+                return optionalMatchFound;
             }
 
             private static double[] NormalizeColor(double[] color)
@@ -218,7 +257,20 @@ namespace Enhanced_Handbook
 
                     foreach (string raw in source)
                     {
-                        string normalized = NormalizeSearchTerm(raw);
+                        if (string.IsNullOrWhiteSpace(raw))
+                        {
+                            continue;
+                        }
+
+                        string trimmed = raw.Trim();
+                        bool isRequired = false;
+                        if (trimmed.Length > 0 && trimmed[0] == '+')
+                        {
+                            isRequired = true;
+                            trimmed = trimmed.Substring(1);
+                        }
+
+                        string normalized = NormalizeSearchTerm(trimmed);
                         bool requiresCodeMatch = false;
 
                         if (normalized.Length > 0 && normalized[0] == '%')
@@ -240,13 +292,17 @@ namespace Enhanced_Handbook
                         string cacheKey = requiresCodeMatch
                             ? $"code:{normalized}"
                             : requiresTitleMatch ? $"title:{normalized}" : $"term:{normalized}";
+                        if (isRequired)
+                        {
+                            cacheKey = $"required:{cacheKey}";
+                        }
                         if (!seenCache.Add(cacheKey))
                         {
                             continue;
                         }
 
                         bool isExactMatch = !requiresCodeMatch;
-                        target.Add(new SearchTerm(normalized, isExactMatch, requiresTitleMatch, requiresCodeMatch));
+                        target.Add(new SearchTerm(normalized, isExactMatch, requiresTitleMatch, requiresCodeMatch, isRequired));
                     }
                 }
 
@@ -274,7 +330,21 @@ namespace Enhanced_Handbook
             {
                 IncludeTerms = includeTerms ?? Array.Empty<SearchTerm>();
                 ExcludeTerms = excludeTerms ?? Array.Empty<SearchTerm>();
-                RequiresAllMatches = requiresAllMatches && IncludeTerms.Length > 0;
+
+                int optionalCount = 0;
+                if (IncludeTerms.Length > 0)
+                {
+                    for (int i = 0; i < IncludeTerms.Length; i++)
+                    {
+                        if (!IncludeTerms[i].IsRequired)
+                        {
+                            optionalCount++;
+                        }
+                    }
+                }
+
+                OptionalTermCount = optionalCount;
+                RequiresAllMatches = requiresAllMatches && OptionalTermCount > 0;
                 CategoryName = string.IsNullOrWhiteSpace(categoryName) ? null : categoryName;
             }
 
@@ -284,21 +354,26 @@ namespace Enhanced_Handbook
 
             internal bool RequiresAllMatches { get; }
 
+            internal int OptionalTermCount { get; }
+
             internal string CategoryName { get; }
 
             internal bool HasCategoryName => !string.IsNullOrWhiteSpace(CategoryName);
 
             internal bool HasFilters => IncludeTerms.Length > 0 || ExcludeTerms.Length > 0;
+
+            internal bool HasOptionalTerms => OptionalTermCount > 0;
         }
 
         private readonly struct SearchTerm
         {
-            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch)
+            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch, bool isRequired = false)
             {
                 Term = term;
                 IsExactMatch = isExactMatch;
                 RequiresTitleMatch = requiresTitleMatch;
                 RequiresPageCodeMatch = requiresPageCodeMatch;
+                IsRequired = isRequired;
             }
 
             internal string Term { get; }
@@ -308,6 +383,8 @@ namespace Enhanced_Handbook
             internal bool RequiresTitleMatch { get; }
 
             internal bool RequiresPageCodeMatch { get; }
+
+            internal bool IsRequired { get; }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -804,14 +881,32 @@ namespace Enhanced_Handbook
             if (searchQuery.IncludeTerms.Length > 0)
             {
                 bool requiresAll = searchQuery.RequiresAllMatches;
-                bool hasMatch = false;
+                bool hasOptionalMatch = false;
+                bool hasOptionalTerms = searchQuery.HasOptionalTerms;
 
                 for (int i = 0; i < searchQuery.IncludeTerms.Length; i++)
                 {
                     SearchTerm term = searchQuery.IncludeTerms[i];
-                    if (MatchesTerm(page, normalizedTitle, term, searchableContent, searchableWords, out float termWeight))
+                    bool matches = MatchesTerm(page, normalizedTitle, term, searchableContent, searchableWords, out float termWeight);
+
+                    if (term.IsRequired)
                     {
-                        hasMatch = true;
+                        if (!matches)
+                        {
+                            return false;
+                        }
+
+                        if (termWeight > bestWeight)
+                        {
+                            bestWeight = termWeight;
+                        }
+
+                        continue;
+                    }
+
+                    if (matches)
+                    {
+                        hasOptionalMatch = true;
                         if (termWeight > bestWeight)
                         {
                             bestWeight = termWeight;
@@ -823,7 +918,7 @@ namespace Enhanced_Handbook
                     }
                 }
 
-                if (!hasMatch)
+                if (!hasOptionalTerms || !hasOptionalMatch)
                 {
                     return false;
                 }
@@ -1073,6 +1168,22 @@ namespace Enhanced_Handbook
                 builder.Clear();
 
                 bool requiresCodeMatch = false;
+                bool isRequired = false;
+
+                if (!string.IsNullOrEmpty(raw) && raw[0] == '+')
+                {
+                    if (raw.Length == 1)
+                    {
+                        excludeNext = false;
+                        buildingExactMatch = false;
+                        currentTokenRequiresTitleMatch = false;
+                        return;
+                    }
+
+                    raw = raw.Substring(1);
+                    isRequired = true;
+                }
+
                 if (!string.IsNullOrEmpty(raw) && raw[0] == '%')
                 {
                     if (raw.Length == 1)
@@ -1103,7 +1214,7 @@ namespace Enhanced_Handbook
                 }
                 else
                 {
-                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch));
+                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch, isRequired));
                 }
 
                 excludeNext = false;
@@ -1203,6 +1314,15 @@ namespace Enhanced_Handbook
             SearchTerm[] includes = includeTerms.ToArray();
             SearchTerm[] excludes = excludeTerms.ToArray();
 
+            int optionalCount = 0;
+            for (int i = 0; i < includes.Length; i++)
+            {
+                if (!includes[i].IsRequired)
+                {
+                    optionalCount++;
+                }
+            }
+
             bool categoryBuilderMode = hashFound && string.IsNullOrWhiteSpace(beforeHash);
             if (categoryBuilderMode)
             {
@@ -1210,9 +1330,14 @@ namespace Enhanced_Handbook
                 excludes = ForceExactTerms(excludes);
             }
 
-            bool requireAllMatches = hashFound
-                ? false
-                : containsOr ? false : includes.Length > 1 || containsAnd;
+            bool requireAllMatches = false;
+            if (!hashFound && !containsOr)
+            {
+                if (optionalCount > 1 || (containsAnd && optionalCount > 0))
+                {
+                    requireAllMatches = true;
+                }
+            }
 
             return new SearchQuery(includes, excludes, requireAllMatches, categoryName);
 
@@ -1233,7 +1358,7 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
-                    copy[i] = new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch);
+                    copy[i] = new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch, term.IsRequired);
                 }
 
                 return copy;
