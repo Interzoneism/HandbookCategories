@@ -1738,6 +1738,7 @@ namespace Enhanced_Handbook
 
             trackedCreateButtonComposer = overviewGui;
             trackedCreateButton = button;
+
             EnsureCreateButtonLayout(overviewGui, button);
             UpdateCreateButtonTextInternal(overviewGui, button);
         }
@@ -1793,8 +1794,13 @@ namespace Enhanced_Handbook
 
             trackedCreateButton = button;
 
-            if (!EnsureCreateButtonLayout(composer, button))
+
+            if (!TryEnsureButtonBounds(composer, button))
             {
+                trackedCreateButtonComposer = null;
+                trackedCreateButton = null;
+                trackedCloseButton = null;
+
                 return;
             }
 
@@ -1813,7 +1819,9 @@ namespace Enhanced_Handbook
             {
                 button.Text = desiredText;
                 RecomposeTextButton(button);
+
                 EnsureCreateButtonLayout(composer, button);
+
             }
         }
 
@@ -1977,6 +1985,7 @@ namespace Enhanced_Handbook
                 closeBounds.CalcWorldBounds();
             }
 
+
             bool changed = false;
 
             if (!ReferenceEquals(bounds.ParentBounds, closeBounds.ParentBounds) && closeBounds.ParentBounds != null)
@@ -2049,6 +2058,36 @@ namespace Enhanced_Handbook
             if (ValuesDiffer(previousX, bounds.fixedX))
             {
                 changed = true;
+
+            GuiElementTextButton closeButton = GetCloseButton(composer);
+            bool changed = false;
+
+            if (closeButton?.Bounds != null)
+            {
+                ElementBounds closeBounds = closeButton.Bounds;
+
+                if (closeBounds.RequiresRecalculation)
+                {
+                    closeBounds.CalcWorldBounds();
+                }
+
+                double previousWidth = bounds.fixedWidth;
+                if (previousWidth < CreateButtonMinimumWidth)
+                {
+                    bounds.fixedWidth = CreateButtonMinimumWidth;
+                }
+
+                double previousHeight = bounds.fixedHeight;
+                if (closeBounds.fixedHeight > 0.0)
+                {
+                    bounds.fixedHeight = closeBounds.fixedHeight;
+                }
+
+                double previousX = bounds.fixedX;
+                bounds.FixedLeftOf(closeBounds, CreateButtonCloseSpacing);
+
+                changed = ValuesDiffer(previousWidth, bounds.fixedWidth) || ValuesDiffer(previousHeight, bounds.fixedHeight) || ValuesDiffer(previousX, bounds.fixedX);
+
             }
 
             if (bounds.RequiresRecalculation || changed)
