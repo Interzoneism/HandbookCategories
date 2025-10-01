@@ -1005,7 +1005,7 @@ namespace Enhanced_Handbook
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
         {
-            string searchText = GetActiveSearchText(dialog);
+            string searchText = CaptureActiveSearchText(dialog);
             bool stateChanged = HandbookCategoryManager.TrySetRecipesOnly(enabled);
 
             RefreshActiveTab(dialog, clearSearch: false, searchTextToRestore: searchText);
@@ -1113,24 +1113,38 @@ namespace Enhanced_Handbook
             instance.ReloadPage();
         }
 
-        private static string GetActiveSearchText(GuiDialogHandbook dialog)
+        private static string CaptureActiveSearchText(GuiDialogHandbook dialog)
         {
             if (dialog == null)
             {
                 return null;
             }
 
-            if (CurrentSearchTextField?.GetValue(dialog) is string storedText)
-            {
-                return storedText;
-            }
+            string searchText = null;
 
             if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
             {
-                return overview.GetTextInput("searchField")?.GetText();
+                GuiElementTextInput searchInput = overview.GetTextInput("searchField");
+
+                if (searchInput != null)
+                {
+                    searchText = searchInput.GetText();
+                }
             }
 
-            return null;
+            if (searchText == null)
+            {
+                searchText = CurrentSearchTextField?.GetValue(dialog) as string;
+            }
+
+            CurrentSearchTextField?.SetValue(dialog, searchText);
+
+            return searchText;
+        }
+
+        private static string GetActiveSearchText(GuiDialogHandbook dialog)
+        {
+            return CaptureActiveSearchText(dialog);
         }
 
         private static void RestoreSearchInputText(GuiDialogHandbook dialog, string textToRestore)
@@ -1144,9 +1158,18 @@ namespace Enhanced_Handbook
             {
                 GuiElementTextInput searchInput = overview.GetTextInput("searchField");
 
-                if (searchInput != null && !string.Equals(searchInput.GetText(), textToRestore, StringComparison.Ordinal))
+                if (searchInput != null)
                 {
-                    searchInput.SetValue(textToRestore);
+                    string currentText = searchInput.GetText();
+
+                    if (!string.Equals(currentText, textToRestore, StringComparison.Ordinal))
+                    {
+                        searchInput.SetValue(textToRestore);
+                        currentText = textToRestore;
+                    }
+
+                    searchInput.SetCaretPos(currentText?.Length ?? 0);
+                    overview.FocusElement(searchInput.TabIndex);
                 }
             }
         }
