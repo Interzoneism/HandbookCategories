@@ -856,7 +856,7 @@ namespace Enhanced_Handbook
             const double pauseButtonDefaultWidth = 100.0;
             const double pauseButtonDefaultHeight = 22.0;
             const double pauseButtonDefaultX = 360.0;
-            const double pauseButtonDefaultY = -15.0;
+            const double pauseButtonDefaultY = 5.0;
 
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
             GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");

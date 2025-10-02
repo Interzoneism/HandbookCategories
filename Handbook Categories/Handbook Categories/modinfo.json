@@ -6,9 +6,8 @@
     "Interzoneism"
   ],
   "description": "Adds category tabs to the handbook and improves search",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "side": "Client",
-  "requiredOnServer": false,
   "dependencies": {
     "game": ""
   }
