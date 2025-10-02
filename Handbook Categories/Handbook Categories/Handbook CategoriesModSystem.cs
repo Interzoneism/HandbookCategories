@@ -853,9 +853,6 @@ namespace Enhanced_Handbook
             const double fallbackMinWidth = 160.0;
             const double pauseButtonSpacing = 10.0;
             const double toggleSpacing = 10.0;
-            const double topRowToggleWidth = 100.0;
-            const double topRowToggleHeight = 22.0;
-            const double closeButtonSpacing = 10.0;
 
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
             GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
@@ -880,48 +877,30 @@ namespace Enhanced_Handbook
                     originalSearchBounds.fixedHeight = height;
                 }
             }
-            else
+            else if (searchInput?.Bounds != null)
             {
-                ElementBounds closeBounds = HandbookCategoryManager.TryGetCloseButtonBounds(overviewGui);
+                double height = searchInput.Bounds.fixedHeight;
+                double width = fallbackMinWidth;
 
-                if (closeBounds != null)
+                ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
+                baseBounds.fixedWidth = width;
+                baseBounds.fixedHeight = height;
+
+                if (shouldShowOriginalToggle)
                 {
-                    recipesOnlyBounds = closeBounds.CopyOffsetedSibling(-(topRowToggleWidth + closeButtonSpacing), 0.0);
-                    recipesOnlyBounds.fixedWidth = topRowToggleWidth;
-                    recipesOnlyBounds.fixedHeight = topRowToggleHeight;
-
-                    if (shouldShowOriginalToggle)
-                    {
-                        originalSearchBounds = recipesOnlyBounds.CopyOffsetedSibling(-(topRowToggleWidth + toggleSpacing), 0.0);
-                        originalSearchBounds.fixedWidth = topRowToggleWidth;
-                        originalSearchBounds.fixedHeight = topRowToggleHeight;
-                    }
-                }
-                else if (searchInput?.Bounds != null)
-                {
-                    double height = searchInput.Bounds.fixedHeight;
-                    double width = fallbackMinWidth;
-
-                    ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
-                    baseBounds.fixedWidth = width;
-                    baseBounds.fixedHeight = height;
-
-                    if (shouldShowOriginalToggle)
-                    {
-                        originalSearchBounds = baseBounds;
-                        recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
-                        recipesOnlyBounds.fixedWidth = width;
-                        recipesOnlyBounds.fixedHeight = height;
-                    }
-                    else
-                    {
-                        recipesOnlyBounds = baseBounds;
-                    }
+                    originalSearchBounds = baseBounds;
+                    recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                    recipesOnlyBounds.fixedWidth = width;
+                    recipesOnlyBounds.fixedHeight = height;
                 }
                 else
                 {
-                    return;
+                    recipesOnlyBounds = baseBounds;
                 }
+            }
+            else
+            {
+                return;
             }
 
             if (shouldShowOriginalToggle && originalSearchBounds == null)
