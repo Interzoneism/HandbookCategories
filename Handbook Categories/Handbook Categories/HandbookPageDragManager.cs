@@ -90,10 +90,12 @@ namespace Enhanced_Handbook
         private static DummySlot pendingSlot;
         private static int pendingStartX;
         private static int pendingStartY;
+        private static string pendingCategoryCode;
 
         private static DragState draggingState;
         private static GuiHandbookPage draggingPage;
         private static DummySlot draggingSlot;
+        private static string draggingCategoryCode;
         private static bool isDragging;
         private static bool wasLeftDown;
         private static bool suppressListClick;
@@ -247,6 +249,7 @@ namespace Enhanced_Handbook
                     pendingState = state;
                     pendingPage = page;
                     pendingSlot = slot;
+                    pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
                     pendingStartX = mouseX;
                     pendingStartY = mouseY;
                     break;
@@ -274,6 +277,7 @@ namespace Enhanced_Handbook
             draggingState = pendingState;
             draggingPage = pendingPage;
             draggingSlot = pendingSlot;
+            draggingCategoryCode = pendingCategoryCode;
             isDragging = true;
             suppressListClick = true;
 
@@ -284,34 +288,38 @@ namespace Enhanced_Handbook
         {
             if (isDragging && draggingState != null)
             {
-                TryHandleDrop(mouseX, mouseY);
+                bool handledDrop = TryHandleDrop(mouseX, mouseY);
+                if (!handledDrop)
+                {
+                    TryHandleRemoval(mouseX, mouseY);
+                }
             }
 
             ResetDrag();
         }
 
-        private static void TryHandleDrop(int mouseX, int mouseY)
+        private static bool TryHandleDrop(int mouseX, int mouseY)
         {
             if (draggingState == null || draggingPage == null)
             {
-                return;
+                return false;
             }
 
             if (!TryGetCategoryUnderMouse(draggingState, mouseX, mouseY, out HandbookTab tab))
             {
-                return;
+                return false;
             }
 
             string categoryCode = tab?.CategoryCode;
             if (string.IsNullOrEmpty(categoryCode) || !HandbookCategoryManager.IsManagedCategory(categoryCode))
             {
-                return;
+                return false;
             }
 
-            string title = HandbookCategoryManager.GetLocalizedPageTitle(draggingPage);
-            if (string.IsNullOrWhiteSpace(title))
+            string pageCode = draggingPage.PageCode;
+            if (string.IsNullOrWhiteSpace(pageCode))
             {
-                return;
+                return false;
             }
 
             GuiDialogSurvivalHandbook dialog = draggingState.Dialog as GuiDialogSurvivalHandbook;
@@ -320,7 +328,7 @@ namespace Enhanced_Handbook
 
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
-                if (!HandbookCategoryManager.TryAddTitleMatchToCategory(categoryCode, title))
+                if (!HandbookCategoryManager.TryAddPageCodeMatchToCategory(categoryCode, pageCode))
                 {
                     return;
                 }
@@ -337,6 +345,8 @@ namespace Enhanced_Handbook
                     dialog.selectTab(categoryCode);
                 }
             }, $"handbookcategories-drop-{Guid.NewGuid():N}");
+
+            return true;
         }
 
         private static bool TryGetPageUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
@@ -463,6 +473,7 @@ namespace Enhanced_Handbook
             draggingState = null;
             draggingPage = null;
             draggingSlot = null;
+            draggingCategoryCode = null;
             suppressListClick = false;
             wasLeftDown = false;
             ResetPending();
@@ -473,6 +484,125 @@ namespace Enhanced_Handbook
             pendingState = null;
             pendingPage = null;
             pendingSlot = null;
+            pendingCategoryCode = null;
+        }
+
+        private static void TryHandleRemoval(int mouseX, int mouseY)
+        {
+            if (draggingPage == null || draggingState?.Dialog is not GuiDialogSurvivalHandbook dialog)
+            {
+                return;
+            }
+
+            string categoryCode = draggingCategoryCode;
+            if (string.IsNullOrEmpty(categoryCode) || !HandbookCategoryManager.IsManagedCategory(categoryCode))
+            {
+                return;
+            }
+
+            if (!string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (IsMouseInsideHandbookGui(draggingState, mouseX, mouseY))
+            {
+                return;
+            }
+
+            if (!IsPageInCategory(categoryCode, draggingPage))
+            {
+                return;
+            }
+
+            string pageCode = draggingPage.PageCode;
+            if (string.IsNullOrWhiteSpace(pageCode))
+            {
+                return;
+            }
+
+            capi?.Event?.EnqueueMainThreadTask(() =>
+            {
+                if (!HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(categoryCode, pageCode))
+                {
+                    return;
+                }
+
+                HandbookCategoryPatches.RebuildTabs(dialog);
+
+                if (string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    dialog.selectTab(categoryCode);
+                }
+            }, $"handbookcategories-remove-{Guid.NewGuid():N}");
+        }
+
+        private static bool IsMouseInsideHandbookGui(DragState state, int mouseX, int mouseY)
+        {
+            bool evaluatedBounds = false;
+
+            if (state?.Dialog?.Composers != null)
+            {
+                foreach (GuiComposer composer in state.Dialog.Composers.Values)
+                {
+                    ElementBounds composerBounds = composer?.Bounds;
+                    if (composerBounds == null)
+                    {
+                        continue;
+                    }
+
+                    evaluatedBounds = true;
+
+                    if (composerBounds.RequiresRecalculation)
+                    {
+                        composerBounds.CalcWorldBounds();
+                    }
+
+                    if (composerBounds.PointInside(mouseX, mouseY))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            ElementBounds overviewBounds = state?.Overview?.Bounds;
+            if (overviewBounds != null)
+            {
+                evaluatedBounds = true;
+
+                if (overviewBounds.RequiresRecalculation)
+                {
+                    overviewBounds.CalcWorldBounds();
+                }
+
+                if (overviewBounds.PointInside(mouseX, mouseY))
+                {
+                    return true;
+                }
+            }
+
+            return !evaluatedBounds;
+        }
+
+        private static bool IsPageInCategory(string categoryCode, GuiHandbookPage page)
+        {
+            if (string.IsNullOrEmpty(categoryCode) || page == null)
+            {
+                return false;
+            }
+
+            if (!HandbookCategoryManager.TryGetCategoryPages(categoryCode, out List<GuiHandbookPage> pages) || pages == null)
+            {
+                return false;
+            }
+
+            string pageCode = page.PageCode;
+            if (string.IsNullOrEmpty(pageCode))
+            {
+                return pages.Contains(page);
+            }
+
+            return pages.Any(existing => existing != null && string.Equals(existing.PageCode, pageCode, StringComparison.OrdinalIgnoreCase));
         }
 
     }

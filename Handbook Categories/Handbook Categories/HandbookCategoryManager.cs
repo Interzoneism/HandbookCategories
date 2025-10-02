@@ -629,59 +629,18 @@ namespace Enhanced_Handbook
 
         internal static bool TryAddTitleMatchToCategory(string categoryCode, string title)
         {
-            if (capi == null)
+            if (string.IsNullOrWhiteSpace(title))
             {
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(categoryCode) || string.IsNullOrWhiteSpace(title))
-            {
-                return false;
-            }
-
-            if (!categoryCode.StartsWith(CategoryCodePrefix, StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            string sanitizedCode = categoryCode.Substring(CategoryCodePrefix.Length);
-            if (string.IsNullOrEmpty(sanitizedCode))
+            if (!TryGetCategoryConfig(categoryCode, out HandbookCategoriesConfig config, out HandbookCategoryConfigEntry category))
             {
                 return false;
             }
 
             string trimmedTitle = title.Trim();
             if (trimmedTitle.Length == 0)
-            {
-                return false;
-            }
-
-            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
-                ?? LoadDefaultConfiguration()
-                ?? HandbookCategoriesConfig.CreateDefault();
-
-            if (config?.Categories == null)
-            {
-                return false;
-            }
-
-            HandbookCategoryConfigEntry category = null;
-            foreach (HandbookCategoryConfigEntry entry in config.Categories)
-            {
-                if (entry?.Name == null)
-                {
-                    continue;
-                }
-
-                string sanitizedName = Sanitize(entry.Name);
-                if (string.Equals(sanitizedName, sanitizedCode, StringComparison.Ordinal))
-                {
-                    category = entry;
-                    break;
-                }
-            }
-
-            if (category == null)
             {
                 return false;
             }
@@ -707,6 +666,16 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        internal static bool TryAddPageCodeMatchToCategory(string categoryCode, string pageCode)
+        {
+            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: false);
+        }
+
+        internal static bool TryAddForbiddenPageCodeToCategory(string categoryCode, string pageCode)
+        {
+            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: true);
+        }
+
         private static bool RemoveWordCaseInsensitive(List<string> list, string word)
         {
             if (list == null || string.IsNullOrWhiteSpace(word))
@@ -727,6 +696,103 @@ namespace Enhanced_Handbook
             }
 
             return removed;
+        }
+
+        private static bool TryGetCategoryConfig(string categoryCode, out HandbookCategoriesConfig config, out HandbookCategoryConfigEntry category)
+        {
+            config = null;
+            category = null;
+
+            if (capi == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(categoryCode) || !categoryCode.StartsWith(CategoryCodePrefix, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            string sanitizedCode = categoryCode.Substring(CategoryCodePrefix.Length);
+            if (string.IsNullOrEmpty(sanitizedCode))
+            {
+                return false;
+            }
+
+            config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? LoadDefaultConfiguration()
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            if (config?.Categories == null)
+            {
+                return false;
+            }
+
+            foreach (HandbookCategoryConfigEntry entry in config.Categories)
+            {
+                if (entry?.Name == null)
+                {
+                    continue;
+                }
+
+                string sanitizedName = Sanitize(entry.Name);
+                if (string.Equals(sanitizedName, sanitizedCode, StringComparison.Ordinal))
+                {
+                    category = entry;
+                    break;
+                }
+            }
+
+            return category != null;
+        }
+
+        private static bool TryUpdatePageCodeEntry(string categoryCode, string pageCode, bool addToForbidden)
+        {
+            if (!TryGetCategoryConfig(categoryCode, out HandbookCategoriesConfig config, out HandbookCategoryConfigEntry category))
+            {
+                return false;
+            }
+
+            string normalizedCode = NormalizePageCode(pageCode);
+            if (string.IsNullOrEmpty(normalizedCode))
+            {
+                return false;
+            }
+
+            category.MatchWords ??= new List<string>();
+            category.ForbiddenWords ??= new List<string>();
+
+            string value = "%" + normalizedCode;
+
+            List<string> targetList = addToForbidden ? category.ForbiddenWords : category.MatchWords;
+            List<string> opposingList = addToForbidden ? category.MatchWords : category.ForbiddenWords;
+
+            bool changed = RemoveWordCaseInsensitive(opposingList, value);
+
+            if (!targetList.Any(existing => existing != null && existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
+            {
+                targetList.Add(value);
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            ReloadConfiguration();
+            return true;
+        }
+
+        private static string NormalizePageCode(string pageCode)
+        {
+            if (string.IsNullOrWhiteSpace(pageCode))
+            {
+                return string.Empty;
+            }
+
+            return pageCode.Trim().ToLowerInvariant();
         }
 
         internal static string GetTabDisplayName(string categoryCode)
