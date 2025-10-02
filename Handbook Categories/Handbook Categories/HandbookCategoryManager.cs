@@ -2169,6 +2169,19 @@ namespace Enhanced_Handbook
             return null;
         }
 
+        internal static ElementBounds TryGetCloseButtonBounds(GuiComposer composer)
+        {
+            GuiElementTextButton closeButton = GetCloseButton(composer);
+            ElementBounds bounds = closeButton?.Bounds;
+
+            if (bounds != null && bounds.RequiresRecalculation)
+            {
+                bounds.CalcWorldBounds();
+            }
+
+            return bounds;
+        }
+
         private static bool IsCloseButtonCandidate(GuiElementTextButton button, string closeText)
         {
             if (button == null || button == trackedCreateButton)
