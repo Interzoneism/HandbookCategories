@@ -50,6 +50,7 @@ namespace Enhanced_Handbook
         private static bool categoriesDirty = true;
 
         private static readonly HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, HashSet<string>> vanillaSearchExtrasByPageCode = new(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> recipesOnlyExemptCategories = new(StringComparer.OrdinalIgnoreCase)
         {
             "tutorial",
@@ -580,6 +581,7 @@ namespace Enhanced_Handbook
             tabBackgroundByCategory.Clear();
 
             gridRecipePageCodes.Clear();
+            vanillaSearchExtrasByPageCode.Clear();
 
 
             if (createButtonListenerId != 0)
@@ -677,6 +679,7 @@ namespace Enhanced_Handbook
             Dictionary<string, string> translationKeys = new();
 
             gridRecipePageCodes.Clear();
+            vanillaSearchExtrasByPageCode.Clear();
 
             if (capi.World.GridRecipes != null)
             {
@@ -696,6 +699,10 @@ namespace Enhanced_Handbook
                     if (!string.IsNullOrEmpty(page.PageCode))
                     {
                         gridRecipePageCodes.Add(page.PageCode);
+                        if (!string.IsNullOrEmpty(recipe.RequiresTrait))
+                        {
+                            AddTraitSearchExtras(page.PageCode, recipe.RequiresTrait);
+                        }
                     }
                 }
             }
@@ -1182,7 +1189,106 @@ namespace Enhanced_Handbook
                 return 0f;
             }
 
-            return page.GetTextMatchWeight(term);
+            float baseWeight = page.GetTextMatchWeight(term);
+            float extrasWeight = GetVanillaSearchExtrasWeight(page, term);
+
+            return extrasWeight > baseWeight ? extrasWeight : baseWeight;
+        }
+
+        private static float GetVanillaSearchExtrasWeight(GuiHandbookPage page, string term)
+        {
+            if (page == null || string.IsNullOrEmpty(term))
+            {
+                return 0f;
+            }
+
+            string pageCode = page.PageCode;
+            if (string.IsNullOrEmpty(pageCode))
+            {
+                return 0f;
+            }
+
+            if (!vanillaSearchExtrasByPageCode.TryGetValue(pageCode, out HashSet<string> extras) || extras == null || extras.Count == 0)
+            {
+                return 0f;
+            }
+
+            foreach (string extra in extras)
+            {
+                if (string.IsNullOrEmpty(extra))
+                {
+                    continue;
+                }
+
+                if (extra.IndexOf(term, StringComparison.Ordinal) >= 0)
+                {
+                    float weight = 1f;
+
+                    if (page is GuiHandbookItemStackPage itemPage)
+                    {
+                        weight += itemPage.searchWeightOffset;
+                    }
+
+                    return weight;
+                }
+            }
+
+            return 0f;
+        }
+
+        private static void AddTraitSearchExtras(string pageCode, string traitCode)
+        {
+            if (string.IsNullOrWhiteSpace(pageCode) || string.IsNullOrWhiteSpace(traitCode))
+            {
+                return;
+            }
+
+            string traitTranslationKey = string.Concat("traitname-", traitCode);
+            string traitName = Lang.GetMatchingIfExists(traitTranslationKey);
+
+            if (string.IsNullOrWhiteSpace(traitName))
+            {
+                traitName = Lang.Get(traitTranslationKey);
+            }
+
+            AddVanillaSearchText(pageCode, traitName);
+            AddVanillaSearchText(pageCode, traitCode);
+
+            string requiresTraitText = null;
+
+            if (!string.IsNullOrWhiteSpace(traitName))
+            {
+                requiresTraitText = Lang.GetMatchingIfExists("gridrecipe-requirestrait", traitName);
+            }
+
+            if (string.IsNullOrWhiteSpace(requiresTraitText))
+            {
+                requiresTraitText = Lang.Get("gridrecipe-requirestrait", !string.IsNullOrWhiteSpace(traitName) ? traitName : traitCode);
+            }
+
+            AddVanillaSearchText(pageCode, requiresTraitText);
+        }
+
+        private static void AddVanillaSearchText(string pageCode, string text)
+        {
+            if (string.IsNullOrWhiteSpace(pageCode) || string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            string normalized = text.ToSearchFriendly().Trim();
+            if (normalized.Length == 0)
+            {
+                return;
+            }
+
+            if (!vanillaSearchExtrasByPageCode.TryGetValue(pageCode, out HashSet<string> extras))
+            {
+                extras = new HashSet<string>(StringComparer.Ordinal);
+                vanillaSearchExtrasByPageCode[pageCode] = extras;
+            }
+
+            extras.Add(normalized);
         }
 
         private static string GetSearchableContent(PageTitleData titleData)
