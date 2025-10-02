@@ -853,13 +853,20 @@ namespace Enhanced_Handbook
             const double fallbackMinWidth = 160.0;
             const double pauseButtonSpacing = 10.0;
             const double toggleSpacing = 10.0;
+            const double pauseButtonDefaultWidth = 100.0;
+            const double pauseButtonDefaultHeight = 22.0;
+            const double pauseButtonDefaultX = 360.0;
+            const double pauseButtonDefaultY = -15.0;
 
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
             GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
 
             bool shouldShowOriginalToggle = HandbookCategoryManager.ShouldShowOriginalSearchToggle;
             ElementBounds originalSearchBounds = null;
-            ElementBounds recipesOnlyBounds;
+            ElementBounds recipesOnlyBounds = null;
+
+            GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
+            GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
 
             if (pauseButton?.Bounds != null)
             {
@@ -877,10 +884,40 @@ namespace Enhanced_Handbook
                     originalSearchBounds.fixedHeight = height;
                 }
             }
-            else if (searchInput?.Bounds != null)
+
+            if (recipesOnlyBounds == null)
+            {
+                double width = originalSearchToggle?.Bounds?.fixedWidth ?? recipesToggle?.Bounds?.fixedWidth ?? pauseButtonDefaultWidth;
+                if (width <= 0.0)
+                {
+                    width = pauseButtonDefaultWidth;
+                }
+
+                double height = originalSearchToggle?.Bounds?.fixedHeight ?? recipesToggle?.Bounds?.fixedHeight ?? pauseButtonDefaultHeight;
+                if (height <= 0.0)
+                {
+                    height = searchInput?.Bounds?.fixedHeight ?? pauseButtonDefaultHeight;
+                }
+
+                ElementBounds baseBounds = ElementBounds.Fixed(pauseButtonDefaultX, pauseButtonDefaultY, width, height);
+                recipesOnlyBounds = baseBounds;
+
+                if (shouldShowOriginalToggle)
+                {
+                    originalSearchBounds = baseBounds.CopyOffsetedSibling(-(width + toggleSpacing), 0.0);
+                    originalSearchBounds.fixedWidth = width;
+                    originalSearchBounds.fixedHeight = height;
+                }
+            }
+
+            if (recipesOnlyBounds == null && searchInput?.Bounds != null)
             {
                 double height = searchInput.Bounds.fixedHeight;
-                double width = fallbackMinWidth;
+                double width = recipesToggle?.Bounds?.fixedWidth ?? fallbackMinWidth;
+                if (width <= 0.0)
+                {
+                    width = fallbackMinWidth;
+                }
 
                 ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
                 baseBounds.fixedWidth = width;
@@ -898,7 +935,8 @@ namespace Enhanced_Handbook
                     recipesOnlyBounds = baseBounds;
                 }
             }
-            else
+
+            if (recipesOnlyBounds == null)
             {
                 return;
             }
@@ -908,11 +946,9 @@ namespace Enhanced_Handbook
                 shouldShowOriginalToggle = false;
             }
 
-            CairoFont font = pauseButton?.Font ?? CairoFont.WhiteDetailText();
+            CairoFont font = pauseButton?.Font ?? recipesToggle?.Font ?? CairoFont.WhiteDetailText();
 
             bool recompose = false;
-
-            GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
 
             if (shouldShowOriginalToggle)
             {
@@ -966,7 +1002,6 @@ namespace Enhanced_Handbook
                 originalSearchToggle.Bounds.CalcWorldBounds();
             }
 
-            GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
             bool desiredRecipesState = HandbookCategoryManager.RecipesOnlyEnabled;
             string recipesOnlyText = HandbookCategoryManager.GetRecipesOnlyToggleText();
 
