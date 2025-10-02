@@ -1286,10 +1286,7 @@ namespace Enhanced_Handbook
 
             instance.ReloadPage();
 
-            if (searchText != null)
-            {
-                RestoreSearchInputText(instance, searchText);
-            }
+            RefreshActiveTab(instance, clearSearch: false, searchTextToRestore: searchText);
         }
 
         private static string CaptureActiveSearchText(GuiDialogHandbook dialog)
