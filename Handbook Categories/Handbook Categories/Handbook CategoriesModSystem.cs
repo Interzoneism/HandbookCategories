@@ -73,6 +73,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.FilterItems)),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.FilterItemsPrefix)));
 
+            harmony.Patch(AccessTools.Method(baseType, "onLeftClickListElement"),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnLeftClickListElementPrefix)));
+
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
@@ -783,6 +786,13 @@ namespace Enhanced_Handbook
 
             EnsureRecipesOnlyToggle(__instance, overviewGui);
             EnsureCreateButton(__instance, overviewGui);
+
+            HandbookPageDragManager.RegisterOverview(__instance, overviewGui);
+        }
+
+        public static bool OnLeftClickListElementPrefix()
+        {
+            return !HandbookPageDragManager.TryConsumeClickSuppression();
         }
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)

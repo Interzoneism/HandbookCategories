@@ -474,6 +474,8 @@ namespace Enhanced_Handbook
             categoriesDirty = true;
             ReloadConfiguration();
 
+            HandbookPageDragManager.Initialize(api);
+
             if (capi?.Event != null)
             {
                 if (createButtonListenerId != 0)
@@ -596,6 +598,8 @@ namespace Enhanced_Handbook
             trackedCreateButtonComposer = null;
             categoriesInitialized = false;
             categoriesDirty = true;
+
+            HandbookPageDragManager.Clear();
 
         }
 
@@ -1444,6 +1448,17 @@ namespace Enhanced_Handbook
             }
 
             return new PageTitleData(englishTitle, localizedTitle);
+        }
+
+        internal static string GetLocalizedPageTitle(GuiHandbookPage page)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string title = GetRawTitle(page, allowCachedItemStackTitle: true);
+            return string.IsNullOrWhiteSpace(title) ? string.Empty : title.Trim();
         }
 
         private static string GetNormalizedTitle(GuiHandbookPage page)
