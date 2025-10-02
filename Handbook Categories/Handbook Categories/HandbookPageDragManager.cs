@@ -11,6 +11,9 @@ namespace Enhanced_Handbook
 {
     internal static class HandbookPageDragManager
     {
+        // Use a very high render order so the dragged icon appears above every GUI layer.
+        private const double DragIconRenderOrder = 9999.0;
+
         private sealed class DragIconRenderer : IRenderer
         {
             private readonly ICoreClientAPI api;
@@ -20,7 +23,7 @@ namespace Enhanced_Handbook
                 this.api = api;
             }
 
-            public double RenderOrder => 0.9999;
+            public double RenderOrder => DragIconRenderOrder;
 
             public int RenderRange => 0;
 
