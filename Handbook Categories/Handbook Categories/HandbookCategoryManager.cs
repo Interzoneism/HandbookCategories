@@ -428,13 +428,14 @@ namespace Enhanced_Handbook
 
         private readonly struct SearchTerm
         {
-            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch, bool isRequired = false)
+            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch, bool isRequired = false, bool usesVanillaSearch = false)
             {
                 Term = term;
                 IsExactMatch = isExactMatch;
                 RequiresTitleMatch = requiresTitleMatch;
                 RequiresPageCodeMatch = requiresPageCodeMatch;
                 IsRequired = isRequired;
+                UsesVanillaSearch = usesVanillaSearch;
             }
 
             internal string Term { get; }
@@ -446,6 +447,8 @@ namespace Enhanced_Handbook
             internal bool RequiresPageCodeMatch { get; }
 
             internal bool IsRequired { get; }
+
+            internal bool UsesVanillaSearch { get; }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -1070,6 +1073,18 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (term.UsesVanillaSearch)
+            {
+                float vanillaWeight = GetVanillaMatchWeight(page, term.Term);
+                if (vanillaWeight <= 0f)
+                {
+                    return false;
+                }
+
+                weight = vanillaWeight;
+                return true;
+            }
+
             float matchWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
             if (matchWeight <= 0f)
             {
@@ -1158,6 +1173,16 @@ namespace Enhanced_Handbook
             }
 
             return 0f;
+        }
+
+        private static float GetVanillaMatchWeight(GuiHandbookPage page, string term)
+        {
+            if (page == null || string.IsNullOrEmpty(term))
+            {
+                return 0f;
+            }
+
+            return page.GetTextMatchWeight(term);
         }
 
         private static string GetSearchableContent(PageTitleData titleData)
@@ -1471,33 +1496,68 @@ namespace Enhanced_Handbook
 
                 bool requiresCodeMatch = false;
                 bool isRequired = false;
+                bool usesVanillaSearch = false;
 
-                if (!string.IsNullOrEmpty(raw) && raw[0] == '+')
+                while (!string.IsNullOrEmpty(raw))
                 {
-                    if (raw.Length == 1)
+                    char prefix = raw[0];
+                    if (prefix == '+')
                     {
-                        excludeNext = false;
-                        buildingExactMatch = false;
-                        currentTokenRequiresTitleMatch = false;
-                        return;
+                        if (raw.Length == 1)
+                        {
+                            excludeNext = false;
+                            buildingExactMatch = false;
+                            currentTokenRequiresTitleMatch = false;
+                            return;
+                        }
+
+                        raw = raw.Substring(1);
+                        isRequired = true;
+                        continue;
                     }
 
-                    raw = raw.Substring(1);
-                    isRequired = true;
+                    if (prefix == '%')
+                    {
+                        if (raw.Length == 1)
+                        {
+                            excludeNext = false;
+                            buildingExactMatch = false;
+                            currentTokenRequiresTitleMatch = false;
+                            return;
+                        }
+
+                        raw = raw.Substring(1);
+                        requiresCodeMatch = true;
+                        requiresTitleMatch = false;
+                        usesVanillaSearch = false;
+                        continue;
+                    }
+
+                    if (prefix == '?')
+                    {
+                        if (raw.Length == 1)
+                        {
+                            excludeNext = false;
+                            buildingExactMatch = false;
+                            currentTokenRequiresTitleMatch = false;
+                            return;
+                        }
+
+                        raw = raw.Substring(1);
+                        usesVanillaSearch = true;
+                        continue;
+                    }
+
+                    break;
                 }
 
-                if (!string.IsNullOrEmpty(raw) && raw[0] == '%')
+                if (requiresCodeMatch)
                 {
-                    if (raw.Length == 1)
-                    {
-                        excludeNext = false;
-                        buildingExactMatch = false;
-                        currentTokenRequiresTitleMatch = false;
-                        return;
-                    }
+                    usesVanillaSearch = false;
+                }
 
-                    raw = raw.Substring(1);
-                    requiresCodeMatch = true;
+                if (usesVanillaSearch)
+                {
                     requiresTitleMatch = false;
                 }
 
@@ -1512,11 +1572,11 @@ namespace Enhanced_Handbook
 
                 if (excludeNext)
                 {
-                    excludeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch));
+                    excludeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch, usesVanillaSearch: usesVanillaSearch));
                 }
                 else
                 {
-                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch, isRequired));
+                    includeTerms.Add(new SearchTerm(term, exactMatch, requiresTitleMatch, requiresCodeMatch, isRequired, usesVanillaSearch));
                 }
 
                 excludeNext = false;
@@ -1654,13 +1714,8 @@ namespace Enhanced_Handbook
                 for (int i = 0; i < terms.Length; i++)
                 {
                     SearchTerm term = terms[i];
-                    if (term.IsExactMatch || term.RequiresPageCodeMatch)
-                    {
-                        copy[i] = term;
-                        continue;
-                    }
-
-                    copy[i] = new SearchTerm(term.Term, true, term.RequiresTitleMatch, term.RequiresPageCodeMatch, term.IsRequired);
+                    bool isExactMatch = term.RequiresPageCodeMatch ? term.IsExactMatch : true;
+                    copy[i] = new SearchTerm(term.Term, isExactMatch, term.RequiresTitleMatch, term.RequiresPageCodeMatch, term.IsRequired, usesVanillaSearch: false);
                 }
 
                 return copy;
