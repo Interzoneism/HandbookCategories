@@ -429,7 +429,7 @@ namespace Enhanced_Handbook
 
         private readonly struct SearchTerm
         {
-            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch, bool isRequired = false, bool usesVanillaSearch = false)
+            internal SearchTerm(string term, bool isExactMatch, bool requiresTitleMatch, bool requiresPageCodeMatch, bool isRequired = false, bool usesVanillaSearch = false, bool requireWholeWordVanillaMatch = false)
             {
                 Term = term;
                 IsExactMatch = isExactMatch;
@@ -437,6 +437,7 @@ namespace Enhanced_Handbook
                 RequiresPageCodeMatch = requiresPageCodeMatch;
                 IsRequired = isRequired;
                 UsesVanillaSearch = usesVanillaSearch;
+                RequiresWholeWordVanillaMatch = requireWholeWordVanillaMatch;
             }
 
             internal string Term { get; }
@@ -450,6 +451,8 @@ namespace Enhanced_Handbook
             internal bool IsRequired { get; }
 
             internal bool UsesVanillaSearch { get; }
+
+            internal bool RequiresWholeWordVanillaMatch { get; }
         }
 
         private static WordCategoryDefinition[] wordCategories = Array.Empty<WordCategoryDefinition>();
@@ -1082,7 +1085,7 @@ namespace Enhanced_Handbook
 
             if (term.UsesVanillaSearch)
             {
-                float vanillaWeight = GetVanillaMatchWeight(page, term.Term);
+                float vanillaWeight = GetVanillaMatchWeight(page, term.Term, term.RequiresWholeWordVanillaMatch);
                 if (vanillaWeight <= 0f)
                 {
                     return false;
@@ -1182,7 +1185,7 @@ namespace Enhanced_Handbook
             return 0f;
         }
 
-        private static float GetVanillaMatchWeight(GuiHandbookPage page, string term)
+        private static float GetVanillaMatchWeight(GuiHandbookPage page, string term, bool requireWholeWordMatch)
         {
             if (page == null || string.IsNullOrEmpty(term))
             {
@@ -1190,13 +1193,22 @@ namespace Enhanced_Handbook
             }
 
             float baseWeight = page.GetTextMatchWeight(term);
-            float extrasWeight = GetVanillaSearchExtrasWeight(page, term);
+            bool baseHasWholeWord = !requireWholeWordMatch || MatchesWholeWordInPageText(page, term);
+
+            float extrasWeight = GetVanillaSearchExtrasWeight(page, term, requireWholeWordMatch, out bool extrasHaveWholeWord);
+
+            if (requireWholeWordMatch && !baseHasWholeWord && !extrasHaveWholeWord)
+            {
+                return 0f;
+            }
 
             return extrasWeight > baseWeight ? extrasWeight : baseWeight;
         }
 
-        private static float GetVanillaSearchExtrasWeight(GuiHandbookPage page, string term)
+        private static float GetVanillaSearchExtrasWeight(GuiHandbookPage page, string term, bool requireWholeWordMatch, out bool hasWholeWordMatch)
         {
+            hasWholeWordMatch = false;
+
             if (page == null || string.IsNullOrEmpty(term))
             {
                 return 0f;
@@ -1220,20 +1232,139 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                if (extra.IndexOf(term, StringComparison.Ordinal) >= 0)
+                if (extra.IndexOf(term, StringComparison.Ordinal) < 0)
                 {
-                    float weight = 1f;
-
-                    if (page is GuiHandbookItemStackPage itemPage)
-                    {
-                        weight += itemPage.searchWeightOffset;
-                    }
-
-                    return weight;
+                    continue;
                 }
+
+                if (requireWholeWordMatch && !ContainsWholeWord(extra, term))
+                {
+                    continue;
+                }
+
+                hasWholeWordMatch = true;
+
+                float weight = 1f;
+
+                if (page is GuiHandbookItemStackPage itemPage)
+                {
+                    weight += itemPage.searchWeightOffset;
+                }
+
+                return weight;
             }
 
             return 0f;
+        }
+
+        private static bool MatchesWholeWordInPageText(GuiHandbookPage page, string term)
+        {
+            if (page == null || string.IsNullOrEmpty(term))
+            {
+                return false;
+            }
+
+            foreach (string candidate in EnumerateVanillaSearchTexts(page))
+            {
+                string normalized = NormalizeWholeWordCandidate(candidate);
+                if (normalized.Length == 0)
+                {
+                    continue;
+                }
+
+                if (ContainsWholeWord(normalized, term))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<string> EnumerateVanillaSearchTexts(GuiHandbookPage page)
+        {
+            if (page == null)
+            {
+                yield break;
+            }
+
+            switch (page)
+            {
+                case GuiHandbookItemStackPage itemPage:
+                    yield return itemPage.TextCacheAll;
+                    yield return itemPage.TextCacheTitle;
+                    break;
+                case GuiHandbookCommandPage commandPage:
+                    yield return commandPage.TextCacheAll;
+                    yield return commandPage.TextCacheTitle;
+                    break;
+                case GuiHandbookTextPage textPage:
+                    yield return textPage.Text;
+                    if (!string.IsNullOrWhiteSpace(textPage.Title))
+                    {
+                        yield return Lang.Get(textPage.Title);
+                    }
+                    break;
+                case GuiHandbookMealRecipePage mealPage:
+                    yield return GetMealRecipeTitle(mealPage);
+                    yield return GetMealRecipeSearchKeywords(mealPage);
+                    break;
+            }
+        }
+
+        private static string GetMealRecipeTitle(GuiHandbookMealRecipePage page)
+        {
+            string title = page?.Title;
+            return string.IsNullOrWhiteSpace(title) ? string.Empty : Lang.Get(title);
+        }
+
+        private static string GetMealRecipeSearchKeywords(GuiHandbookMealRecipePage page)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string pageCode = page.PageCode ?? string.Empty;
+            bool isPie = pageCode.EndsWith("-pie", StringComparison.Ordinal);
+            string key = string.Concat("handbook-mealrecipe-", isPie ? "pie" : "meal", "searchkeywords");
+            return Lang.Get(key);
+        }
+
+        private static string NormalizeWholeWordCandidate(string text)
+        {
+            return string.IsNullOrWhiteSpace(text) ? string.Empty : text.ToSearchFriendly().Trim();
+        }
+
+        private static bool ContainsWholeWord(string source, string term)
+        {
+            if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(term))
+            {
+                return false;
+            }
+
+            int index = 0;
+            while (index <= source.Length - term.Length)
+            {
+                index = source.IndexOf(term, index, StringComparison.Ordinal);
+                if (index < 0)
+                {
+                    break;
+                }
+
+                bool atStart = index == 0 || source[index - 1] == ' ';
+                int afterIndex = index + term.Length;
+                bool atEnd = afterIndex >= source.Length || source[afterIndex] == ' ';
+
+                if (atStart && atEnd)
+                {
+                    return true;
+                }
+
+                index = afterIndex;
+            }
+
+            return false;
         }
 
         private static void AddTraitSearchExtras(string pageCode, string traitCode)
@@ -1821,7 +1952,9 @@ namespace Enhanced_Handbook
                 {
                     SearchTerm term = terms[i];
                     bool isExactMatch = term.RequiresPageCodeMatch ? term.IsExactMatch : true;
-                    copy[i] = new SearchTerm(term.Term, isExactMatch, term.RequiresTitleMatch, term.RequiresPageCodeMatch, term.IsRequired, usesVanillaSearch: false);
+                    bool useVanillaSearch = term.UsesVanillaSearch;
+                    bool requireWholeWord = term.RequiresWholeWordVanillaMatch || useVanillaSearch;
+                    copy[i] = new SearchTerm(term.Term, isExactMatch, term.RequiresTitleMatch, term.RequiresPageCodeMatch, term.IsRequired, useVanillaSearch, requireWholeWord);
                 }
 
                 return copy;
