@@ -20,7 +20,7 @@ namespace Enhanced_Handbook
                 this.api = api;
             }
 
-            public double RenderOrder => 0.95;
+            public double RenderOrder => 0.9999;
 
             public int RenderRange => 0;
 
@@ -299,25 +299,35 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (draggingState.Overview?.GetTextInput("searchField") is not GuiElementTextInput searchInput)
-            {
-                return;
-            }
-
             string title = HandbookCategoryManager.GetLocalizedPageTitle(draggingPage);
-            string quotedTitle = FormatQuotedWord(title);
-            if (string.IsNullOrEmpty(quotedTitle))
+            if (string.IsNullOrWhiteSpace(title))
             {
                 return;
             }
 
-            string existing = searchInput.GetText() ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(existing) && !existing.EndsWith(" ", StringComparison.Ordinal))
-            {
-                existing += " ";
-            }
+            GuiDialogSurvivalHandbook dialog = draggingState.Dialog as GuiDialogSurvivalHandbook;
+            bool shouldReselect = dialog != null
+                && string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase);
 
-            searchInput.SetValue(existing + quotedTitle);
+            capi?.Event?.EnqueueMainThreadTask(() =>
+            {
+                if (!HandbookCategoryManager.TryAddTitleMatchToCategory(categoryCode, title))
+                {
+                    return;
+                }
+
+                if (dialog == null)
+                {
+                    return;
+                }
+
+                HandbookCategoryPatches.RebuildTabs(dialog);
+
+                if (shouldReselect)
+                {
+                    dialog.selectTab(categoryCode);
+                }
+            }, $"handbookcategories-drop-{Guid.NewGuid():N}");
         }
 
         private static bool TryGetPageUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
@@ -456,21 +466,5 @@ namespace Enhanced_Handbook
             pendingSlot = null;
         }
 
-        private static string FormatQuotedWord(string title)
-        {
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return string.Empty;
-            }
-
-            string trimmed = title.Trim();
-            if (trimmed.Length == 0)
-            {
-                return string.Empty;
-            }
-
-            string escaped = trimmed.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            return $"\"\"{escaped}\"\"";
-        }
     }
 }

@@ -624,6 +624,108 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        internal static bool TryAddTitleMatchToCategory(string categoryCode, string title)
+        {
+            if (capi == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(categoryCode) || string.IsNullOrWhiteSpace(title))
+            {
+                return false;
+            }
+
+            if (!categoryCode.StartsWith(CategoryCodePrefix, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            string sanitizedCode = categoryCode.Substring(CategoryCodePrefix.Length);
+            if (string.IsNullOrEmpty(sanitizedCode))
+            {
+                return false;
+            }
+
+            string trimmedTitle = title.Trim();
+            if (trimmedTitle.Length == 0)
+            {
+                return false;
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? LoadDefaultConfiguration()
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            if (config?.Categories == null)
+            {
+                return false;
+            }
+
+            HandbookCategoryConfigEntry category = null;
+            foreach (HandbookCategoryConfigEntry entry in config.Categories)
+            {
+                if (entry?.Name == null)
+                {
+                    continue;
+                }
+
+                string sanitizedName = Sanitize(entry.Name);
+                if (string.Equals(sanitizedName, sanitizedCode, StringComparison.Ordinal))
+                {
+                    category = entry;
+                    break;
+                }
+            }
+
+            if (category == null)
+            {
+                return false;
+            }
+
+            category.MatchTitleWords ??= new List<string>();
+            category.ForbiddenTitleWords ??= new List<string>();
+
+            bool changed = RemoveWordCaseInsensitive(category.ForbiddenTitleWords, trimmedTitle);
+
+            if (!category.MatchTitleWords.Any(existing => existing != null && existing.Equals(trimmedTitle, StringComparison.OrdinalIgnoreCase)))
+            {
+                category.MatchTitleWords.Add(trimmedTitle);
+                changed = true;
+            }
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            ReloadConfiguration();
+            return true;
+        }
+
+        private static bool RemoveWordCaseInsensitive(List<string> list, string word)
+        {
+            if (list == null || string.IsNullOrWhiteSpace(word))
+            {
+                return false;
+            }
+
+            bool removed = false;
+
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                string existing = list[i];
+                if (existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase))
+                {
+                    list.RemoveAt(i);
+                    removed = true;
+                }
+            }
+
+            return removed;
+        }
+
         internal static string GetTabDisplayName(string categoryCode)
         {
             if (categoryCode == null)
