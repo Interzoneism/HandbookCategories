@@ -817,6 +817,7 @@ namespace Enhanced_Handbook
             }
 
             IEnumerable<GuiHandbookPage> candidatePages = null;
+            List<GuiHandbookPage> filteredPages = null;
 
             if (hasManagedPages)
             {
@@ -831,7 +832,16 @@ namespace Enhanced_Handbook
                 else
                 {
                     string currentCode = __instance.currentCatgoryCode;
-                    candidatePages = allPages.Where(page => page != null && page.CategoryCode == currentCode);
+                    filteredPages = allPages
+                        .Where(page => page != null && page.CategoryCode == currentCode)
+                        .ToList();
+
+                    if (filteredPages.Count == 0)
+                    {
+                        return true;
+                    }
+
+                    candidatePages = filteredPages;
                 }
             }
 
