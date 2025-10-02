@@ -29,6 +29,7 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
+        private static readonly Dictionary<GuiHandbookPage, string> englishNormalizedTitleByPage = new();
 
         private const string EnglishLocaleCode = "en";
         private static bool usingDefaultEnglishWordCategories;
@@ -492,6 +493,7 @@ namespace Enhanced_Handbook
         {
             categoriesDirty = true;
             categoriesInitialized = false;
+            englishNormalizedTitleByPage.Clear();
 
             if (capi == null)
             {
@@ -584,6 +586,7 @@ namespace Enhanced_Handbook
             translationKeyByCategory.Clear();
             orderedCategories.Clear();
             tabBackgroundByCategory.Clear();
+            englishNormalizedTitleByPage.Clear();
 
             gridRecipePageCodes.Clear();
             vanillaSearchExtrasByPageCode.Clear();
@@ -672,6 +675,15 @@ namespace Enhanced_Handbook
             {
                 Clear();
                 return;
+            }
+
+            if (ShouldUseEnglishFallbackForDefaultCategories())
+            {
+                PopulateEnglishTitleCache(allPages);
+            }
+            else
+            {
+                englishNormalizedTitleByPage.Clear();
             }
 
             var itemPagesByCode = allPages
@@ -1434,15 +1446,12 @@ namespace Enhanced_Handbook
         private static PageTitleData GetPageTitleData(GuiHandbookPage page)
         {
             string localizedTitle = GetNormalizedTitle(page);
-
-            if (!ShouldUseEnglishFallbackForDefaultCategories())
+            if (englishNormalizedTitleByPage.Count == 0)
             {
                 return new PageTitleData(localizedTitle, localizedTitle);
             }
 
-            string englishTitle = GetNormalizedTitle(page, EnglishLocaleCode);
-
-            if (string.IsNullOrEmpty(englishTitle))
+            if (!englishNormalizedTitleByPage.TryGetValue(page, out string englishTitle) || string.IsNullOrEmpty(englishTitle))
             {
                 englishTitle = localizedTitle;
             }
@@ -1478,12 +1487,7 @@ namespace Enhanced_Handbook
                 ? GetRawTitle(page, allowCachedItemStackTitle)
                 : RunWithLocale(localeOverride, () => GetRawTitle(page, allowCachedItemStackTitle: false)) ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(rawTitle))
-            {
-                return string.Empty;
-            }
-
-            return rawTitle.ToSearchFriendly().ToLowerInvariant().Trim();
+            return NormalizeTitle(rawTitle);
         }
 
         private static string GetRawTitle(GuiHandbookPage page, bool allowCachedItemStackTitle)
@@ -1498,6 +1502,66 @@ namespace Enhanced_Handbook
                 GuiHandbookTextPage textPage when !string.IsNullOrWhiteSpace(textPage.Title) => Lang.Get(textPage.Title),
                 _ => page.PageCode
             } ?? string.Empty;
+        }
+
+        private static string NormalizeTitle(string rawTitle)
+        {
+            if (string.IsNullOrWhiteSpace(rawTitle))
+            {
+                return string.Empty;
+            }
+
+            return rawTitle.ToSearchFriendly().ToLowerInvariant().Trim();
+        }
+
+        private static void PopulateEnglishTitleCache(IEnumerable<GuiHandbookPage> pages)
+        {
+            englishNormalizedTitleByPage.Clear();
+
+            if (pages == null)
+            {
+                return;
+            }
+
+            string originalLocale = Lang.CurrentLocale;
+            bool restoreLocale = !string.IsNullOrEmpty(originalLocale);
+            bool alreadyEnglish = IsEnglishLocale(originalLocale);
+
+            if (!alreadyEnglish)
+            {
+                Lang.ChangeLanguage(EnglishLocaleCode);
+            }
+
+            try
+            {
+                foreach (GuiHandbookPage page in pages)
+                {
+                    if (page == null)
+                    {
+                        continue;
+                    }
+
+                    string normalized = NormalizeTitle(GetRawTitle(page, allowCachedItemStackTitle: false));
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        englishNormalizedTitleByPage[page] = normalized;
+                    }
+                }
+            }
+            finally
+            {
+                if (!alreadyEnglish)
+                {
+                    if (restoreLocale)
+                    {
+                        Lang.ChangeLanguage(originalLocale);
+                    }
+                    else
+                    {
+                        Lang.ChangeLanguage(EnglishLocaleCode);
+                    }
+                }
+            }
         }
 
         private static T RunWithLocale<T>(string localeCode, Func<T> action)
