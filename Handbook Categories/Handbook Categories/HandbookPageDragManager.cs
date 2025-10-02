@@ -14,6 +14,12 @@ namespace Enhanced_Handbook
         // Use a very high render order so the dragged icon appears above every GUI layer.
         private const double DragIconRenderOrder = 9999.0;
 
+        // Rendering GUI elements in Vintage Story relies on a large positive Z offset to
+        // layer visuals correctly (see GuiElementPassiveItemSlot and HudMouseTools). Use a
+        // value that comfortably exceeds the in-hand mouse tooltip depth so our drag icon
+        // is never occluded by dialog elements.
+        private const double DragIconRenderDepth = 4000.0;
+
         private sealed class DragIconRenderer : IRenderer
         {
             private readonly ICoreClientAPI api;
@@ -45,7 +51,7 @@ namespace Enhanced_Handbook
                 int mouseY = api.Input?.MouseY ?? 0;
 
                 float iconSize = (float)GuiElement.scaled(25.0);
-                api.Render.RenderItemstackToGui(draggingSlot, mouseX, mouseY, 200.0, iconSize, -1, true, false, false);
+                api.Render.RenderItemstackToGui(draggingSlot, mouseX, mouseY, DragIconRenderDepth, iconSize, -1, true, false, false);
             }
 
             public void Dispose()
