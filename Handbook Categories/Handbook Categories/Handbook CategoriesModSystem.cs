@@ -1391,7 +1391,7 @@ namespace Enhanced_Handbook
                     DataInt = tabs.Count,
                     CategoryCode = categoryCode,
                     Name = HandbookCategoryManager.GetTabDisplayName(categoryCode),
-                    PaddingTop = tabs.Count == 0 ? 5.0 : 1.0,
+                    PaddingTop = tabs.Count == 0 ? 0.0 : 0.0,
                     BackgroundColor = backgroundColor
 
                 };
