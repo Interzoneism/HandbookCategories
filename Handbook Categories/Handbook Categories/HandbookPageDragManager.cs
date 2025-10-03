@@ -505,7 +505,7 @@ namespace Enhanced_Handbook
             slot = null;
 
             ElementBounds detailBounds = state?.Detail?.Bounds;
-            if (detailBounds != null)
+            if (detailBounds != null && IsDetailViewVisible(state))
             {
                 if (detailBounds.RequiresRecalculation)
                 {
@@ -575,6 +575,29 @@ namespace Enhanced_Handbook
                 GuiHandbookMealRecipePage mealPage => mealPage.dummySlot,
                 _ => null
             };
+        }
+
+        private static bool IsDetailViewVisible(DragState state)
+        {
+            if (state?.Dialog == null || BrowseHistoryField == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(state.Dialog) is Stack<BrowseHistoryElement> history && history.Count > 0)
+                {
+                    BrowseHistoryElement top = history.Peek();
+                    return top?.Page != null && string.IsNullOrEmpty(top.SearchText);
+                }
+            }
+            catch
+            {
+                // Ignore reflection issues and fall back to default behaviour.
+            }
+
+            return false;
         }
 
         private static bool TryBeginDragFromDetailIcon(DragState state, int mouseX, int mouseY)
