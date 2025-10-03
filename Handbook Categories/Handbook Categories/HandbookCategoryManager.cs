@@ -333,18 +333,24 @@ namespace Enhanced_Handbook
                             trimmed = trimmed.Substring(1);
                         }
 
-                        string normalized = NormalizeSearchTerm(trimmed);
                         bool requiresCodeMatch = false;
 
-                        if (normalized.Length > 0 && normalized[0] == '%')
+                        if (trimmed.Length > 0 && trimmed[0] == '%')
                         {
-                            if (normalized.Length == 1)
+                            requiresCodeMatch = true;
+                            trimmed = trimmed.Substring(1);
+                        }
+
+                        string normalized = requiresCodeMatch
+                            ? NormalizePageCode(trimmed)
+                            : NormalizeSearchTerm(trimmed);
+
+                        if (requiresCodeMatch)
+                        {
+                            if (normalized.Length == 0)
                             {
                                 continue;
                             }
-
-                            normalized = normalized.Substring(1);
-                            requiresCodeMatch = true;
                         }
 
                         if (normalized.Length == 0)
