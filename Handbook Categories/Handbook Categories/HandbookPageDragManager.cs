@@ -677,8 +677,38 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            page = currentDetailPage;
-            slot = pageSlot;
+            GuiHandbookPage resolvedPage = currentDetailPage;
+            DummySlot resolvedSlot = pageSlot;
+
+            if (TryResolveDetailComponent(state.Dialog, currentDetailPage, iconComponent, localX, localY, out GuiHandbookPage componentPage, out DummySlot componentSlot))
+            {
+                if (componentPage != null)
+                {
+                    resolvedPage = componentPage;
+                }
+
+                if (componentSlot?.Itemstack != null)
+                {
+                    resolvedSlot = componentSlot;
+                }
+            }
+
+            if (resolvedSlot?.Itemstack == null && resolvedPage is GuiHandbookItemStackPage itemPage && itemPage.Stack != null)
+            {
+                ItemStack clone = itemPage.Stack.Clone();
+                if (clone != null)
+                {
+                    resolvedSlot = new DummySlot(clone);
+                }
+            }
+
+            if (resolvedSlot?.Itemstack == null)
+            {
+                return false;
+            }
+
+            page = resolvedPage;
+            slot = resolvedSlot;
             state.DetailRichtext = richtext;
             return true;
         }
