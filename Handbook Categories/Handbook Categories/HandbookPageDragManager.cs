@@ -260,22 +260,42 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            foreach (GuiDialogHandbook dialog in capi.Gui.OpenedGuis.OfType<GuiDialogHandbook>().Reverse())
+            foreach (GuiDialog dialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
             {
-                if (!trackedDialogs.TryGetValue(dialog, out DragState state))
+                if (dialog is GuiDialogHandbook handbookDialog)
                 {
+                    if (!trackedDialogs.TryGetValue(handbookDialog, out DragState state))
+                    {
+                        continue;
+                    }
+
+                    if (IsHandbookObscured(state, mouseX, mouseY))
+                    {
+                        return;
+                    }
+
+                    if (TryGetPageUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page, out DummySlot slot))
+                    {
+                        pendingState = state;
+                        pendingPage = page;
+                        pendingSlot = slot;
+                        pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
+                        pendingStartX = mouseX;
+                        pendingStartY = mouseY;
+                        break;
+                    }
+
+                    if (IsMouseInsideHandbookGui(state, mouseX, mouseY))
+                    {
+                        return;
+                    }
+
                     continue;
                 }
 
-                if (TryGetPageUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page, out DummySlot slot))
+                if (IsMouseInsideDialog(dialog, mouseX, mouseY))
                 {
-                    pendingState = state;
-                    pendingPage = page;
-                    pendingSlot = slot;
-                    pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
-                    pendingStartX = mouseX;
-                    pendingStartY = mouseY;
-                    break;
+                    return;
                 }
             }
         }
@@ -508,6 +528,85 @@ namespace Enhanced_Handbook
             pendingPage = null;
             pendingSlot = null;
             pendingCategoryCode = null;
+        }
+
+        private static bool IsHandbookObscured(DragState state, int mouseX, int mouseY)
+        {
+            GuiDialog dialog = state?.Dialog;
+            if (dialog?.Composers == null)
+            {
+                return false;
+            }
+
+            foreach (GuiComposer composer in dialog.Composers.Values)
+            {
+                if (composer == null || ReferenceEquals(composer, state.Overview))
+                {
+                    continue;
+                }
+
+                ElementBounds bounds = composer.Bounds;
+                if (bounds == null)
+                {
+                    continue;
+                }
+
+                if (bounds.RequiresRecalculation)
+                {
+                    bounds.CalcWorldBounds();
+                }
+
+                if (bounds.PointInside(mouseX, mouseY))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsMouseInsideDialog(GuiDialog dialog, int mouseX, int mouseY)
+        {
+            if (dialog?.Composers == null)
+            {
+                return false;
+            }
+
+            foreach (GuiComposer composer in dialog.Composers.Values)
+            {
+                ElementBounds bounds = composer?.Bounds;
+                if (bounds == null)
+                {
+                    continue;
+                }
+
+                if (bounds.RequiresRecalculation)
+                {
+                    bounds.CalcWorldBounds();
+                }
+
+                if (bounds.PointInside(mouseX, mouseY))
+                {
+                    return true;
+                }
+            }
+
+            GuiComposer singleComposer = dialog.SingleComposer;
+            ElementBounds singleBounds = singleComposer?.Bounds;
+            if (singleBounds != null)
+            {
+                if (singleBounds.RequiresRecalculation)
+                {
+                    singleBounds.CalcWorldBounds();
+                }
+
+                if (singleBounds.PointInside(mouseX, mouseY))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void TryHandleRemoval(int mouseX, int mouseY)
