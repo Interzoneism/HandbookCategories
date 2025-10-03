@@ -70,6 +70,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, "initOverviewGui"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.InitOverviewGuiPostfix)));
 
+            harmony.Patch(AccessTools.Method(baseType, "initDetailGui"),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.InitDetailGuiPostfix)));
+
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.FilterItems)),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.FilterItemsPrefix)));
 
@@ -800,6 +803,19 @@ namespace Enhanced_Handbook
             if (HandbookCategoryManager.DragAndDropEnabled)
             {
                 HandbookPageDragManager.RegisterOverview(__instance, overviewGui);
+            }
+        }
+
+        public static void InitDetailGuiPostfix(GuiDialogHandbook __instance)
+        {
+            if (__instance == null || !HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return;
+            }
+
+            if (DetailGuiField?.GetValue(__instance) is GuiComposer detailGui)
+            {
+                HandbookPageDragManager.RegisterDetail(__instance, detailGui);
             }
         }
 
