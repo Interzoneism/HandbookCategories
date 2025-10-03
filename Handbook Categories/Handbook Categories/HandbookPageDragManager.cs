@@ -609,28 +609,80 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            double localX = mouseX - richtextBounds.absX;
-            double localY = mouseY - richtextBounds.absY;
-
-            if (richtext.Components == null || richtext.Components.Length == 0)
+            GuiHandbookPage currentDetailPage = GetCurrentDetailPage(state.Dialog);
+            DummySlot pageSlot = GetSlotForPage(currentDetailPage);
+            if (currentDetailPage == null || pageSlot?.Itemstack == null)
             {
                 return false;
             }
 
-            GuiHandbookPage currentDetailPage = GetCurrentDetailPage(state.Dialog);
-
-            foreach (RichTextComponentBase component in richtext.Components)
+            RichTextComponentBase iconComponent = GetPrimaryIconComponent(currentDetailPage, richtext.Components);
+            if (iconComponent == null)
             {
-                if (component == null)
-                {
-                    continue;
-                }
+                return false;
+            }
 
-                if (TryResolveDetailComponent(state.Dialog, currentDetailPage, component, localX, localY, out GuiHandbookPage resolvedPage, out DummySlot resolvedSlot))
+            double localX = mouseX - richtextBounds.absX;
+            double localY = mouseY - richtextBounds.absY;
+
+            if (!IsPointInsideComponent(iconComponent, localX, localY))
+            {
+                return false;
+            }
+
+            page = currentDetailPage;
+            slot = pageSlot;
+            state.DetailRichtext = richtext;
+            return true;
+        }
+
+        private static RichTextComponentBase GetPrimaryIconComponent(GuiHandbookPage page, RichTextComponentBase[] components)
+        {
+            if (components == null || components.Length == 0 || page == null)
+            {
+                return null;
+            }
+
+            if (page is GuiHandbookMealRecipePage)
+            {
+                return components.FirstOrDefault(component => component is MealstackTextComponent);
+            }
+
+            if (page is GuiHandbookItemStackPage)
+            {
+                return components.FirstOrDefault(component => component is ItemstackTextComponent);
+            }
+
+            return null;
+        }
+
+        private static bool IsPointInsideComponent(RichTextComponentBase component, double localX, double localY)
+        {
+            if (component == null)
+            {
+                return false;
+            }
+
+            LineRectangled[] bounds = component.BoundsPerLine;
+            if (bounds == null || bounds.Length == 0)
+            {
+                return false;
+            }
+
+            double adjustedX = localX;
+            double adjustedY = localY;
+
+            if (component is MealstackTextComponent mealComponent)
+            {
+                Vec3f offset = mealComponent.renderOffset ?? new Vec3f();
+                adjustedX += offset.X;
+                adjustedY += offset.Y;
+            }
+
+            foreach (LineRectangled rect in bounds)
+            {
+                if (rect != null && rect.PointInside(adjustedX, adjustedY))
                 {
-                    page = resolvedPage;
-                    slot = resolvedSlot;
-                    state.DetailRichtext = richtext;
                     return true;
                 }
             }
