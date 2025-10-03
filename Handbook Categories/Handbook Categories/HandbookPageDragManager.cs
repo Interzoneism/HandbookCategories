@@ -364,6 +364,13 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            ItemSlot sourceSlotReference = draggingSlot;
+
+            if (!hoveredSlot.CanHold(sourceSlotReference) && !hoveredSlot.CanTakeFrom(sourceSlotReference))
+            {
+                return false;
+            }
+
             ItemStack sourceStack = draggingSlot.Itemstack.Clone();
             if (sourceStack == null)
             {
