@@ -538,10 +538,17 @@ namespace Enhanced_Handbook
 
             if (wordCategories.Length == 0)
             {
-                config = HandbookCategoriesConfig.CreateDefault();
-                wordCategories = BuildWordCategories(config);
-                shouldStoreConfig = true;
-                usingDefaultCategories = true;
+                if (config?.UsesEnglishDefaults == true)
+                {
+                    config.Categories = HandbookCategoriesConfig.CreateDefaultCategories();
+                    wordCategories = BuildWordCategories(config);
+                    shouldStoreConfig = true;
+                    usingDefaultCategories = true;
+                }
+                else
+                {
+                    usingDefaultCategories = false;
+                }
             }
 
             onlyGridPages = config?.OnlyGridPages ?? false;
@@ -1914,7 +1921,7 @@ namespace Enhanced_Handbook
             }
 
             List<HandbookCategoryConfigEntry> categories = config.Categories ?? new List<HandbookCategoryConfigEntry>();
-            List<HandbookCategoryConfigEntry> defaultCategories = defaultConfig.Categories ?? new List<HandbookCategoryConfigEntry>();
+            List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
 
             if (categories.Count != defaultCategories.Count)
             {

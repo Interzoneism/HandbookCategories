@@ -61,6 +61,12 @@ namespace Enhanced_Handbook
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModSaveCommand);
 
+            capi.ChatCommands
+                .Create("categorymoddefault")
+                .WithDescription("Restores the default handbook categories")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnCategoryModDefaultCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -404,7 +410,7 @@ namespace Enhanced_Handbook
 
             if (categoryNameInput.Equals("all", StringComparison.OrdinalIgnoreCase))
             {
-                HashSet<string> defaultNames = new(HandbookCategoriesConfig.CreateDefault().Categories
+                HashSet<string> defaultNames = new(HandbookCategoriesConfig.CreateDefaultCategories()
                     .Where(entry => !string.IsNullOrWhiteSpace(entry?.Name))
                     .Select(entry => entry.Name), StringComparer.OrdinalIgnoreCase);
 
@@ -500,6 +506,33 @@ namespace Enhanced_Handbook
             };
 
             return TextCommandResult.Success(string.Join(" ", messageParts));
+        }
+
+        private TextCommandResult OnCategoryModDefaultCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
+
+            if (defaultCategories == null || defaultCategories.Count == 0)
+            {
+                return TextCommandResult.Error("No default categories are available to restore.");
+            }
+
+            config.Categories = defaultCategories;
+            config.UsesEnglishDefaults = true;
+
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            HandbookCategoryManager.ReloadConfiguration();
+            RebuildHandbookTabs();
+
+            return TextCommandResult.Success($"Restored {defaultCategories.Count} default categor{(defaultCategories.Count == 1 ? "y" : "ies")}. Handbook tabs refreshed.");
         }
 
         private static List<CommandToken> TokenizeArguments(string input)
