@@ -306,30 +306,18 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
+                    if (!IsFrontmostHandbookDialog(handbookDialog))
+                    {
+                        continue;
+                    }
+
                     if (IsHandbookObscured(state, mouseX, mouseY))
                     {
                         return;
                     }
 
-                    if (TryGetPageUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page, out DummySlot slot))
+                    if (TryBeginDragFromSearchList(state, mouseX, mouseY) || TryBeginDragFromDetailIcon(state, mouseX, mouseY))
                     {
-                        pendingState = state;
-                        pendingPage = page;
-                        pendingSlot = slot;
-                        pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
-                        pendingStartX = mouseX;
-                        pendingStartY = mouseY;
-                        break;
-                    }
-
-                    if (TryGetDetailPageUnderMouse(state, mouseX, mouseY, out GuiHandbookPage detailPage, out DummySlot detailSlot))
-                    {
-                        pendingState = state;
-                        pendingPage = detailPage;
-                        pendingSlot = detailSlot;
-                        pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
-                        pendingStartX = mouseX;
-                        pendingStartY = mouseY;
                         break;
                     }
 
@@ -500,7 +488,18 @@ namespace Enhanced_Handbook
             return true;
         }
 
-        private static bool TryGetPageUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
+        private static bool TryBeginDragFromSearchList(DragState state, int mouseX, int mouseY)
+        {
+            if (!TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page, out DummySlot slot))
+            {
+                return false;
+            }
+
+            SetPendingDrag(state, page, slot, mouseX, mouseY);
+            return true;
+        }
+
+        private static bool TryGetSearchEntryUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
         {
             page = null;
             slot = null;
@@ -578,7 +577,18 @@ namespace Enhanced_Handbook
             };
         }
 
-        private static bool TryGetDetailPageUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
+        private static bool TryBeginDragFromDetailIcon(DragState state, int mouseX, int mouseY)
+        {
+            if (!TryGetDetailIconUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page, out DummySlot slot))
+            {
+                return false;
+            }
+
+            SetPendingDrag(state, page, slot, mouseX, mouseY);
+            return true;
+        }
+
+        private static bool TryGetDetailIconUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
         {
             page = null;
             slot = null;
@@ -1076,6 +1086,34 @@ namespace Enhanced_Handbook
                 }
 
                 currentY += tabHeight + spacing;
+            }
+
+            return false;
+        }
+
+        private static void SetPendingDrag(DragState state, GuiHandbookPage page, DummySlot slot, int mouseX, int mouseY)
+        {
+            pendingState = state;
+            pendingPage = page;
+            pendingSlot = slot;
+            pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
+            pendingStartX = mouseX;
+            pendingStartY = mouseY;
+        }
+
+        private static bool IsFrontmostHandbookDialog(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || capi?.Gui?.OpenedGuis == null)
+            {
+                return false;
+            }
+
+            foreach (GuiDialog openDialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
+            {
+                if (openDialog is GuiDialogHandbook)
+                {
+                    return ReferenceEquals(openDialog, dialog);
+                }
             }
 
             return false;
