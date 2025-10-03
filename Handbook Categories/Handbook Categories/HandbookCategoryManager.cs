@@ -900,6 +900,36 @@ namespace Enhanced_Handbook
                 }
             }
 
+            void EnsureCategoryMetadata(WordCategoryDefinition definition)
+            {
+                if (definition == null || string.IsNullOrWhiteSpace(definition.CategoryCode))
+                {
+                    return;
+                }
+
+                string categoryCode = definition.CategoryCode;
+
+                if (!categorizedPages.ContainsKey(categoryCode))
+                {
+                    categorizedPages[categoryCode] = new List<GuiHandbookPage>();
+                }
+
+                if (!seenPageCodes.ContainsKey(categoryCode))
+                {
+                    seenPageCodes[categoryCode] = new HashSet<string>();
+                }
+
+                if (!displayNames.ContainsKey(categoryCode))
+                {
+                    displayNames[categoryCode] = definition.CategoryName;
+                }
+
+                if (!translationKeys.ContainsKey(categoryCode))
+                {
+                    translationKeys[categoryCode] = definition.TranslationKey;
+                }
+            }
+
             void AddPageToCategory(WordCategoryDefinition definition, GuiHandbookPage page)
             {
                 if (page == null || definition == null || string.IsNullOrWhiteSpace(definition.CategoryCode))
@@ -909,18 +939,21 @@ namespace Enhanced_Handbook
 
                 string categoryCode = definition.CategoryCode;
 
-                if (!categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list))
-                {
-                    list = new List<GuiHandbookPage>();
-                    categorizedPages[categoryCode] = list;
-                    seenPageCodes[categoryCode] = new HashSet<string>();
-                    displayNames[categoryCode] = definition.CategoryName;
-                    translationKeys[categoryCode] = definition.TranslationKey;
-                }
+                EnsureCategoryMetadata(definition);
+
+                List<GuiHandbookPage> list = categorizedPages[categoryCode];
 
                 if (seenPageCodes[categoryCode].Add(page.PageCode))
                 {
                     list.Add(page);
+                }
+            }
+
+            if (wordCategories != null)
+            {
+                foreach (WordCategoryDefinition definition in wordCategories)
+                {
+                    EnsureCategoryMetadata(definition);
                 }
             }
 
@@ -935,17 +968,34 @@ namespace Enhanced_Handbook
 
             foreach (WordCategoryDefinition definition in wordCategories)
             {
-                string categoryCode = definition.CategoryCode;
-                if (string.IsNullOrEmpty(categoryCode) || !categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list) || list.Count == 0)
+                if (definition == null)
                 {
                     continue;
                 }
 
-                list.Sort((a, b) => a.PageNumber.CompareTo(b.PageNumber));
+                string categoryCode = definition.CategoryCode;
+                if (string.IsNullOrEmpty(categoryCode))
+                {
+                    continue;
+                }
+
+                if (!categorizedPages.TryGetValue(categoryCode, out List<GuiHandbookPage> list) || list == null)
+                {
+                    list = new List<GuiHandbookPage>();
+                }
+
+                if (list.Count > 1)
+                {
+                    list.Sort((a, b) => a.PageNumber.CompareTo(b.PageNumber));
+                }
 
                 pagesByCategory[categoryCode] = list;
-                displayNameByCategory[categoryCode] = displayNames[categoryCode];
-                translationKeyByCategory[categoryCode] = translationKeys[categoryCode];
+                displayNameByCategory[categoryCode] = displayNames.TryGetValue(categoryCode, out string displayName)
+                    ? displayName
+                    : definition.CategoryName;
+                translationKeyByCategory[categoryCode] = translationKeys.TryGetValue(categoryCode, out string translationKey)
+                    ? translationKey
+                    : definition.TranslationKey;
                 orderedCategories.Add(categoryCode);
                 tabBackgroundByCategory[categoryCode] = definition.BackgroundColor;
             }
@@ -2243,14 +2293,21 @@ namespace Enhanced_Handbook
 
             string remainder = CombineCategorySegments(beforeHash, afterCategory);
             string trimmedRemainder = remainder?.Trim();
-            if (string.IsNullOrEmpty(trimmedRemainder))
+            bool hasKeywords = !string.IsNullOrEmpty(trimmedRemainder);
+
+            string command = hasKeywords
+                ? $".categorymod {categoryName} {trimmedRemainder}"
+                : $".categorymod {categoryName}";
+
+            if (hasKeywords)
             {
-                capi.ShowChatMessage($"[Handbook Categories] Add at least one word before or after #{categoryName} to include in the new category.");
-                return false;
+                capi.ShowChatMessage($"[Handbook Categories] Creating category '{categoryName}' with keywords: {trimmedRemainder}.");
+            }
+            else
+            {
+                capi.ShowChatMessage($"[Handbook Categories] Creating empty category '{categoryName}'.");
             }
 
-            string command = $".categorymod {categoryName} {trimmedRemainder}";
-            capi.ShowChatMessage($"[Handbook Categories] Creating category '{categoryName}' with keywords: {trimmedRemainder}.");
             capi.TriggerChatMessage(command);
             return true;
         }

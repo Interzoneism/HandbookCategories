@@ -135,11 +135,6 @@ namespace Enhanced_Handbook
 
             categoryNameInput = categoryNameInput.Trim();
 
-            if (parsedTokens.Count == 1)
-            {
-                return TextCommandResult.Error("You must specify at least one word to add");
-            }
-
             HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
                 ?? HandbookCategoriesConfig.CreateDefault();
 
@@ -284,7 +279,10 @@ namespace Enhanced_Handbook
                 }
             }
 
-            if (addedMatches.Count == 0 && addedForbidden.Count == 0)
+            bool hasNewWords = addedMatches.Count > 0 || addedForbidden.Count > 0;
+            bool hasRemovals = removedFromMatches.Count > 0 || removedFromForbidden.Count > 0;
+
+            if (!hasNewWords)
             {
                 List<string> noAdditionParts = new();
                 if (removedFromMatches.Count > 0)
@@ -301,7 +299,19 @@ namespace Enhanced_Handbook
                     ? $" {string.Join(". ", noAdditionParts)}."
                     : string.Empty;
 
-                return TextCommandResult.Success($"Category \"{category.Name}\" {(createdCategory ? "created" : "updated")}, but no new words were added.{removalMessage}");
+                if (createdCategory || hasRemovals)
+                {
+                    capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+                    HandbookCategoryManager.ReloadConfiguration();
+                    RebuildHandbookTabs();
+                }
+
+                string action = createdCategory ? "created" : "updated";
+                string message = createdCategory
+                    ? $"Created category \"{category.Name}\" with no automatic matches.{removalMessage}"
+                    : $"Category \"{category.Name}\" {action}, but no new words were added.{removalMessage}";
+
+                return TextCommandResult.Success(message);
             }
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
