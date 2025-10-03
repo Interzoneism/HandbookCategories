@@ -73,6 +73,8 @@ namespace Enhanced_Handbook
             internal GuiElementFlatList SearchList { get; set; }
 
             internal GuiElementVerticalTabs TabsElement { get; set; }
+
+            internal float? PendingScrollPosition { get; set; }
         }
 
         private static readonly Dictionary<GuiDialogHandbook, DragState> trackedDialogs = new();
@@ -160,6 +162,8 @@ namespace Enhanced_Handbook
             state.Overview = overview;
             state.SearchList = overview.GetFlatList("stacklist");
             state.TabsElement = overview.GetVerticalTab("verticalTabs");
+
+            TryRestorePendingScroll(state);
         }
 
         internal static bool TryConsumeClickSuppression()
@@ -417,6 +421,9 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            DragState state = draggingState;
+            float? scrollToRestore = CaptureScrollPosition(state);
+
             GuiDialogSurvivalHandbook dialog = draggingState.Dialog as GuiDialogSurvivalHandbook;
             bool shouldReselect = dialog != null
                 && string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase);
@@ -426,6 +433,11 @@ namespace Enhanced_Handbook
                 if (!HandbookCategoryManager.TryAddPageCodeMatchToCategory(categoryCode, pageCode))
                 {
                     return;
+                }
+
+                if (state != null)
+                {
+                    state.PendingScrollPosition = scrollToRestore;
                 }
 
                 if (dialog == null)
@@ -695,11 +707,19 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            DragState state = draggingState;
+            float? scrollToRestore = CaptureScrollPosition(state);
+
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
                 if (!HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(categoryCode, pageCode))
                 {
                     return;
+                }
+
+                if (state != null)
+                {
+                    state.PendingScrollPosition = scrollToRestore;
                 }
 
                 HandbookCategoryPatches.RebuildTabs(dialog);
@@ -709,6 +729,66 @@ namespace Enhanced_Handbook
                     dialog.selectTab(categoryCode);
                 }
             }, $"handbookcategories-remove-{Guid.NewGuid():N}");
+        }
+
+        private static float? CaptureScrollPosition(DragState state)
+        {
+            GuiComposer overview = state?.Overview;
+            GuiElementScrollbar scrollbar = overview?.GetScrollbar("scrollbar");
+
+            if (scrollbar == null)
+            {
+                return null;
+            }
+
+            float position = scrollbar.CurrentYPosition;
+            return float.IsNaN(position) ? null : position;
+        }
+
+        private static void TryRestorePendingScroll(DragState state)
+        {
+            if (state?.PendingScrollPosition is not float target)
+            {
+                return;
+            }
+
+            try
+            {
+                GuiComposer overview = state.Overview;
+                GuiElementFlatList list = state.SearchList ?? overview?.GetFlatList("stacklist");
+                GuiElementScrollbar scrollbar = overview?.GetScrollbar("scrollbar");
+
+                if (list == null || scrollbar == null)
+                {
+                    return;
+                }
+
+                ElementBounds listBounds = list.Bounds;
+                if (listBounds != null && listBounds.RequiresRecalculation)
+                {
+                    listBounds.CalcWorldBounds();
+                }
+
+                ElementBounds insideBounds = list.insideBounds;
+                if (insideBounds != null && insideBounds.RequiresRecalculation)
+                {
+                    insideBounds.CalcWorldBounds();
+                }
+
+                double visibleHeight = listBounds?.InnerHeight ?? 0.0;
+                double totalHeight = insideBounds?.fixedHeight ?? 0.0;
+
+                float clamped = float.IsNaN(target)
+                    ? 0f
+                    : Math.Clamp(target, 0f, (float)Math.Max(0.0, totalHeight - visibleHeight));
+
+                scrollbar.CurrentYPosition = clamped;
+                scrollbar.TriggerChanged();
+            }
+            finally
+            {
+                state.PendingScrollPosition = null;
+            }
         }
 
         private static bool IsMouseInsideHandbookGui(DragState state, int mouseX, int mouseY)
