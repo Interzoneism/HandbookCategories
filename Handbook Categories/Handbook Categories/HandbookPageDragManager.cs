@@ -331,7 +331,12 @@ namespace Enhanced_Handbook
         {
             if (isDragging && draggingState != null)
             {
-                bool handledDrop = TryHandleDrop(mouseX, mouseY);
+                bool handledDrop = TrySpawnCreativeStack();
+                if (!handledDrop)
+                {
+                    handledDrop = TryHandleDrop(mouseX, mouseY);
+                }
+
                 if (!handledDrop)
                 {
                     TryHandleRemoval(mouseX, mouseY);
@@ -339,6 +344,46 @@ namespace Enhanced_Handbook
             }
 
             ResetDrag();
+        }
+
+        private static bool TrySpawnCreativeStack()
+        {
+            if (capi?.World?.Player == null || draggingSlot?.Itemstack == null)
+            {
+                return false;
+            }
+
+            if (capi.World.Player.WorldData?.CurrentGameMode != EnumGameMode.Creative)
+            {
+                return false;
+            }
+
+            ItemSlot hoveredSlot = capi.World.Player.InventoryManager?.CurrentHoveredSlot;
+            if (hoveredSlot == null || hoveredSlot.Inventory == null || hoveredSlot is ItemSlotCreative)
+            {
+                return false;
+            }
+
+            ItemStack sourceStack = draggingSlot.Itemstack.Clone();
+            if (sourceStack == null)
+            {
+                return false;
+            }
+
+            var sourceSlot = new DummySlot(sourceStack);
+            var op = new ItemStackMoveOperation(capi.World, EnumMouseButton.Left, (EnumModifierKey)0, EnumMergePriority.AutoMerge, sourceStack.StackSize)
+            {
+                ActingPlayer = capi.World.Player
+            };
+
+            object packet = capi.World.Player.InventoryManager?.TryTransferTo(sourceSlot, hoveredSlot, ref op);
+            if (op.MovedQuantity <= 0 || packet == null)
+            {
+                return false;
+            }
+
+            capi.Network?.SendPacketClient(packet);
+            return true;
         }
 
         private static bool TryHandleDrop(int mouseX, int mouseY)
