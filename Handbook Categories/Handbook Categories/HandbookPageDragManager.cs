@@ -505,6 +505,20 @@ namespace Enhanced_Handbook
             page = null;
             slot = null;
 
+            ElementBounds detailBounds = state?.Detail?.Bounds;
+            if (detailBounds != null)
+            {
+                if (detailBounds.RequiresRecalculation)
+                {
+                    detailBounds.CalcWorldBounds();
+                }
+
+                if (detailBounds.PointInside(mouseX, mouseY))
+                {
+                    return false;
+                }
+            }
+
             GuiElementFlatList list = state?.SearchList ?? state?.Overview?.GetFlatList("stacklist");
             ElementBounds bounds = list?.Bounds;
             ElementBounds parentBounds = bounds?.ParentBounds;
