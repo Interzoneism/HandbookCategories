@@ -41,91 +41,108 @@ namespace Enhanced_Handbook
                 DisableGuidesTab = false,
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
-                UsesEnglishDefaults = true,
-                Categories = new List<HandbookCategoryConfigEntry>
+                UsesEnglishDefaults = false,
+                Categories = new List<HandbookCategoryConfigEntry>()
+            };
+        }
+
+        internal static HandbookCategoriesConfig CreateWithDefaultCategories()
+        {
+            HandbookCategoriesConfig config = CreateDefault();
+            config.UsesEnglishDefaults = true;
+            config.Categories = CreateDefaultCategories();
+            return config;
+        }
+
+        internal static List<HandbookCategoryConfigEntry> CreateDefaultCategories()
+        {
+            return new List<HandbookCategoryConfigEntry>
+            {
+                new HandbookCategoryConfigEntry
                 {
-                    new HandbookCategoryConfigEntry
+                    Name = "Armor",
+                    MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves", "Gambeson", "Leg" },
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler", "Rack" },
+                    ForbiddenTitleWords = new List<string>(),
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                },
+                new HandbookCategoryConfigEntry
+                {
+                    Name = "Clothes",
+                    MatchWords = new List<string>
                     {
-                        Name = "Armor",
-                        MatchWords = new List<string> { "Armor", "Body", "Lamellar", "Helmet", "Jerkin", "Greaves", "Gambeson", "Leg" },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string> { "Shield", "Stand", "Boiler", "Rack" },
-                        ForbiddenTitleWords = new List<string>(),
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                        "Clothes", "Shirt", "Pants", "Boots", "Belt", "Hat", "Blouse", "Coat", "Amulet", "Necklace",
+                        "Gloves", "Fur", "Trousers", "Cape", "Capelet", "Apron", "Vest", "Sash", "Tunic", "Bracelet",
+                        "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
+                        "Skirt", "Cloak", "Mantle"
                     },
-                    new HandbookCategoryConfigEntry
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string>
                     {
-                        Name = "Clothes",
-                        MatchWords = new List<string>
-                        {
-                            "Clothes", "Shirt", "Pants", "Boots", "Belt", "Hat", "Blouse", "Coat", "Amulet", "Necklace",
-                            "Gloves", "Fur", "Trousers", "Cape", "Capelet", "Apron", "Vest", "Sash", "Tunic", "Bracelet",
-                            "Jacket", "Shoes", "Sandals", "Coif", "Scarf", "Breeches", "Leggings", "Pendant", "Gorget",
-                            "Skirt", "Cloak", "Mantle"
-                        },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string>
-                        {
-                            "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch", "Mourning"
-                        },
-                        ForbiddenTitleWords = new List<string> { "mantle" },
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                        "Blanket", "Rusty Gear", "Temporal Gear", "Armor", "Rack", "Stand", "Witch", "Mourning"
                     },
-                    new HandbookCategoryConfigEntry
+                    ForbiddenTitleWords = new List<string> { "mantle" },
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                },
+                new HandbookCategoryConfigEntry
+                {
+                    Name = "Tools",
+                    MatchWords = new List<string>
                     {
-                        Name = "Tools",
-                        MatchWords = new List<string>
-                        {
-                            "Shovel", "Cleaver", "Tongs", "Shears", "Saw", "Scythe", "Wrench", "Axe", "Hoe", "Knife",
-                            "Hammer", "Pickaxe", "Prospecting", "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow",
-                            "Shortsword", "Falx"
-                        },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string>
-                        {
-                            "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head", "Pedestal", "ruined", "blade"
-                        },
-                        ForbiddenTitleWords = new List<string>(),
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                        "Shovel", "Cleaver", "Tongs", "Shears", "Saw", "Scythe", "Wrench", "Axe", "Hoe", "Knife",
+                        "Hammer", "Pickaxe", "Prospecting", "Spear", "Sword", "Club", "Bomb", "Arrow", "Bow",
+                        "Shortsword", "Falx"
                     },
-                    new HandbookCategoryConfigEntry
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string>
                     {
-                        Name = "Storage",
-                        MatchWords = new List<string> { "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel", "Sack", "Bag", "Saddlebags", "Crate", "Bookshelf" },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string>
-                        {
-                            "Trap", "Papyrus", "Cattails", "Beenade", "Bricks", "Planks", "Stone", "ruined", "full of", "coral"
-                        },
-                        ForbiddenTitleWords = new List<string>(),
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                        "Trap", "Soldering", "Sticks", "Helve", "Mold", "Head", "Pedestal", "ruined", "blade"
                     },
-                    new HandbookCategoryConfigEntry
+                    ForbiddenTitleWords = new List<string>(),
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                },
+                new HandbookCategoryConfigEntry
+                {
+                    Name = "Storage",
+                    MatchWords = new List<string>
                     {
-                        Name = "Consumables",
-                        MatchWords = new List<string> { "Poultice", "Healing", "Bandage", "Potion", "Herb", "Poison" },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string> { "Trap" },
-                        ForbiddenTitleWords = new List<string>(),
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                        "Backpack", "Chest", "Basket", "Shelf", "Shelves", "Rack", "Display", "Trunk", "Barrel",
+                        "Sack", "Bag", "Saddlebags", "Crate", "Bookshelf"
                     },
-                    new HandbookCategoryConfigEntry
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string>
                     {
-                        Name = "Machinery",
-                        MatchWords = new List<string>
-                        {
-                            "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor",
-                            "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper"
-                        },
-                        MatchTitleWords = new List<string>(),
-                        ForbiddenWords = new List<string>
-                        {
-                            "Mold", "Rusty", "Temporal", "Figurehead", "Bricks", "Planks", "Stone", "shattered", "head", "ruined",
-                            "amulet", "elk", "jonas"
-                        },
-                        ForbiddenTitleWords = new List<string>(),
-                        TabBackgroundColor = HandbookCategoryColors.DefaultColorName
-                    }
+                        "Trap", "Papyrus", "Cattails", "Beenade", "Bricks", "Planks", "Stone", "ruined", "full of", "coral"
+                    },
+                    ForbiddenTitleWords = new List<string>(),
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                },
+                new HandbookCategoryConfigEntry
+                {
+                    Name = "Consumables",
+                    MatchWords = new List<string> { "Poultice", "Healing", "Bandage", "Potion", "Herb", "Poison" },
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string> { "Trap" },
+                    ForbiddenTitleWords = new List<string>(),
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
+                },
+                new HandbookCategoryConfigEntry
+                {
+                    Name = "Machinery",
+                    MatchWords = new List<string>
+                    {
+                        "Helve", "Quern", "Forge", "Sail", "Gear", "Gears", "Pulverizer", "Toggle", "Rotor",
+                        "Transmission", "Screw", "Chute", "Axle", "Brake", "Pounder", "Hopper"
+                    },
+                    MatchTitleWords = new List<string>(),
+                    ForbiddenWords = new List<string>
+                    {
+                        "Mold", "Rusty", "Temporal", "Figurehead", "Bricks", "Planks", "Stone", "shattered", "head", "ruined",
+                        "amulet", "elk", "jonas"
+                    },
+                    ForbiddenTitleWords = new List<string>(),
+                    TabBackgroundColor = HandbookCategoryColors.DefaultColorName
                 }
             };
         }
