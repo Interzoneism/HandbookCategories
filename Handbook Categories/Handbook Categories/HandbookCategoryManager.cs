@@ -44,6 +44,7 @@ namespace Enhanced_Handbook
         private static bool showTutorialTab = true;
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
+        private static bool enableDragAndDrop = true;
 
         private static readonly FieldInfo composerInteractiveElementsField = typeof(GuiComposer).GetField("interactiveElements", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -66,6 +67,8 @@ namespace Enhanced_Handbook
         internal static bool OriginalSearchEnabled => showOriginalSearchToggle && useOriginalSearch;
 
         internal static bool ShouldShowOriginalSearchToggle => showOriginalSearchToggle;
+
+        internal static bool DragAndDropEnabled => enableDragAndDrop;
 
         internal static string GetCreateCategoryButtonText()
         {
@@ -481,8 +484,6 @@ namespace Enhanced_Handbook
             categoriesDirty = true;
             ReloadConfiguration();
 
-            HandbookPageDragManager.Initialize(api);
-
             if (capi?.Event != null)
             {
                 if (createButtonListenerId != 0)
@@ -510,7 +511,9 @@ namespace Enhanced_Handbook
                 showTutorialTab = true;
                 showBlocksAndItemsTab = true;
                 showGuidesTab = true;
+                enableDragAndDrop = false;
                 usingDefaultEnglishWordCategories = false;
+                HandbookPageDragManager.SetEnabled(null, false);
                 return;
             }
 
@@ -546,11 +549,14 @@ namespace Enhanced_Handbook
             showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
             showOriginalSearchToggle = !(config?.DisableOriginalSearchButton ?? false);
+            enableDragAndDrop = !(config?.DisableDragAndDrop ?? false);
 
             if (!showOriginalSearchToggle)
             {
                 useOriginalSearch = false;
             }
+
+            HandbookPageDragManager.SetEnabled(capi, enableDragAndDrop);
 
             usingDefaultEnglishWordCategories = usingDefaultCategories;
 
@@ -1901,7 +1907,8 @@ namespace Enhanced_Handbook
                 || config.DisableTutorialTab != defaultConfig.DisableTutorialTab
                 || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
                 || config.DisableGuidesTab != defaultConfig.DisableGuidesTab
-                || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton)
+                || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton
+                || config.DisableDragAndDrop != defaultConfig.DisableDragAndDrop)
             {
                 return false;
             }
