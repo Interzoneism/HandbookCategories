@@ -5,6 +5,7 @@ using System.Reflection;
 using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 
 namespace Enhanced_Handbook
@@ -70,9 +71,13 @@ namespace Enhanced_Handbook
 
             internal GuiComposer Overview { get; set; }
 
+            internal GuiComposer Detail { get; set; }
+
             internal GuiElementFlatList SearchList { get; set; }
 
             internal GuiElementVerticalTabs TabsElement { get; set; }
+
+            internal GuiElementRichtext DetailRichtext { get; set; }
 
             internal float? PendingScrollPosition { get; set; }
         }
@@ -83,6 +88,17 @@ namespace Enhanced_Handbook
         private static readonly FieldInfo TabWidthsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabWidths");
         private static readonly FieldInfo TabHeightField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabHeight");
         private static readonly FieldInfo UnscaledTabSpacingField = AccessTools.Field(typeof(GuiElementVerticalTabs), "unscaledTabSpacing");
+
+        private static readonly FieldInfo PageNumberByPageCodeField = AccessTools.Field(typeof(GuiDialogHandbook), "pageNumberByPageCode");
+        private static readonly FieldInfo AllPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "allHandbookPages");
+        private static readonly FieldInfo BrowseHistoryField = AccessTools.Field(typeof(GuiDialogHandbook), "browseHistory");
+
+        private static readonly FieldInfo ItemstackTextComponentSlotField = AccessTools.Field(typeof(ItemstackTextComponent), "slot");
+        private static readonly FieldInfo SlideshowItemstackSlotField = AccessTools.Field(typeof(SlideshowItemstackTextComponent), "slot");
+        private static readonly FieldInfo MealstackSlotField = AccessTools.Field(typeof(MealstackTextComponent), "dummySlot");
+        private static readonly FieldInfo GridRecipeSizeField = AccessTools.Field(typeof(SlideshowGridRecipeTextComponent), "size");
+        private static readonly FieldInfo GridRecipeSecondCounterField = AccessTools.Field(typeof(SlideshowGridRecipeTextComponent), "secondCounter");
+        private static readonly FieldInfo GridRecipeVariantSequenceField = AccessTools.Field(typeof(SlideshowGridRecipeTextComponent), "variantDisplaySequence");
 
         private static ICoreClientAPI capi;
         private static DragIconRenderer renderer;
@@ -164,6 +180,23 @@ namespace Enhanced_Handbook
             state.TabsElement = overview.GetVerticalTab("verticalTabs");
 
             TryRestorePendingScroll(state);
+        }
+
+        internal static void RegisterDetail(GuiDialogHandbook dialog, GuiComposer detail)
+        {
+            if (!featureEnabled || dialog == null)
+            {
+                return;
+            }
+
+            if (!trackedDialogs.TryGetValue(dialog, out DragState state))
+            {
+                state = new DragState(dialog);
+                trackedDialogs[dialog] = state;
+            }
+
+            state.Detail = detail;
+            state.DetailRichtext = detail?.GetRichtext("richtext");
         }
 
         internal static bool TryConsumeClickSuppression()
@@ -283,6 +316,17 @@ namespace Enhanced_Handbook
                         pendingState = state;
                         pendingPage = page;
                         pendingSlot = slot;
+                        pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
+                        pendingStartX = mouseX;
+                        pendingStartY = mouseY;
+                        break;
+                    }
+
+                    if (TryGetDetailPageUnderMouse(state, mouseX, mouseY, out GuiHandbookPage detailPage, out DummySlot detailSlot))
+                    {
+                        pendingState = state;
+                        pendingPage = detailPage;
+                        pendingSlot = detailSlot;
                         pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
                         pendingStartX = mouseX;
                         pendingStartY = mouseY;
@@ -520,6 +564,403 @@ namespace Enhanced_Handbook
             };
         }
 
+        private static bool TryGetDetailPageUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
+        {
+            page = null;
+            slot = null;
+
+            GuiComposer detailComposer = state?.Detail;
+            GuiElementRichtext richtext = state?.DetailRichtext ?? detailComposer?.GetRichtext("richtext");
+
+            if (detailComposer == null || richtext == null)
+            {
+                return false;
+            }
+
+            ElementBounds detailBounds = detailComposer.Bounds;
+            if (detailBounds == null)
+            {
+                return false;
+            }
+
+            if (detailBounds.RequiresRecalculation)
+            {
+                detailBounds.CalcWorldBounds();
+            }
+
+            if (!detailBounds.PointInside(mouseX, mouseY))
+            {
+                return false;
+            }
+
+            ElementBounds richtextBounds = richtext.Bounds;
+            if (richtextBounds == null)
+            {
+                return false;
+            }
+
+            if (richtextBounds.RequiresRecalculation)
+            {
+                richtextBounds.CalcWorldBounds();
+            }
+
+            if (!richtextBounds.PointInside(mouseX, mouseY))
+            {
+                return false;
+            }
+
+            double localX = mouseX - richtextBounds.absX;
+            double localY = mouseY - richtextBounds.absY;
+
+            if (richtext.Components == null || richtext.Components.Length == 0)
+            {
+                return false;
+            }
+
+            GuiHandbookPage currentDetailPage = GetCurrentDetailPage(state.Dialog);
+
+            foreach (RichTextComponentBase component in richtext.Components)
+            {
+                if (component == null)
+                {
+                    continue;
+                }
+
+                if (TryResolveDetailComponent(state.Dialog, currentDetailPage, component, localX, localY, out GuiHandbookPage resolvedPage, out DummySlot resolvedSlot))
+                {
+                    page = resolvedPage;
+                    slot = resolvedSlot;
+                    state.DetailRichtext = richtext;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryResolveDetailComponent(GuiDialogHandbook dialog, GuiHandbookPage currentDetailPage, RichTextComponentBase component, double localX, double localY, out GuiHandbookPage page, out DummySlot slot)
+        {
+            page = null;
+            slot = null;
+
+            LineRectangled[] bounds = component.BoundsPerLine;
+            if (bounds == null || bounds.Length == 0)
+            {
+                return false;
+            }
+
+            double adjustedX = localX;
+            double adjustedY = localY;
+
+            if (component is SlideshowItemstackTextComponent offsetSlideshow)
+            {
+                Vec3f offset = offsetSlideshow.renderOffset ?? new Vec3f();
+                adjustedX += offset.X;
+                adjustedY += offset.Y;
+            }
+            else if (component is MealstackTextComponent offsetMeal)
+            {
+                Vec3f offset = offsetMeal.renderOffset ?? new Vec3f();
+                adjustedX += offset.X;
+                adjustedY += offset.Y;
+            }
+
+            bool inside = false;
+            foreach (LineRectangled rect in bounds)
+            {
+                if (rect != null && rect.PointInside(adjustedX, adjustedY))
+                {
+                    inside = true;
+                    break;
+                }
+            }
+
+            if (!inside)
+            {
+                return false;
+            }
+
+            ItemStack stack = component switch
+            {
+                ItemstackTextComponent itemComponent => GetItemstackFromItemComponent(itemComponent),
+                SlideshowItemstackTextComponent slideshowComponent => GetItemstackFromSlideshowComponent(slideshowComponent),
+                SlideshowGridRecipeTextComponent gridComponent => GetItemstackFromGridComponent(gridComponent, adjustedX, adjustedY),
+                MealstackTextComponent mealComponent => GetItemstackFromMealComponent(mealComponent),
+                _ => null
+            };
+
+            if (stack == null)
+            {
+                return false;
+            }
+
+            GuiHandbookPage resolvedPage = FindPageForStack(dialog, stack);
+            if (resolvedPage == null && component is ItemstackTextComponent)
+            {
+                resolvedPage = currentDetailPage;
+            }
+            if (resolvedPage == null)
+            {
+                return false;
+            }
+
+            ItemStack clone = stack.Clone();
+            if (clone == null)
+            {
+                return false;
+            }
+
+            slot = new DummySlot(clone);
+            page = resolvedPage;
+            return true;
+        }
+
+        private static ItemStack GetItemstackFromItemComponent(ItemstackTextComponent component)
+        {
+            if (ItemstackTextComponentSlotField?.GetValue(component) is DummySlot slot)
+            {
+                return slot.Itemstack;
+            }
+
+            return null;
+        }
+
+        private static ItemStack GetItemstackFromSlideshowComponent(SlideshowItemstackTextComponent component)
+        {
+            ItemStack stack = null;
+
+            if (SlideshowItemstackSlotField?.GetValue(component) is ItemSlot slot)
+            {
+                stack = slot?.Itemstack;
+            }
+
+            if (stack == null)
+            {
+                ItemStack[] stacks = component.Itemstacks;
+                if (stacks != null && stacks.Length > 0)
+                {
+                    stack = stacks[0];
+                }
+            }
+
+            return stack;
+        }
+
+        private static ItemStack GetItemstackFromMealComponent(MealstackTextComponent component)
+        {
+            if (MealstackSlotField?.GetValue(component) is DummySlot slot)
+            {
+                return slot.Itemstack;
+            }
+
+            return null;
+        }
+
+        private static ItemStack GetItemstackFromGridComponent(SlideshowGridRecipeTextComponent component, double localX, double localY)
+        {
+            LineRectangled[] bounds = component.BoundsPerLine;
+            if (bounds == null || bounds.Length == 0)
+            {
+                return null;
+            }
+
+            LineRectangled rect = bounds[0];
+            if (rect == null)
+            {
+                return null;
+            }
+
+            double relativeX = localX - rect.X;
+            double relativeY = localY - rect.Y;
+            if (relativeX < 0.0 || relativeY < 0.0)
+            {
+                return null;
+            }
+
+            double size = GridRecipeSizeField != null ? (double)GridRecipeSizeField.GetValue(component) : 0.0;
+            if (size <= 0.0)
+            {
+                return null;
+            }
+
+            double spacing = size + 3.0;
+            int column = (int)(relativeX / spacing);
+            int row = (int)(relativeY / spacing);
+
+            GridRecipeAndUnnamedIngredients visibleRecipe = component.CurrentVisibleRecipe;
+            if (visibleRecipe == null)
+            {
+                GridRecipeAndUnnamedIngredients[] allRecipes = component.GridRecipesAndUnIn;
+                if (allRecipes == null || allRecipes.Length == 0)
+                {
+                    return null;
+                }
+
+                visibleRecipe = allRecipes[0];
+            }
+
+            GridRecipe recipe = visibleRecipe?.Recipe;
+            if (recipe == null)
+            {
+                return null;
+            }
+
+            if (column < 0 || column >= recipe.Width || row < 0 || row >= recipe.Height)
+            {
+                return null;
+            }
+
+            CraftingRecipeIngredient ingredient = recipe.GetElementInGrid(row, column, recipe.resolvedIngredients, recipe.Width);
+            if (ingredient == null)
+            {
+                return null;
+            }
+
+            ItemStack stack = null;
+            int gridIndex = recipe.GetGridIndex(row, column, recipe.resolvedIngredients, recipe.Width);
+            Dictionary<int, ItemStack[]> unnamed = visibleRecipe.unnamedIngredients;
+
+            if (unnamed != null && unnamed.TryGetValue(gridIndex, out ItemStack[] variants) && variants != null && variants.Length > 0)
+            {
+                int variantIndex = GetGridVariantIndex(component, column, row, variants.Length);
+                ItemStack variant = variants[Math.Clamp(variantIndex, 0, variants.Length - 1)];
+                stack = variant?.Clone();
+            }
+            else if (ingredient.ResolvedItemstack != null)
+            {
+                stack = ingredient.ResolvedItemstack.Clone();
+            }
+
+            if (stack != null)
+            {
+                stack.StackSize = Math.Max(ingredient.Quantity, 1);
+            }
+
+            return stack;
+        }
+
+        private static int GetGridVariantIndex(SlideshowGridRecipeTextComponent component, int column, int row, int variantCount)
+        {
+            if (variantCount <= 0)
+            {
+                return 0;
+            }
+
+            int secondCounter = 0;
+            if (GridRecipeSecondCounterField != null)
+            {
+                secondCounter = Math.Abs((int)GridRecipeSecondCounterField.GetValue(component));
+            }
+
+            if (GridRecipeVariantSequenceField?.GetValue(null) is int[][,] sequences && sequences.Length > 0)
+            {
+                int index = secondCounter % sequences.Length;
+                int[,] sequence = sequences[index];
+                if (sequence != null)
+                {
+                    int value = sequence[column, row];
+                    return Math.Abs(value) % variantCount;
+                }
+            }
+
+            return secondCounter % variantCount;
+        }
+
+        private static GuiHandbookPage FindPageForStack(GuiDialogHandbook dialog, ItemStack stack)
+        {
+            if (dialog == null || stack == null)
+            {
+                return null;
+            }
+
+            string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
+            GuiHandbookPage page = TryGetPageByCode(dialog, pageCode);
+            if (page != null)
+            {
+                return page;
+            }
+
+            if (stack.Collectible != null)
+            {
+                try
+                {
+                    var baseStack = new ItemStack(stack.Collectible);
+                    pageCode = GuiHandbookItemStackPage.PageCodeForStack(baseStack);
+                    page = TryGetPageByCode(dialog, pageCode);
+                    if (page != null)
+                    {
+                        return page;
+                    }
+                }
+                catch
+                {
+                    // Ignore failures when constructing a fallback stack.
+                }
+            }
+
+            return null;
+        }
+
+        private static GuiHandbookPage TryGetPageByCode(GuiDialogHandbook dialog, string pageCode)
+        {
+            if (dialog == null || string.IsNullOrWhiteSpace(pageCode))
+            {
+                return null;
+            }
+
+            try
+            {
+                if (PageNumberByPageCodeField?.GetValue(dialog) is Dictionary<string, int> pageLookup
+                    && AllPagesField?.GetValue(dialog) is List<GuiHandbookPage> allPages
+                    && allPages != null)
+                {
+                    if (pageLookup.TryGetValue(pageCode, out int index) && index >= 0 && index < allPages.Count)
+                    {
+                        return allPages[index];
+                    }
+
+                    string normalized = pageCode.ToLowerInvariant();
+                    if (!string.Equals(pageCode, normalized, StringComparison.Ordinal) && pageLookup.TryGetValue(normalized, out index)
+                        && index >= 0 && index < allPages.Count)
+                    {
+                        return allPages[index];
+                    }
+
+                    return allPages.FirstOrDefault(existing => existing != null
+                        && !string.IsNullOrEmpty(existing.PageCode)
+                        && string.Equals(existing.PageCode, pageCode, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            catch
+            {
+                // Ignore reflection issues and fall back to null.
+            }
+
+            return null;
+        }
+
+        private static GuiHandbookPage GetCurrentDetailPage(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(dialog) is Stack<BrowseHistoryElement> history && history.Count > 0)
+                {
+                    return history.Peek()?.Page;
+                }
+            }
+            catch
+            {
+                // Ignore reflection errors and return null.
+            }
+
+            return null;
+        }
+
         private static bool TryGetCategoryUnderMouse(DragState state, int mouseX, int mouseY, out HandbookTab tab)
         {
             tab = null;
@@ -605,6 +1046,11 @@ namespace Enhanced_Handbook
             foreach (GuiComposer composer in dialog.Composers.Values)
             {
                 if (composer == null || ReferenceEquals(composer, state.Overview))
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(composer, state.Detail))
                 {
                     continue;
                 }
@@ -830,6 +1276,22 @@ namespace Enhanced_Handbook
                 }
 
                 if (overviewBounds.PointInside(mouseX, mouseY))
+                {
+                    return true;
+                }
+            }
+
+            ElementBounds detailBounds = state?.Detail?.Bounds;
+            if (detailBounds != null)
+            {
+                evaluatedBounds = true;
+
+                if (detailBounds.RequiresRecalculation)
+                {
+                    detailBounds.CalcWorldBounds();
+                }
+
+                if (detailBounds.PointInside(mouseX, mouseY))
                 {
                     return true;
                 }
