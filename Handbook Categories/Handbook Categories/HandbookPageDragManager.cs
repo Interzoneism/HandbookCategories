@@ -459,7 +459,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            string pageCode = draggingPage.PageCode;
+            string pageCode = GetEffectivePageCode(draggingPage, draggingSlot);
             if (string.IsNullOrWhiteSpace(pageCode))
             {
                 return false;
@@ -1199,7 +1199,7 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string pageCode = draggingPage.PageCode;
+            string pageCode = GetEffectivePageCode(draggingPage, draggingSlot);
             if (string.IsNullOrWhiteSpace(pageCode))
             {
                 return;
@@ -1227,6 +1227,35 @@ namespace Enhanced_Handbook
                     dialog.selectTab(categoryCode);
                 }
             }, $"handbookcategories-remove-{Guid.NewGuid():N}");
+        }
+
+        private static string GetEffectivePageCode(GuiHandbookPage page, DummySlot slot)
+        {
+            string pageCode = page?.PageCode;
+            if (!string.IsNullOrWhiteSpace(pageCode))
+            {
+                return pageCode;
+            }
+
+            ItemStack stack = slot?.Itemstack;
+            if (stack == null && page is GuiHandbookItemStackPage itemPage)
+            {
+                stack = itemPage.Stack;
+            }
+
+            if (stack == null)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return GuiHandbookItemStackPage.PageCodeForStack(stack);
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private static float? CaptureScrollPosition(DragState state)
