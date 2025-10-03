@@ -99,12 +99,18 @@ namespace Enhanced_Handbook
         private static bool isDragging;
         private static bool wasLeftDown;
         private static bool suppressListClick;
+        private static bool featureEnabled = true;
 
         internal static void Initialize(ICoreClientAPI api)
         {
-            if (api == null)
+            if (!featureEnabled || api == null)
             {
                 Clear();
+                return;
+            }
+
+            if (capi == api && renderer != null)
+            {
                 return;
             }
 
@@ -113,6 +119,12 @@ namespace Enhanced_Handbook
             capi = api;
             renderer = new DragIconRenderer(api);
             capi.Event.RegisterRenderer(renderer, EnumRenderStage.Ortho, "handbookpagedrag");
+        }
+
+        internal static void SetEnabled(ICoreClientAPI api, bool enabled)
+        {
+            featureEnabled = enabled;
+            Initialize(api);
         }
 
         internal static void Clear()
@@ -134,7 +146,7 @@ namespace Enhanced_Handbook
 
         internal static void RegisterOverview(GuiDialogHandbook dialog, GuiComposer overview)
         {
-            if (dialog == null || overview == null)
+            if (!featureEnabled || dialog == null || overview == null)
             {
                 return;
             }
@@ -152,6 +164,11 @@ namespace Enhanced_Handbook
 
         internal static bool TryConsumeClickSuppression()
         {
+            if (!featureEnabled)
+            {
+                return false;
+            }
+
             if (!suppressListClick)
             {
                 return false;
@@ -163,6 +180,12 @@ namespace Enhanced_Handbook
 
         private static void UpdateDragState()
         {
+            if (!featureEnabled)
+            {
+                ResetDrag();
+                return;
+            }
+
             if (capi?.Input == null)
             {
                 ResetDrag();

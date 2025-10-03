@@ -797,11 +797,19 @@ namespace Enhanced_Handbook
             EnsureRecipesOnlyToggle(__instance, overviewGui);
             EnsureCreateButton(__instance, overviewGui);
 
-            HandbookPageDragManager.RegisterOverview(__instance, overviewGui);
+            if (HandbookCategoryManager.DragAndDropEnabled)
+            {
+                HandbookPageDragManager.RegisterOverview(__instance, overviewGui);
+            }
         }
 
         public static bool OnLeftClickListElementPrefix()
         {
+            if (!HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return true;
+            }
+
             return !HandbookPageDragManager.TryConsumeClickSuppression();
         }
 
