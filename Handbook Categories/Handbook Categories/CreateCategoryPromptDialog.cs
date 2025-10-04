@@ -27,6 +27,7 @@ namespace Enhanced_Handbook
         {
             string title = HandbookCategoryManager.GetCreateCategoryPromptTitle();
             string message = HandbookCategoryManager.GetCreateCategoryPromptMessage();
+            bool hasMessage = !string.IsNullOrWhiteSpace(message);
 
             SingleComposer?.Dispose();
 
@@ -38,18 +39,30 @@ namespace Enhanced_Handbook
             backgroundBounds.BothSizing = ElementSizing.FitToChildren;
 
             ElementBounds messageBounds = ElementBounds.Fixed(0.0, 0.0, 360.0, 0.0);
-            CairoFont messageFont = CairoFont.WhiteSmallText();
-            float messageHeight = (float)new TextDrawUtil().GetMultilineTextHeight(messageFont, message, messageBounds.fixedWidth);
-            messageBounds.fixedHeight = Math.Max(30.0f, messageHeight);
+            CairoFont messageFont = null;
+            if (hasMessage)
+            {
+                messageFont = CairoFont.WhiteSmallText();
+                float messageHeight = (float)new TextDrawUtil().GetMultilineTextHeight(messageFont, message, messageBounds.fixedWidth);
+                messageBounds.fixedHeight = Math.Max(30.0f, messageHeight);
+            }
 
-            ElementBounds inputBounds = messageBounds.BelowCopy(0.0, 10.0).WithFixedWidth(360.0).WithFixedHeight(30.0);
+            ElementBounds inputBounds = hasMessage
+                ? messageBounds.BelowCopy(0.0, 10.0).WithFixedWidth(360.0).WithFixedHeight(30.0)
+                : ElementBounds.Fixed(0.0, 0.0, 360.0, 30.0);
             ElementBounds buttonBounds = inputBounds.BelowCopy(0.0, 15.0).WithFixedWidth(140.0).WithFixedHeight(30.0);
 
             GuiComposer composer = capi.Gui.CreateCompo("handbookcategories-createprompt", dialogBounds)
                 .AddShadedDialogBG(backgroundBounds, false)
                 .AddDialogTitleBar(title, OnTitleBarClose)
-                .BeginChildElements(backgroundBounds)
-                    .AddStaticText(message, messageFont, messageBounds)
+                .BeginChildElements(backgroundBounds);
+
+            if (hasMessage)
+            {
+                composer.AddStaticText(message, messageFont, messageBounds);
+            }
+
+            composer
                     .AddTextInput(inputBounds, OnNameChanged, CairoFont.TextInput(), TextInputKey)
                     .AddSmallButton(HandbookCategoryManager.GetCreateCategoryPromptCancelText(), OnCancelClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.LeftFixed))
                     .AddSmallButton(HandbookCategoryManager.GetCreateCategoryPromptOkText(), OnOkClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.RightFixed), EnumButtonStyle.Normal, OkButtonKey)

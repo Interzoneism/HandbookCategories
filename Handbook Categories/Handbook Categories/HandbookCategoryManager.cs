@@ -516,6 +516,7 @@ namespace Enhanced_Handbook
         private static ICoreClientAPI capi;
         private static GuiComposer trackedCreateButtonComposer;
         private static GuiElementTextButton trackedCreateButton;
+        private static bool createCategoryPromptOpen;
         private static GuiElementTextButton trackedCloseButton;
         private static long createButtonListenerId;
 
@@ -2574,6 +2575,18 @@ namespace Enhanced_Handbook
 
             EnsureCreateButtonLayout(overviewGui, button);
             UpdateCreateButtonTextInternal(overviewGui, button);
+            ApplyCreateButtonEnabledState(button);
+        }
+
+        internal static void SetCreateCategoryPromptOpen(bool isOpen)
+        {
+            if (createCategoryPromptOpen == isOpen)
+            {
+                return;
+            }
+
+            createCategoryPromptOpen = isOpen;
+            ApplyCreateButtonEnabledState(trackedCreateButton);
         }
 
         internal static bool TryExecuteCategoryDeleteCommand(GuiDialogHandbook dialog)
@@ -2638,6 +2651,7 @@ namespace Enhanced_Handbook
             }
 
             UpdateCreateButtonTextInternal(composer, button);
+            ApplyCreateButtonEnabledState(button);
         }
 
         private static bool TryEnsureButtonBounds(GuiComposer composer, GuiElementTextButton button)
@@ -2676,6 +2690,20 @@ namespace Enhanced_Handbook
 
                 EnsureCreateButtonLayout(composer, button);
 
+            }
+        }
+
+        private static void ApplyCreateButtonEnabledState(GuiElementTextButton button)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            bool shouldEnable = !createCategoryPromptOpen;
+            if (button.Enabled != shouldEnable)
+            {
+                button.Enabled = shouldEnable;
             }
         }
 
