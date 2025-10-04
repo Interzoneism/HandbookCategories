@@ -38,7 +38,9 @@ namespace Enhanced_Handbook
             ElementBounds backgroundBounds = ElementBounds.Fill.WithFixedPadding(GuiStyle.ElementToDialogPadding);
             backgroundBounds.BothSizing = ElementSizing.FitToChildren;
 
-            ElementBounds messageBounds = ElementBounds.Fixed(0.0, 0.0, 360.0, 0.0);
+            const double contentTopPadding = 18.0;
+
+            ElementBounds messageBounds = ElementBounds.Fixed(0.0, contentTopPadding, 360.0, 0.0);
             CairoFont messageFont = null;
             if (hasMessage)
             {
@@ -49,7 +51,7 @@ namespace Enhanced_Handbook
 
             ElementBounds inputBounds = hasMessage
                 ? messageBounds.BelowCopy(0.0, 10.0).WithFixedWidth(360.0).WithFixedHeight(30.0)
-                : ElementBounds.Fixed(0.0, 0.0, 360.0, 30.0);
+                : ElementBounds.Fixed(0.0, contentTopPadding, 360.0, 30.0);
             ElementBounds buttonBounds = inputBounds.BelowCopy(0.0, 15.0).WithFixedWidth(140.0).WithFixedHeight(30.0);
 
             GuiComposer composer = capi.Gui.CreateCompo("handbookcategories-createprompt", dialogBounds)
