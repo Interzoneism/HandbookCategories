@@ -206,6 +206,12 @@ namespace Enhanced_Handbook
 
             state.Detail = detail;
             state.DetailRichtext = detail?.GetRichtext("richtext");
+
+            GuiElementVerticalTabs detailTabs = detail?.GetVerticalTab("verticalTabs");
+            if (detailTabs != null)
+            {
+                state.TabsElement = detailTabs;
+            }
         }
 
         internal static bool TryConsumeClickSuppression()
