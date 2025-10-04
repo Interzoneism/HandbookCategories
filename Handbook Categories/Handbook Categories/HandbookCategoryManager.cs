@@ -788,18 +788,24 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            string effectiveCode = requireExactCodeMatch
+                ? ExtractCodenameFromPageCode(normalizedCode)
+                : normalizedCode;
+            if (string.IsNullOrEmpty(effectiveCode))
+            {
+                return false;
+            }
+
             category.MatchWords ??= new List<string>();
             category.ForbiddenWords ??= new List<string>();
 
             string prefix = requireExactCodeMatch ? "%%" : "%";
-            string value = prefix + normalizedCode;
-            string alternateValue = requireExactCodeMatch ? "%" + normalizedCode : "%%" + normalizedCode;
+            string value = prefix + effectiveCode;
 
             List<string> targetList = addToForbidden ? category.ForbiddenWords : category.MatchWords;
             List<string> opposingList = addToForbidden ? category.MatchWords : category.ForbiddenWords;
 
             bool changed = RemoveWordCaseInsensitive(opposingList, value);
-            changed |= RemoveWordCaseInsensitive(opposingList, alternateValue);
 
             if (!targetList.Any(existing => existing != null && existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
             {
@@ -825,6 +831,28 @@ namespace Enhanced_Handbook
             }
 
             return pageCode.Trim().ToLowerInvariant();
+        }
+
+        private static string ExtractCodenameFromPageCode(string normalizedCode)
+        {
+            if (string.IsNullOrEmpty(normalizedCode))
+            {
+                return string.Empty;
+            }
+
+            int firstDashIndex = normalizedCode.IndexOf('-');
+            if (firstDashIndex < 0 || firstDashIndex == normalizedCode.Length - 1)
+            {
+                return normalizedCode;
+            }
+
+            int attributesIndex = normalizedCode.IndexOf("-{", firstDashIndex + 1, StringComparison.Ordinal);
+            if (attributesIndex >= 0)
+            {
+                return normalizedCode.Substring(firstDashIndex + 1, attributesIndex - (firstDashIndex + 1));
+            }
+
+            return normalizedCode.Substring(firstDashIndex + 1);
         }
 
         internal static string GetTabDisplayName(string categoryCode)
