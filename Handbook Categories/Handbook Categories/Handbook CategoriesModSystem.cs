@@ -1363,6 +1363,11 @@ namespace Enhanced_Handbook
 
             instance.ReloadPage();
 
+            if (OverviewGuiField?.GetValue(instance) is not GuiComposer)
+            {
+                instance.initOverviewGui();
+            }
+
             RefreshActiveTab(instance, clearSearch: false, searchTextToRestore: searchText);
         }
 
