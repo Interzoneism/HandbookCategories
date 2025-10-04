@@ -2580,9 +2580,16 @@ namespace Enhanced_Handbook
             string trimmedRemainder = remainder?.Trim();
             bool hasKeywords = !string.IsNullOrEmpty(trimmedRemainder);
 
+            string formattedCategoryName = FormatCategoryNameForCommand(categoryName);
+            if (string.IsNullOrWhiteSpace(formattedCategoryName))
+            {
+                capi.ShowChatMessage("[Handbook Categories] Unable to format the category name. Please try again.");
+                return false;
+            }
+
             string command = hasKeywords
-                ? $".categorymod {categoryName} {trimmedRemainder}"
-                : $".categorymod {categoryName}";
+                ? $".categorymod {formattedCategoryName} {trimmedRemainder}"
+                : $".categorymod {formattedCategoryName}";
 
             capi.TriggerChatMessage(command);
             return true;
@@ -2886,6 +2893,43 @@ namespace Enhanced_Handbook
 
             string trimmed = categoryName.Trim();
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private static string FormatCategoryNameForCommand(string categoryName)
+        {
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                return null;
+            }
+
+            string trimmed = categoryName.Trim();
+            if (trimmed.Length == 0)
+            {
+                return null;
+            }
+
+            string escaped = trimmed.Replace("\\", "\\\\");
+            bool needsQuotes = trimmed.Any(char.IsWhiteSpace);
+
+            if (!needsQuotes)
+            {
+                return escaped;
+            }
+
+            bool containsDoubleQuote = trimmed.Contains('\"');
+            bool containsSingleQuote = trimmed.Contains('\'');
+            char quoteChar = containsDoubleQuote && !containsSingleQuote ? '\'' : '\"';
+
+            if (quoteChar == '\'')
+            {
+                escaped = escaped.Replace("'", "\\'");
+            }
+            else
+            {
+                escaped = escaped.Replace("\"", "\\\"");
+            }
+
+            return string.Concat(quoteChar, escaped, quoteChar);
         }
 
         private static bool EnsureCreateButtonLayout(GuiComposer composer, GuiElementTextButton button)
