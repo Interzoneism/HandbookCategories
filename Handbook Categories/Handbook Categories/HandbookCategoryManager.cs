@@ -21,6 +21,11 @@ namespace Enhanced_Handbook
         internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
         private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
         private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
+        private const string CreateCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-create-category-title";
+        private const string CreateCategoryPromptMessageTranslationKey = "enhancedhandbook:dialog-create-category-message";
+        private const string CreateCategoryPromptPlaceholderTranslationKey = "enhancedhandbook:dialog-create-category-placeholder";
+        private const string CreateCategoryPromptOkTranslationKey = "enhancedhandbook:dialog-create-category-ok";
+        private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
         private const double CreateButtonMinimumWidth = 60.0;
         private const double CreateButtonCloseSpacing = 10.0;
 
@@ -78,6 +83,31 @@ namespace Enhanced_Handbook
         internal static string GetDeleteCategoryButtonText()
         {
             return Lang.Get(DeleteCategoryButtonTranslationKey);
+        }
+
+        internal static string GetCreateCategoryPromptTitle()
+        {
+            return Lang.Get(CreateCategoryPromptTitleTranslationKey);
+        }
+
+        internal static string GetCreateCategoryPromptMessage()
+        {
+            return Lang.Get(CreateCategoryPromptMessageTranslationKey);
+        }
+
+        internal static string GetCreateCategoryPromptPlaceholder()
+        {
+            return Lang.Get(CreateCategoryPromptPlaceholderTranslationKey);
+        }
+
+        internal static string GetCreateCategoryPromptOkText()
+        {
+            return Lang.Get(CreateCategoryPromptOkTranslationKey);
+        }
+
+        internal static string GetCreateCategoryPromptCancelText()
+        {
+            return Lang.Get(CreateCategoryPromptCancelTranslationKey);
         }
 
         internal static string GetRecipesOnlyToggleText()
