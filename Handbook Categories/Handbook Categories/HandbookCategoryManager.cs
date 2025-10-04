@@ -840,7 +840,7 @@ namespace Enhanced_Handbook
             return word;
         }
 
-        private static bool RemoveLegacyExactCodeWordEntries(List<string> list, string code)
+        private static bool RemoveExactCodeWordEntries(List<string> list, string code)
         {
             if (list == null || string.IsNullOrEmpty(code))
             {
@@ -852,7 +852,7 @@ namespace Enhanced_Handbook
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 string existing = list[i];
-                if (IsLegacyExactCodeWord(existing)
+                if (IsExactCodeWord(existing)
                     && string.Equals(NormalizeExactCodeWord(existing), code, StringComparison.OrdinalIgnoreCase))
                 {
                     list.RemoveAt(i);
@@ -934,19 +934,38 @@ namespace Enhanced_Handbook
 
             List<(string value, string code)> valuesToAdd = new();
 
+            List<string> exactCodesToRemove = null;
+
             if (requireExactCodeMatch)
             {
                 AddValue("=", normalizedCode);
 
                 string codename = ExtractCodenameFromPageCode(normalizedCode);
-                if (!string.IsNullOrEmpty(codename))
+                if (!string.IsNullOrEmpty(codename)
+                    && !string.Equals(codename, normalizedCode, StringComparison.Ordinal))
                 {
-                    AddValue("=", codename);
+                    exactCodesToRemove = new List<string> { codename };
                 }
             }
             else
             {
                 AddValue("%", normalizedCode);
+            }
+
+            if (exactCodesToRemove != null)
+            {
+                foreach (string codeToRemove in exactCodesToRemove)
+                {
+                    if (RemoveExactCodeWordEntries(targetList, codeToRemove))
+                    {
+                        changed = true;
+                    }
+
+                    if (RemoveExactCodeWordEntries(opposingList, codeToRemove))
+                    {
+                        changed = true;
+                    }
+                }
             }
 
             foreach ((string value, string code) in valuesToAdd)
@@ -957,7 +976,7 @@ namespace Enhanced_Handbook
                 }
 
                 if (requireExactCodeMatch && !string.IsNullOrEmpty(code)
-                    && RemoveLegacyExactCodeWordEntries(targetList, code))
+                    && RemoveExactCodeWordEntries(targetList, code))
                 {
                     changed = true;
                 }
