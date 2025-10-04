@@ -1220,7 +1220,10 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            capi?.ShowChatMessage($"[HandbookCategories] {message}");
+            if (capi?.Logger != null)
+            {
+                capi.Logger.VerboseDebug("[HandbookCategories] {0}", message);
+            }
         }
 
         private static string DescribeOrigin(DragOrigin origin)
