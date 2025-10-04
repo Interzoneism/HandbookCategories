@@ -320,7 +320,7 @@ namespace Enhanced_Handbook
                     ? $"Created category \"{category.Name}\" with no automatic matches.{removalMessage}"
                     : $"Category \"{category.Name}\" {action}, but no new words were added.{removalMessage}";
 
-                return TextCommandResult.Success(message);
+                return TextCommandResult.Success(data: message);
             }
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
@@ -357,7 +357,8 @@ namespace Enhanced_Handbook
 
             parts.Add("Handbook tabs refreshed");
 
-            return TextCommandResult.Success(string.Join(". ", parts) + ".");
+            string summary = string.Join(". ", parts) + ".";
+            return TextCommandResult.Success(data: summary);
         }
 
         private static bool RemoveWordCaseInsensitive(List<string> list, string word)
@@ -425,7 +426,8 @@ namespace Enhanced_Handbook
                 HandbookCategoryManager.ReloadConfiguration();
                 RebuildHandbookTabs();
 
-                return TextCommandResult.Success($"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Handbook tabs refreshed.");
+                string deletionSummary = $"Deleted {removed} custom categor{(removed == 1 ? "y" : "ies")}. Handbook tabs refreshed.";
+                return TextCommandResult.Success(data: deletionSummary);
             }
 
             HandbookCategoryConfigEntry category = config.Categories
@@ -442,7 +444,8 @@ namespace Enhanced_Handbook
             HandbookCategoryManager.ReloadConfiguration();
             RebuildHandbookTabs();
 
-            return TextCommandResult.Success($"Deleted category \"{category.Name}\". Handbook tabs refreshed.");
+            string categoryDeletionSummary = $"Deleted category \"{category.Name}\". Handbook tabs refreshed.";
+            return TextCommandResult.Success(data: categoryDeletionSummary);
         }
 
         private TextCommandResult OnCategoryModSaveCommand(TextCommandCallingArgs args)
@@ -505,7 +508,8 @@ namespace Enhanced_Handbook
                 clipboardCopied ? "Copied to clipboard." : "Unable to copy to clipboard."
             };
 
-            return TextCommandResult.Success(string.Join(" ", messageParts));
+            string saveSummary = string.Join(" ", messageParts);
+            return TextCommandResult.Success(data: saveSummary);
         }
 
         private TextCommandResult OnCategoryModDefaultCommand(TextCommandCallingArgs args)
@@ -532,7 +536,8 @@ namespace Enhanced_Handbook
             HandbookCategoryManager.ReloadConfiguration();
             RebuildHandbookTabs();
 
-            return TextCommandResult.Success($"Restored {defaultCategories.Count} default categor{(defaultCategories.Count == 1 ? "y" : "ies")}. Handbook tabs refreshed.");
+            string restoreSummary = $"Restored {defaultCategories.Count} default categor{(defaultCategories.Count == 1 ? "y" : "ies")}. Handbook tabs refreshed.";
+            return TextCommandResult.Success(data: restoreSummary);
         }
 
         private static List<CommandToken> TokenizeArguments(string input)
