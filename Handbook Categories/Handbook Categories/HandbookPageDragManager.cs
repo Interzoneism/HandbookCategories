@@ -84,6 +84,13 @@ namespace Enhanced_Handbook
 
         private static readonly Dictionary<GuiDialogHandbook, DragState> trackedDialogs = new();
 
+        private enum DragOrigin
+        {
+            None,
+            SearchList,
+            DetailPage
+        }
+
         private static readonly FieldInfo TabsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabs");
         private static readonly FieldInfo TabWidthsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabWidths");
         private static readonly FieldInfo TabHeightField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabHeight");
@@ -109,11 +116,13 @@ namespace Enhanced_Handbook
         private static int pendingStartX;
         private static int pendingStartY;
         private static string pendingCategoryCode;
+        private static DragOrigin pendingOrigin;
 
         private static DragState draggingState;
         private static GuiHandbookPage draggingPage;
         private static DummySlot draggingSlot;
         private static string draggingCategoryCode;
+        private static DragOrigin draggingOrigin;
         private static bool isDragging;
         private static bool wasLeftDown;
         private static bool suppressListClick;
@@ -357,8 +366,12 @@ namespace Enhanced_Handbook
             draggingPage = pendingPage;
             draggingSlot = pendingSlot;
             draggingCategoryCode = pendingCategoryCode;
+            draggingOrigin = pendingOrigin;
             isDragging = true;
             suppressListClick = true;
+
+            string effectiveCode = GetEffectivePageCode(draggingPage, draggingSlot);
+            DebugLog($"Drag started from {DescribeOrigin(draggingOrigin)}. Page={DescribePage(draggingPage, effectiveCode)}, Item={DescribeItemstack(draggingSlot)}, CategoryContext={DescribeCategory(draggingCategoryCode)}");
 
             ResetPending();
         }
@@ -453,6 +466,8 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            DebugLog($"Dropping page {pageCode} from {DescribeOrigin(draggingOrigin)} onto category {categoryCode}. Item={DescribeItemstack(draggingSlot)}");
+
             DragState state = draggingState;
             float? scrollToRestore = CaptureScrollPosition(state);
 
@@ -464,8 +479,11 @@ namespace Enhanced_Handbook
             {
                 if (!HandbookCategoryManager.TryAddPageCodeMatchToCategory(categoryCode, pageCode))
                 {
+                    DebugLog($"Drop rejected: Category {categoryCode} already contains page {pageCode} or addition failed.");
                     return;
                 }
+
+                DebugLog($"Drop accepted: Added page {pageCode} to category {categoryCode}.");
 
                 if (state != null)
                 {
@@ -495,7 +513,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            SetPendingDrag(state, page, slot, mouseX, mouseY);
+            SetPendingDrag(state, page, slot, mouseX, mouseY, DragOrigin.SearchList);
             return true;
         }
 
@@ -607,7 +625,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            SetPendingDrag(state, page, slot, mouseX, mouseY);
+            SetPendingDrag(state, page, slot, mouseX, mouseY, DragOrigin.DetailPage);
             return true;
         }
 
@@ -1144,7 +1162,7 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        private static void SetPendingDrag(DragState state, GuiHandbookPage page, DummySlot slot, int mouseX, int mouseY)
+        private static void SetPendingDrag(DragState state, GuiHandbookPage page, DummySlot slot, int mouseX, int mouseY, DragOrigin origin)
         {
             pendingState = state;
             pendingPage = page;
@@ -1152,6 +1170,7 @@ namespace Enhanced_Handbook
             pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
             pendingStartX = mouseX;
             pendingStartY = mouseY;
+            pendingOrigin = origin;
         }
 
         private static bool IsFrontmostHandbookDialog(GuiDialogHandbook dialog)
@@ -1179,6 +1198,7 @@ namespace Enhanced_Handbook
             draggingPage = null;
             draggingSlot = null;
             draggingCategoryCode = null;
+            draggingOrigin = DragOrigin.None;
             suppressListClick = false;
             wasLeftDown = false;
             ResetPending();
@@ -1190,6 +1210,62 @@ namespace Enhanced_Handbook
             pendingPage = null;
             pendingSlot = null;
             pendingCategoryCode = null;
+            pendingOrigin = DragOrigin.None;
+        }
+
+        private static void DebugLog(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return;
+            }
+
+            capi?.ShowChatMessage($"[HandbookCategories] {message}");
+        }
+
+        private static string DescribeOrigin(DragOrigin origin)
+        {
+            return origin switch
+            {
+                DragOrigin.SearchList => "search list",
+                DragOrigin.DetailPage => "detail page",
+                _ => "unknown"
+            };
+        }
+
+        private static string DescribePage(GuiHandbookPage page, string effectiveCode)
+        {
+            if (page == null)
+            {
+                return "null";
+            }
+
+            string rawCode = string.IsNullOrWhiteSpace(page.PageCode) ? "<none>" : page.PageCode;
+            string resolvedCode = string.IsNullOrWhiteSpace(effectiveCode) ? "<none>" : effectiveCode;
+            return $"{page.GetType().Name}(Raw={rawCode}, Effective={resolvedCode})";
+        }
+
+        private static string DescribeItemstack(DummySlot slot)
+        {
+            ItemStack stack = slot?.Itemstack;
+            if (stack == null)
+            {
+                return "<none>";
+            }
+
+            string code = stack.Collectible?.Code?.ToShortString();
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                code = stack.ToString();
+            }
+
+            int quantity = stack.StackSize;
+            return string.IsNullOrWhiteSpace(code) ? $"Unknown x{quantity}" : $"{code} x{quantity}";
+        }
+
+        private static string DescribeCategory(string categoryCode)
+        {
+            return string.IsNullOrWhiteSpace(categoryCode) ? "<none>" : categoryCode;
         }
 
         private static bool IsHandbookObscured(DragState state, int mouseX, int mouseY)
