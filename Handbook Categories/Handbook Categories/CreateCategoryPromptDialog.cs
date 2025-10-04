@@ -12,6 +12,10 @@ namespace Enhanced_Handbook
 
         private readonly Action<string> onConfirm;
 
+        public override double DrawOrder => 2.5;
+
+        public override double InputOrder => 0.1;
+
         internal CreateCategoryPromptDialog(ICoreClientAPI capi, Action<string> onConfirm)
             : base(HandbookCategoryManager.GetCreateCategoryPromptTitle(), capi)
         {
