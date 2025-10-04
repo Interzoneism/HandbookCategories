@@ -712,12 +712,28 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            bool isCodeWord = word.Length > 0 && word[0] == '%';
+            bool isExactCodeWord = isCodeWord && word.Length > 1 && word[1] == '%';
+
             bool removed = false;
 
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 string existing = list[i];
-                if (existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase))
+                if (existing == null)
+                {
+                    continue;
+                }
+
+                if (isCodeWord && !isExactCodeWord
+                    && existing.Length > 1
+                    && existing[0] == '%'
+                    && existing[1] == '%')
+                {
+                    continue;
+                }
+
+                if (existing.Equals(word, StringComparison.OrdinalIgnoreCase))
                 {
                     list.RemoveAt(i);
                     removed = true;
