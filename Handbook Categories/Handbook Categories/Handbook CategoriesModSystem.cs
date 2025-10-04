@@ -372,7 +372,7 @@ namespace Enhanced_Handbook
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 string existing = list[i];
-                if (existing != null && existing.Equals(word, StringComparison.OrdinalIgnoreCase))
+                if (HandbookCategoryManager.AreCategoryWordsEquivalent(existing, word))
                 {
                     list.RemoveAt(i);
                     removedAny = true;
