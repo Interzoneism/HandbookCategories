@@ -2584,15 +2584,6 @@ namespace Enhanced_Handbook
                 ? $".categorymod {categoryName} {trimmedRemainder}"
                 : $".categorymod {categoryName}";
 
-            if (hasKeywords)
-            {
-                capi.ShowChatMessage($"[Handbook Categories] Creating category '{categoryName}' with keywords: {trimmedRemainder}.");
-            }
-            else
-            {
-                capi.ShowChatMessage($"[Handbook Categories] Creating empty category '{categoryName}'.");
-            }
-
             capi.TriggerChatMessage(command);
             return true;
         }
