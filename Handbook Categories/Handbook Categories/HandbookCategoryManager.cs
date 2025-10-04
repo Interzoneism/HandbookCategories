@@ -970,7 +970,7 @@ namespace Enhanced_Handbook
                 }
             }
 
-            ApplyWordBasedCategories(itemPagesByCode.Values, onlyGridPages ? gridRecipePageCodes : null, AddPageToCategory);
+            ApplyWordBasedCategories(allPages, onlyGridPages ? gridRecipePageCodes : null, AddPageToCategory);
 
 
             pagesByCategory.Clear();
@@ -1028,7 +1028,7 @@ namespace Enhanced_Handbook
             builder.Clear();
         }
 
-        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookItemStackPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
+        private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
         {
             if (pages == null || addPageAction == null)
             {
@@ -1042,9 +1042,14 @@ namespace Enhanced_Handbook
 
             bool requireGridPages = gridRecipeCodes != null;
 
-            foreach (GuiHandbookItemStackPage page in pages)
+            foreach (GuiHandbookPage page in pages)
             {
-                if (page?.Stack?.Collectible == null)
+                if (page == null || page.IsDuplicate)
+                {
+                    continue;
+                }
+
+                if (page is GuiHandbookItemStackPage stackPage && stackPage.Stack?.Collectible == null)
                 {
                     continue;
                 }
