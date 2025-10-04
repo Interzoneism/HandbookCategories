@@ -339,18 +339,24 @@ namespace Enhanced_Handbook
                         bool requiresCodeMatch = false;
                         bool requiresExactCodeMatch = false;
 
-                        if (trimmed.Length > 0 && trimmed[0] == '%')
+                        if (trimmed.Length > 0)
                         {
-                            requiresCodeMatch = true;
-
-                            if (trimmed.Length > 1 && trimmed[1] == '%')
+                            if (trimmed[0] == '=')
                             {
+                                requiresCodeMatch = true;
                                 requiresExactCodeMatch = true;
-                                trimmed = trimmed.Substring(2);
-                            }
-                            else
-                            {
                                 trimmed = trimmed.Substring(1);
+                            }
+                            else if (trimmed[0] == '%')
+                            {
+                                requiresCodeMatch = true;
+                                trimmed = trimmed.Substring(1);
+
+                                if (trimmed.Length > 0 && trimmed[0] == '%')
+                                {
+                                    requiresExactCodeMatch = true;
+                                    trimmed = trimmed.Substring(1);
+                                }
                             }
                         }
 
@@ -702,7 +708,7 @@ namespace Enhanced_Handbook
 
         internal static bool TryAddForbiddenPageCodeToCategory(string categoryCode, string pageCode)
         {
-            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: true);
+            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: true, requireExactCodeMatch: true);
         }
 
         private static bool RemoveWordCaseInsensitive(List<string> list, string word)
@@ -712,8 +718,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            bool isCodeWord = word.Length > 0 && word[0] == '%';
-            bool isExactCodeWord = isCodeWord && word.Length > 1 && word[1] == '%';
+            bool isExactWord = IsExactCodeWord(word);
 
             bool removed = false;
 
@@ -725,15 +730,100 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                if (isCodeWord && !isExactCodeWord
-                    && existing.Length > 1
-                    && existing[0] == '%'
-                    && existing[1] == '%')
+                if (!isExactWord && IsExactCodeWord(existing))
                 {
                     continue;
                 }
 
-                if (existing.Equals(word, StringComparison.OrdinalIgnoreCase))
+                if (AreCategoryWordsEquivalent(existing, word))
+                {
+                    list.RemoveAt(i);
+                    removed = true;
+                }
+            }
+
+            return removed;
+        }
+
+        internal static bool AreCategoryWordsEquivalent(string left, string right)
+        {
+            if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right))
+            {
+                return false;
+            }
+
+            bool leftExact = IsExactCodeWord(left);
+            bool rightExact = IsExactCodeWord(right);
+
+            if (leftExact && rightExact)
+            {
+                string leftCode = NormalizeExactCodeWord(left);
+                string rightCode = NormalizeExactCodeWord(right);
+                if (string.IsNullOrEmpty(leftCode) || string.IsNullOrEmpty(rightCode))
+                {
+                    return false;
+                }
+
+                return string.Equals(leftCode, rightCode, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (leftExact != rightExact)
+            {
+                return false;
+            }
+
+            return left.Equals(right, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsExactCodeWord(string word)
+        {
+            return IsModernExactCodeWord(word) || IsLegacyExactCodeWord(word);
+        }
+
+        private static bool IsModernExactCodeWord(string word)
+        {
+            return !string.IsNullOrEmpty(word) && word.Length > 1 && word[0] == '=';
+        }
+
+        private static bool IsLegacyExactCodeWord(string word)
+        {
+            return !string.IsNullOrEmpty(word) && word.Length > 2 && word[0] == '%' && word[1] == '%';
+        }
+
+        private static string NormalizeExactCodeWord(string word)
+        {
+            if (string.IsNullOrEmpty(word))
+            {
+                return string.Empty;
+            }
+
+            if (word[0] == '=')
+            {
+                return word.Substring(1);
+            }
+
+            if (IsLegacyExactCodeWord(word))
+            {
+                return word.Substring(2);
+            }
+
+            return word;
+        }
+
+        private static bool RemoveLegacyExactCodeWordEntries(List<string> list, string code)
+        {
+            if (list == null || string.IsNullOrEmpty(code))
+            {
+                return false;
+            }
+
+            bool removed = false;
+
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                string existing = list[i];
+                if (IsLegacyExactCodeWord(existing)
+                    && string.Equals(NormalizeExactCodeWord(existing), code, StringComparison.OrdinalIgnoreCase))
                 {
                     list.RemoveAt(i);
                     removed = true;
@@ -815,7 +905,7 @@ namespace Enhanced_Handbook
             category.MatchWords ??= new List<string>();
             category.ForbiddenWords ??= new List<string>();
 
-            string prefix = requireExactCodeMatch ? "%%" : "%";
+            string prefix = requireExactCodeMatch ? "=" : "%";
             string value = prefix + effectiveCode;
 
             List<string> targetList = addToForbidden ? category.ForbiddenWords : category.MatchWords;
@@ -823,7 +913,12 @@ namespace Enhanced_Handbook
 
             bool changed = RemoveWordCaseInsensitive(opposingList, value);
 
-            if (!targetList.Any(existing => existing != null && existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
+            if (requireExactCodeMatch && RemoveLegacyExactCodeWordEntries(targetList, effectiveCode))
+            {
+                changed = true;
+            }
+
+            if (!targetList.Any(existing => AreCategoryWordsEquivalent(existing, value)))
             {
                 targetList.Add(value);
                 changed = true;
@@ -2136,6 +2231,24 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
+                    if (prefix == '=')
+                    {
+                        if (raw.Length == 1)
+                        {
+                            excludeNext = false;
+                            buildingExactMatch = false;
+                            currentTokenRequiresTitleMatch = false;
+                            return;
+                        }
+
+                        raw = raw.Substring(1);
+                        requiresCodeMatch = true;
+                        exactMatch = true;
+                        requiresTitleMatch = false;
+                        usesVanillaSearch = false;
+                        continue;
+                    }
+
                     if (prefix == '%')
                     {
                         if (raw.Length == 1)
@@ -2150,6 +2263,12 @@ namespace Enhanced_Handbook
                         requiresCodeMatch = true;
                         requiresTitleMatch = false;
                         usesVanillaSearch = false;
+
+                        if (!string.IsNullOrEmpty(raw) && raw[0] == '%')
+                        {
+                            raw = raw.Substring(1);
+                            exactMatch = true;
+                        }
                         continue;
                     }
 
@@ -3111,7 +3230,14 @@ namespace Enhanced_Handbook
                 builder.Length--;
             }
 
-            return builder.ToString();
+            string normalized = builder.ToString();
+
+            if (normalized.Length > 2 && normalized[0] == '%' && normalized[1] == '%')
+            {
+                return "=" + normalized.Substring(2);
+            }
+
+            return normalized;
         }
     }
 }
