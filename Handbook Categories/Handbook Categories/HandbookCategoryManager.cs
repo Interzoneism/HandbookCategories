@@ -924,34 +924,49 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            string effectiveCode = requireExactCodeMatch
-                ? ExtractCodenameFromPageCode(normalizedCode)
-                : normalizedCode;
-            if (string.IsNullOrEmpty(effectiveCode))
-            {
-                return false;
-            }
-
             category.MatchWords ??= new List<string>();
             category.ForbiddenWords ??= new List<string>();
-
-            string prefix = requireExactCodeMatch ? "=" : "%";
-            string value = prefix + effectiveCode;
 
             List<string> targetList = addToForbidden ? category.ForbiddenWords : category.MatchWords;
             List<string> opposingList = addToForbidden ? category.MatchWords : category.ForbiddenWords;
 
-            bool changed = RemoveWordCaseInsensitive(opposingList, value);
+            bool changed = false;
 
-            if (requireExactCodeMatch && RemoveLegacyExactCodeWordEntries(targetList, effectiveCode))
+            List<(string value, string code)> valuesToAdd = new();
+
+            if (requireExactCodeMatch)
             {
-                changed = true;
+                AddValue("=", normalizedCode);
+
+                string codename = ExtractCodenameFromPageCode(normalizedCode);
+                if (!string.IsNullOrEmpty(codename))
+                {
+                    AddValue("=", codename);
+                }
+            }
+            else
+            {
+                AddValue("%", normalizedCode);
             }
 
-            if (!targetList.Any(existing => AreCategoryWordsEquivalent(existing, value)))
+            foreach ((string value, string code) in valuesToAdd)
             {
-                targetList.Add(value);
-                changed = true;
+                if (RemoveWordCaseInsensitive(opposingList, value))
+                {
+                    changed = true;
+                }
+
+                if (requireExactCodeMatch && !string.IsNullOrEmpty(code)
+                    && RemoveLegacyExactCodeWordEntries(targetList, code))
+                {
+                    changed = true;
+                }
+
+                if (!targetList.Any(existing => AreCategoryWordsEquivalent(existing, value)))
+                {
+                    targetList.Add(value);
+                    changed = true;
+                }
             }
 
             if (!changed)
@@ -962,6 +977,25 @@ namespace Enhanced_Handbook
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             ReloadConfiguration();
             return true;
+
+            void AddValue(string prefix, string code)
+            {
+                if (string.IsNullOrEmpty(prefix) || string.IsNullOrEmpty(code))
+                {
+                    return;
+                }
+
+                string value = prefix + code;
+                for (int i = 0; i < valuesToAdd.Count; i++)
+                {
+                    if (AreCategoryWordsEquivalent(valuesToAdd[i].value, value))
+                    {
+                        return;
+                    }
+                }
+
+                valuesToAdd.Add((value, code));
+            }
         }
 
         private static string NormalizePageCode(string pageCode)
@@ -2330,7 +2364,9 @@ namespace Enhanced_Handbook
                     requiresTitleMatch = false;
                 }
 
-                string term = raw.ToSearchFriendly().Trim();
+                string term = requiresCodeMatch
+                    ? NormalizePageCode(raw)
+                    : raw.ToSearchFriendly().Trim();
                 if (term.Length == 0)
                 {
                     excludeNext = false;
