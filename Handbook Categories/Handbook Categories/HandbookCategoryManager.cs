@@ -337,11 +337,21 @@ namespace Enhanced_Handbook
                         }
 
                         bool requiresCodeMatch = false;
+                        bool requiresExactCodeMatch = false;
 
                         if (trimmed.Length > 0 && trimmed[0] == '%')
                         {
                             requiresCodeMatch = true;
-                            trimmed = trimmed.Substring(1);
+
+                            if (trimmed.Length > 1 && trimmed[1] == '%')
+                            {
+                                requiresExactCodeMatch = true;
+                                trimmed = trimmed.Substring(2);
+                            }
+                            else
+                            {
+                                trimmed = trimmed.Substring(1);
+                            }
                         }
 
                         string normalized = requiresCodeMatch
@@ -362,7 +372,7 @@ namespace Enhanced_Handbook
                         }
 
                         string cacheKey = requiresCodeMatch
-                            ? $"code:{normalized}"
+                            ? requiresExactCodeMatch ? $"code-exact:{normalized}" : $"code:{normalized}"
                             : requiresTitleMatch ? $"title:{normalized}" : $"term:{normalized}";
                         if (isRequired)
                         {
@@ -373,7 +383,7 @@ namespace Enhanced_Handbook
                             continue;
                         }
 
-                        bool isExactMatch = !requiresCodeMatch;
+                        bool isExactMatch = !requiresCodeMatch || requiresExactCodeMatch;
                         target.Add(new SearchTerm(normalized, isExactMatch, requiresTitleMatch, requiresCodeMatch, isRequired));
                     }
                 }
@@ -687,7 +697,7 @@ namespace Enhanced_Handbook
 
         internal static bool TryAddPageCodeMatchToCategory(string categoryCode, string pageCode)
         {
-            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: false);
+            return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: false, requireExactCodeMatch: true);
         }
 
         internal static bool TryAddForbiddenPageCodeToCategory(string categoryCode, string pageCode)
@@ -765,7 +775,7 @@ namespace Enhanced_Handbook
             return category != null;
         }
 
-        private static bool TryUpdatePageCodeEntry(string categoryCode, string pageCode, bool addToForbidden)
+        private static bool TryUpdatePageCodeEntry(string categoryCode, string pageCode, bool addToForbidden, bool requireExactCodeMatch = false)
         {
             if (!TryGetCategoryConfig(categoryCode, out HandbookCategoriesConfig config, out HandbookCategoryConfigEntry category))
             {
@@ -781,12 +791,15 @@ namespace Enhanced_Handbook
             category.MatchWords ??= new List<string>();
             category.ForbiddenWords ??= new List<string>();
 
-            string value = "%" + normalizedCode;
+            string prefix = requireExactCodeMatch ? "%%" : "%";
+            string value = prefix + normalizedCode;
+            string alternateValue = requireExactCodeMatch ? "%" + normalizedCode : "%%" + normalizedCode;
 
             List<string> targetList = addToForbidden ? category.ForbiddenWords : category.MatchWords;
             List<string> opposingList = addToForbidden ? category.MatchWords : category.ForbiddenWords;
 
             bool changed = RemoveWordCaseInsensitive(opposingList, value);
+            changed |= RemoveWordCaseInsensitive(opposingList, alternateValue);
 
             if (!targetList.Any(existing => existing != null && existing.Equals(value, StringComparison.OrdinalIgnoreCase)))
             {
