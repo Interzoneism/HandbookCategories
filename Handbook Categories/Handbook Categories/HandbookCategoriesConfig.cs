@@ -42,7 +42,13 @@ namespace Enhanced_Handbook
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
                 UsesEnglishDefaults = false,
-                Categories = new List<HandbookCategoryConfigEntry>()
+                Categories = new List<HandbookCategoryConfigEntry>
+                {
+                    new HandbookCategoryConfigEntry
+                    {
+                        Name = "Bookmarks"
+                    }
+                }
             };
         }
 
