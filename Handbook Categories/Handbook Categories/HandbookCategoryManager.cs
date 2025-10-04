@@ -1365,7 +1365,11 @@ namespace Enhanced_Handbook
                 {
                     if (!string.Equals(normalizedPageCode, term.Term, StringComparison.Ordinal))
                     {
-                        return false;
+                        string normalizedCodename = ExtractCodenameFromPageCode(normalizedPageCode);
+                        if (!string.Equals(normalizedCodename, term.Term, StringComparison.Ordinal))
+                        {
+                            return false;
+                        }
                     }
 
                     weight = float.MaxValue;
