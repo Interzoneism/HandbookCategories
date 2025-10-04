@@ -1229,6 +1229,12 @@ namespace Enhanced_Handbook
                 searchText = overview.GetTextInput("searchField")?.GetText();
             }
 
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                ShowCreateCategoryPrompt(dialog);
+                return true;
+            }
+
             if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(searchText))
             {
                 return false;
@@ -1237,6 +1243,40 @@ namespace Enhanced_Handbook
             HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
             RefreshActiveTab(dialog, clearSearch: true);
             return true;
+        }
+
+        private static void ShowCreateCategoryPrompt(GuiDialogHandbook dialog)
+        {
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+            if (api?.Gui == null)
+            {
+                return;
+            }
+
+            CreateCategoryPromptDialog prompt = new(api, categoryName =>
+            {
+                if (string.IsNullOrWhiteSpace(categoryName))
+                {
+                    return;
+                }
+
+                string trimmedName = categoryName.Trim();
+                if (string.IsNullOrWhiteSpace(trimmedName))
+                {
+                    return;
+                }
+
+                string simulatedSearch = $"#{trimmedName}";
+                if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(simulatedSearch))
+                {
+                    return;
+                }
+
+                api.Gui.PlaySound("menubutton_press");
+                RefreshActiveTab(dialog, clearSearch: true);
+            });
+
+            prompt.TryOpen();
         }
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
