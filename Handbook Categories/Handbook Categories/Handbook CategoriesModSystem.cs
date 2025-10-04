@@ -1276,7 +1276,13 @@ namespace Enhanced_Handbook
                 RefreshActiveTab(dialog, clearSearch: true);
             });
 
-            prompt.TryOpen();
+            HandbookCategoryManager.SetCreateCategoryPromptOpen(true);
+            prompt.OnClosed += () => HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
+
+            if (!prompt.TryOpen())
+            {
+                HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
+            }
         }
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
