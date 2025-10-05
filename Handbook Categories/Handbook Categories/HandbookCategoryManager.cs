@@ -28,7 +28,7 @@ namespace Enhanced_Handbook
         private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
         private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
-        internal const int MaxCategoryNameLength = 23;
+        internal const int MaxCategoryNameLength = 20;
         private const double CreateButtonMinimumWidth = 60.0;
         private const double CreateButtonCloseSpacing = 10.0;
 
