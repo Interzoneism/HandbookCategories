@@ -396,7 +396,7 @@ namespace Enhanced_Handbook
                 return TextCommandResult.Error("Usage: .categorymoddelete [category]");
             }
 
-            string categoryNameInput = rawArgs.PopWord();
+            string categoryNameInput = ParseCategoryNameArgument(rawArgs);
             if (string.IsNullOrWhiteSpace(categoryNameInput))
             {
                 return TextCommandResult.Error("You must specify a category name");
@@ -510,6 +510,68 @@ namespace Enhanced_Handbook
 
             string saveSummary = string.Join(" ", messageParts);
             return TextCommandResult.Success(data: saveSummary);
+        }
+
+        private static string ParseCategoryNameArgument(CmdArgs rawArgs)
+        {
+            if (rawArgs == null)
+            {
+                return null;
+            }
+
+            string rawInput = rawArgs.PopAll();
+            if (string.IsNullOrWhiteSpace(rawInput))
+            {
+                return null;
+            }
+
+            rawInput = rawInput.Trim();
+            if (rawInput.Length == 0)
+            {
+                return null;
+            }
+
+            char firstChar = rawInput[0];
+            if (QuoteCharacters.Contains(firstChar))
+            {
+                return ParseQuotedArgument(rawInput, firstChar);
+            }
+
+            int separatorIndex = rawInput.IndexOf(' ');
+            return separatorIndex >= 0 ? rawInput.Substring(0, separatorIndex) : rawInput;
+        }
+
+        private static string ParseQuotedArgument(string rawInput, char quoteChar)
+        {
+            StringBuilder builder = new StringBuilder(rawInput.Length);
+            bool escaping = false;
+
+            for (int i = 1; i < rawInput.Length; i++)
+            {
+                char current = rawInput[i];
+
+                if (escaping)
+                {
+                    builder.Append(current);
+                    escaping = false;
+                    continue;
+                }
+
+                if (current == '\\')
+                {
+                    escaping = true;
+                    continue;
+                }
+
+                if (current == quoteChar)
+                {
+                    return builder.ToString();
+                }
+
+                builder.Append(current);
+            }
+
+            return builder.ToString();
         }
 
         private TextCommandResult OnCategoryModDefaultCommand(TextCommandCallingArgs args)
