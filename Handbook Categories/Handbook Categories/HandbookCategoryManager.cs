@@ -2666,9 +2666,21 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            string command = $".categorymoddelete {tabName}";
+            string commandArgument = FormatChatArgument(tabName);
+            string command = $".categorymoddelete {commandArgument}";
             capi.TriggerChatMessage(command);
             return true;
+        }
+
+        private static string FormatChatArgument(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            string escaped = value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            return $"\"{escaped}\"";
         }
 
         private static void MonitorCreateButtonState(float deltaTime)
