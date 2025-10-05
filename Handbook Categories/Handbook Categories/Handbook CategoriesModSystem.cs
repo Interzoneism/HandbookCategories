@@ -942,7 +942,7 @@ namespace Enhanced_Handbook
             var loading = LoadingPagesField != null && (bool)LoadingPagesField.GetValue(__instance);
             double listHeight = ListHeightField != null ? (double)ListHeightField.GetValue(__instance) : 500d;
 
-            HandbookCategoryManager.UpdateSearchUi(overviewGui, currentSearch);
+            HandbookCategoryManager.UpdateSearchUi(overviewGui, currentSearch, __instance);
 
             bool hasManagedPages = HandbookCategoryManager.TryGetCategoryPages(__instance.currentCatgoryCode, out List<GuiHandbookPage> managedPages);
 
@@ -1203,7 +1203,7 @@ namespace Enhanced_Handbook
             GuiElementTextButton existingButton = overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
             if (existingButton != null)
             {
-                HandbookCategoryManager.RegisterCreateButton(overviewGui, existingButton);
+                HandbookCategoryManager.RegisterCreateButton(overviewGui, existingButton, dialog);
                 return;
             }
 
@@ -1228,7 +1228,7 @@ namespace Enhanced_Handbook
             button.Bounds.CalcWorldBounds();
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
-            HandbookCategoryManager.RegisterCreateButton(overviewGui, button);
+            HandbookCategoryManager.RegisterCreateButton(overviewGui, button, dialog);
             overviewGui.ReCompose();
         }
 
@@ -1288,6 +1288,12 @@ namespace Enhanced_Handbook
             if (HandbookCategoryManager.TryExecuteCategoryDeleteCommand(dialog))
             {
                 HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
+                return true;
+            }
+
+            if (HandbookCategoryManager.ShouldHandleRename(dialog))
+            {
+                ShowRenameCategoryPrompt(dialog);
                 return true;
             }
 
@@ -1351,6 +1357,76 @@ namespace Enhanced_Handbook
                 api.Gui.PlaySound("menubutton_press");
                 RefreshActiveTab(dialog, clearSearch: true);
             });
+
+            HandbookCategoryManager.SetCreateCategoryPromptOpen(true);
+            prompt.OnClosed += () => HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
+
+            if (!prompt.TryOpen())
+            {
+                HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
+            }
+        }
+
+        private static void ShowRenameCategoryPrompt(GuiDialogHandbook dialog)
+        {
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+            if (api?.Gui == null || dialog == null)
+            {
+                return;
+            }
+
+            string categoryCode = dialog.currentCatgoryCode;
+            if (!HandbookCategoryManager.ShouldHandleRename(dialog))
+            {
+                return;
+            }
+
+            string initialValue = HandbookCategoryManager.GetTabDisplayName(categoryCode);
+            if (initialValue == null)
+            {
+                initialValue = string.Empty;
+            }
+
+            CreateCategoryPromptDialog prompt = new(
+                api,
+                categoryName =>
+                {
+                    if (string.IsNullOrWhiteSpace(categoryName))
+                    {
+                        return;
+                    }
+
+                    string trimmedName = categoryName.Trim();
+                    if (string.IsNullOrWhiteSpace(trimmedName))
+                    {
+                        return;
+                    }
+
+                    string unquotedName = trimmedName.Trim('"');
+                    if (string.IsNullOrWhiteSpace(unquotedName))
+                    {
+                        return;
+                    }
+
+                    if (!HandbookCategoryManager.TryRenameCategory(categoryCode, unquotedName, out string newCategoryCode))
+                    {
+                        return;
+                    }
+
+                    api.Gui.PlaySound("menubutton_press");
+
+                    if (!string.IsNullOrEmpty(newCategoryCode))
+                    {
+                        dialog.currentCatgoryCode = newCategoryCode;
+                    }
+                },
+                HandbookCategoryManager.GetRenameCategoryPromptTitle(),
+                HandbookCategoryManager.GetCreateCategoryPromptMessage(),
+                HandbookCategoryManager.GetCreateCategoryPromptPlaceholder(),
+                HandbookCategoryManager.GetCreateCategoryPromptOkText(),
+                HandbookCategoryManager.GetCreateCategoryPromptCancelText(),
+                "handbookcategories-renameprompt",
+                initialValue);
 
             HandbookCategoryManager.SetCreateCategoryPromptOpen(true);
             prompt.OnClosed += () => HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
