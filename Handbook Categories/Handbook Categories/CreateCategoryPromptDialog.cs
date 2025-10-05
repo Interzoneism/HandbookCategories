@@ -18,6 +18,8 @@ namespace Enhanced_Handbook
         private readonly string cancelButtonText;
         private readonly string dialogKey;
         private readonly string initialValue;
+        private string lastValidInput = string.Empty;
+        private bool isUpdatingTextInput;
 
         public override double DrawOrder => 2.5;
 
@@ -98,6 +100,7 @@ namespace Enhanced_Handbook
             {
                 input?.SetValue(initialValue);
             }
+            lastValidInput = input?.GetText() ?? string.Empty;
 
             GuiElementTextButton okButton = SingleComposer.GetButton(OkButtonKey);
             if (okButton != null)
@@ -132,30 +135,35 @@ namespace Enhanced_Handbook
 
         private void OnNameChanged(string value)
         {
-            GuiElementTextButton okButton = SingleComposer?.GetButton(OkButtonKey);
-            if (okButton != null)
+            if (isUpdatingTextInput)
             {
-                string trimmed = value?.Trim();
-                string sanitized = trimmed?.TrimStart('#').Trim();
-                string normalized = sanitized?.Trim('"');
-                bool hasText = !string.IsNullOrWhiteSpace(normalized);
-                bool withinLimit = normalized != null && normalized.Length <= HandbookCategoryManager.MaxCategoryNameLength;
-                okButton.Enabled = hasText && withinLimit;
+                return;
             }
+
+            string normalized = NormalizeInput(value, out _, out _);
+            if (normalized != null && normalized.Length > HandbookCategoryManager.MaxCategoryNameLength)
+            {
+                GuiElementTextInput input = SingleComposer?.GetTextInput(TextInputKey);
+                if (input != null)
+                {
+                    isUpdatingTextInput = true;
+                    input.SetValue(lastValidInput);
+                    isUpdatingTextInput = false;
+                }
+
+                UpdateOkButtonState(lastValidInput);
+                return;
+            }
+
+            lastValidInput = value ?? string.Empty;
+            UpdateOkButtonState(lastValidInput);
         }
 
         private bool OnOkClicked()
         {
             string rawText = SingleComposer?.GetTextInput(TextInputKey)?.GetText();
-            string trimmed = rawText?.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed))
-            {
-                return false;
-            }
-
-            string sanitized = trimmed.TrimStart('#').Trim();
-            string normalized = sanitized.Trim('"');
-            if (string.IsNullOrWhiteSpace(normalized))
+            string normalized = NormalizeInput(rawText, out string trimmed, out string sanitized);
+            if (string.IsNullOrWhiteSpace(trimmed) || string.IsNullOrWhiteSpace(normalized))
             {
                 return false;
             }
@@ -175,6 +183,27 @@ namespace Enhanced_Handbook
         {
             TryClose();
             return true;
+        }
+
+        private static string NormalizeInput(string value, out string trimmed, out string sanitized)
+        {
+            trimmed = value?.Trim();
+            sanitized = trimmed?.TrimStart('#').Trim();
+            return sanitized?.Trim('"');
+        }
+
+        private void UpdateOkButtonState(string value)
+        {
+            GuiElementTextButton okButton = SingleComposer?.GetButton(OkButtonKey);
+            if (okButton == null)
+            {
+                return;
+            }
+
+            string normalized = NormalizeInput(value, out _, out _);
+            bool hasText = !string.IsNullOrWhiteSpace(normalized);
+            bool withinLimit = normalized != null && normalized.Length <= HandbookCategoryManager.MaxCategoryNameLength;
+            okButton.Enabled = hasText && withinLimit;
         }
     }
 }
