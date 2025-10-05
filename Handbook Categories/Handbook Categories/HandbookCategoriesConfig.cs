@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 
 namespace Enhanced_Handbook
@@ -46,7 +46,7 @@ namespace Enhanced_Handbook
                 {
                     new HandbookCategoryConfigEntry
                     {
-                        Name = "Bookmarks"
+                        Name = "★Bookmarks"
                     }
                 }
             };
