@@ -3084,7 +3084,69 @@ namespace Enhanced_Handbook
             }
 
             string trimmed = categoryName.Trim();
+            if (trimmed.Length == 0)
+            {
+                return null;
+            }
+
+            bool wasQuoted = false;
+            if (trimmed.Length >= 2)
+            {
+                char first = trimmed[0];
+                char last = trimmed[^1];
+                if ((first == '"' && last == '"') || (first == '\'' && last == '\''))
+                {
+                    trimmed = trimmed.Substring(1, trimmed.Length - 2).Trim();
+                    wasQuoted = true;
+                }
+            }
+
+            if (trimmed.Length == 0)
+            {
+                return null;
+            }
+
+            if (wasQuoted)
+            {
+                trimmed = UnescapeQuotedCategoryName(trimmed);
+            }
+
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private static string UnescapeQuotedCategoryName(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            StringBuilder builder = new(value.Length);
+            bool escaping = false;
+
+            foreach (char ch in value)
+            {
+                if (escaping)
+                {
+                    builder.Append(ch);
+                    escaping = false;
+                }
+                else if (ch == '\\')
+                {
+                    escaping = true;
+                }
+                else
+                {
+                    builder.Append(ch);
+                }
+            }
+
+            if (escaping)
+            {
+                builder.Append('\\');
+            }
+
+            return builder.ToString();
         }
 
         private static string TrimCategoryNameToMaximum(string categoryName, out bool wasTrimmed)
