@@ -46,7 +46,7 @@ namespace Enhanced_Handbook
                 {
                     new HandbookCategoryConfigEntry
                     {
-                        Name = "★Bookmarks"
+                        Name = "Bookmarks"
                     }
                 }
             };
