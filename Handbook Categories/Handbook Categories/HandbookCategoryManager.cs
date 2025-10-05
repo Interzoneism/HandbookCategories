@@ -2919,24 +2919,20 @@ namespace Enhanced_Handbook
             }
         }
 
-        private static bool ShouldShowDeleteText(GuiElementTextButton button)
+        private static bool ShouldShowDeleteText(GuiElementTextButton _)
         {
             if (!IsControlKeyHeld() || IsShiftKeyHeld())
             {
                 return false;
             }
 
-            return IsMouseOverButton(button);
+            string categoryCode = trackedHandbookDialog?.currentCatgoryCode;
+            return IsModCategoryCode(categoryCode);
         }
 
-        private static bool ShouldShowRenameText(GuiElementTextButton button)
+        private static bool ShouldShowRenameText(GuiElementTextButton _)
         {
             if (!IsShiftKeyHeld() || IsControlKeyHeld())
-            {
-                return false;
-            }
-
-            if (!IsMouseOverButton(button))
             {
                 return false;
             }
