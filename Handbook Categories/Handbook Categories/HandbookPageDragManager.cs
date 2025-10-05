@@ -75,7 +75,9 @@ namespace Enhanced_Handbook
 
             internal GuiElementFlatList SearchList { get; set; }
 
-            internal GuiElementVerticalTabs TabsElement { get; set; }
+            internal GuiElementVerticalTabs OverviewTabsElement { get; set; }
+
+            internal GuiElementVerticalTabs DetailTabsElement { get; set; }
 
             internal GuiElementRichtext DetailRichtext { get; set; }
 
@@ -186,7 +188,7 @@ namespace Enhanced_Handbook
 
             state.Overview = overview;
             state.SearchList = overview.GetFlatList("stacklist");
-            state.TabsElement = overview.GetVerticalTab("verticalTabs");
+            state.OverviewTabsElement = overview.GetVerticalTab("verticalTabs");
 
             TryRestorePendingScroll(state);
         }
@@ -206,12 +208,7 @@ namespace Enhanced_Handbook
 
             state.Detail = detail;
             state.DetailRichtext = detail?.GetRichtext("richtext");
-
-            GuiElementVerticalTabs detailTabs = detail?.GetVerticalTab("verticalTabs");
-            if (detailTabs != null)
-            {
-                state.TabsElement = detailTabs;
-            }
+            state.DetailTabsElement = detail?.GetVerticalTab("verticalTabs");
         }
 
         internal static bool TryConsumeClickSuppression()
@@ -1118,7 +1115,7 @@ namespace Enhanced_Handbook
         {
             tab = null;
 
-            GuiElementVerticalTabs tabsElement = state?.TabsElement ?? state?.Overview?.GetVerticalTab("verticalTabs");
+            GuiElementVerticalTabs tabsElement = GetActiveTabsElement(state);
             ElementBounds bounds = tabsElement?.Bounds;
             if (tabsElement == null || bounds == null)
             {
@@ -1166,6 +1163,24 @@ namespace Enhanced_Handbook
             }
 
             return false;
+        }
+
+        private static GuiElementVerticalTabs GetActiveTabsElement(DragState state)
+        {
+            if (state == null)
+            {
+                return null;
+            }
+
+            GuiElementVerticalTabs detailTabs = state.DetailTabsElement ?? state.Detail?.GetVerticalTab("verticalTabs");
+            GuiElementVerticalTabs overviewTabs = state.OverviewTabsElement ?? state.Overview?.GetVerticalTab("verticalTabs");
+
+            if (IsDetailViewVisible(state) && detailTabs != null)
+            {
+                return detailTabs;
+            }
+
+            return overviewTabs ?? detailTabs;
         }
 
         private static void SetPendingDrag(DragState state, GuiHandbookPage page, DummySlot slot, int mouseX, int mouseY, DragOrigin origin)
