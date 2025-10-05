@@ -103,7 +103,8 @@ namespace Enhanced_Handbook
             {
                 string trimmed = value?.Trim();
                 string sanitized = trimmed?.TrimStart('#').Trim();
-                okButton.Enabled = !string.IsNullOrWhiteSpace(sanitized);
+                string normalized = sanitized?.Trim('"');
+                okButton.Enabled = !string.IsNullOrWhiteSpace(normalized);
             }
         }
 
@@ -117,7 +118,8 @@ namespace Enhanced_Handbook
             }
 
             string sanitized = trimmed.TrimStart('#').Trim();
-            if (string.IsNullOrWhiteSpace(sanitized))
+            string normalized = sanitized.Trim('"');
+            if (string.IsNullOrWhiteSpace(normalized))
             {
                 return false;
             }
