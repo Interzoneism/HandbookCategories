@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Config;
@@ -95,10 +96,15 @@ namespace Enhanced_Handbook
 
             SingleComposer = composer.Compose();
             GuiElementTextInput input = SingleComposer.GetTextInput(TextInputKey);
-            input?.SetPlaceHolderText(placeholderText);
-            if (!string.IsNullOrEmpty(initialValue))
+            if (input != null)
             {
-                input?.SetValue(initialValue);
+                input.SetPlaceHolderText(placeholderText);
+                if (!string.IsNullOrEmpty(initialValue))
+                {
+                    input.SetValue(initialValue);
+                }
+
+                input.OnTryTextChangeText = EnsureTextWithinLimit;
             }
             lastValidInput = input?.GetText() ?? string.Empty;
 
@@ -190,6 +196,32 @@ namespace Enhanced_Handbook
             trimmed = value?.Trim();
             sanitized = trimmed?.TrimStart('#').Trim();
             return sanitized?.Trim('"');
+        }
+
+        private bool EnsureTextWithinLimit(List<string> lines)
+        {
+            if (lines == null)
+            {
+                return true;
+            }
+
+            int totalLength = 0;
+            foreach (string line in lines)
+            {
+                if (string.IsNullOrEmpty(line))
+                {
+                    continue;
+                }
+
+                totalLength += line.Length;
+                if (totalLength > HandbookCategoryManager.MaxCategoryNameLength)
+                {
+                    return false;
+                }
+            }
+
+            string normalized = NormalizeInput(string.Concat(lines), out _, out _);
+            return normalized == null || normalized.Length <= HandbookCategoryManager.MaxCategoryNameLength;
         }
 
         private void UpdateOkButtonState(string value)
