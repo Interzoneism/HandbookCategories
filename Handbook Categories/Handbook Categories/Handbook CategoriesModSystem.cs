@@ -867,6 +867,7 @@ namespace Enhanced_Handbook
         private static readonly System.Reflection.FieldInfo ShownPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "shownHandbookPages");
         private static readonly System.Reflection.FieldInfo OverviewGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "overviewGui");
         private static readonly System.Reflection.FieldInfo DetailGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "detailViewGui");
+        private static readonly System.Reflection.FieldInfo BrowseHistoryField = AccessTools.Field(typeof(GuiDialogHandbook), "browseHistory");
         private static readonly System.Reflection.FieldInfo CurrentSearchTextField = AccessTools.Field(typeof(GuiDialogHandbook), "currentSearchText");
         private static readonly System.Reflection.FieldInfo LoadingPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "loadingPagesAsync");
         private static readonly System.Reflection.FieldInfo ListHeightField = AccessTools.Field(typeof(GuiDialogHandbook), "listHeight");
@@ -1482,6 +1483,8 @@ namespace Enhanced_Handbook
                 DetailGuiField.SetValue(instance, null);
             }
 
+            ClearInvalidBrowseHistory(instance);
+
             instance.ReloadPage();
 
             if (OverviewGuiField?.GetValue(instance) is not GuiComposer)
@@ -1490,6 +1493,30 @@ namespace Enhanced_Handbook
             }
 
             RefreshActiveTab(instance, clearSearch: false, searchTextToRestore: searchText);
+        }
+
+        private static void ClearInvalidBrowseHistory(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(dialog) is Stack<BrowseHistoryElement> history && history.Count > 0)
+                {
+                    BrowseHistoryElement top = history.Peek();
+                    if (top == null || top.Page == null)
+                    {
+                        history.Clear();
+                    }
+                }
+            }
+            catch
+            {
+                // Reflection failures shouldn't block the rebuild.
+            }
         }
 
         private static string CaptureActiveSearchText(GuiDialogHandbook dialog)
