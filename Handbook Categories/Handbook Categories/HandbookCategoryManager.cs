@@ -26,6 +26,8 @@ namespace Enhanced_Handbook
         private const string CreateCategoryPromptPlaceholderTranslationKey = "enhancedhandbook:dialog-create-category-placeholder";
         private const string CreateCategoryPromptOkTranslationKey = "enhancedhandbook:dialog-create-category-ok";
         private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
+        private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
+        private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
         private const double CreateButtonMinimumWidth = 60.0;
         private const double CreateButtonCloseSpacing = 10.0;
 
@@ -85,9 +87,19 @@ namespace Enhanced_Handbook
             return Lang.Get(DeleteCategoryButtonTranslationKey);
         }
 
+        internal static string GetRenameCategoryButtonText()
+        {
+            return Lang.Get(RenameCategoryButtonTranslationKey);
+        }
+
         internal static string GetCreateCategoryPromptTitle()
         {
             return Lang.Get(CreateCategoryPromptTitleTranslationKey);
+        }
+
+        internal static string GetRenameCategoryPromptTitle()
+        {
+            return Lang.Get(RenameCategoryPromptTitleTranslationKey);
         }
 
         internal static string GetCreateCategoryPromptMessage()
@@ -519,6 +531,7 @@ namespace Enhanced_Handbook
         private static bool createCategoryPromptOpen;
         private static GuiElementTextButton trackedCloseButton;
         private static long createButtonListenerId;
+        private static GuiDialogHandbook trackedHandbookDialog;
 
         internal static ICoreClientAPI ClientApi => capi;
 
@@ -665,6 +678,9 @@ namespace Enhanced_Handbook
             }
 
             trackedCreateButtonComposer = null;
+            trackedCreateButton = null;
+            trackedCloseButton = null;
+            trackedHandbookDialog = null;
             categoriesInitialized = false;
             categoriesDirty = true;
 
@@ -1354,7 +1370,7 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        internal static void UpdateSearchUi(GuiComposer overviewGui, string currentSearchText)
+        internal static void UpdateSearchUi(GuiComposer overviewGui, string currentSearchText, GuiDialogHandbook dialog)
         {
             if (overviewGui == null)
             {
@@ -1362,7 +1378,7 @@ namespace Enhanced_Handbook
             }
 
             SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
-            UpdateCreateButton(overviewGui, searchQuery);
+            UpdateCreateButton(overviewGui, searchQuery, dialog);
         }
 
         internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
@@ -2595,7 +2611,7 @@ namespace Enhanced_Handbook
             return true;
         }
 
-        private static void UpdateCreateButton(GuiComposer overviewGui, SearchQuery searchQuery)
+        private static void UpdateCreateButton(GuiComposer overviewGui, SearchQuery searchQuery, GuiDialogHandbook dialog)
         {
             if (overviewGui == null)
             {
@@ -2608,10 +2624,10 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            RegisterCreateButton(overviewGui, createButton);
+            RegisterCreateButton(overviewGui, createButton, dialog);
         }
 
-        internal static void RegisterCreateButton(GuiComposer overviewGui, GuiElementTextButton button)
+        internal static void RegisterCreateButton(GuiComposer overviewGui, GuiElementTextButton button, GuiDialogHandbook dialog = null)
         {
             if (overviewGui == null || button == null)
             {
@@ -2625,6 +2641,10 @@ namespace Enhanced_Handbook
 
             trackedCreateButtonComposer = overviewGui;
             trackedCreateButton = button;
+            if (dialog != null)
+            {
+                trackedHandbookDialog = dialog;
+            }
 
             EnsureCreateButtonLayout(overviewGui, button);
             UpdateCreateButtonTextInternal(overviewGui, button);
@@ -2649,7 +2669,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (!IsControlKeyHeld())
+            if (!IsControlKeyHeld() || IsShiftKeyHeld())
             {
                 return false;
             }
@@ -2672,6 +2692,92 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        internal static bool ShouldHandleRename(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (!IsShiftKeyHeld() || IsControlKeyHeld())
+            {
+                return false;
+            }
+
+            return IsModCategoryCode(dialog.currentCatgoryCode);
+        }
+
+        internal static bool TryRenameCategory(string categoryCode, string newDisplayName, out string newCategoryCode)
+        {
+            newCategoryCode = null;
+
+            if (capi == null)
+            {
+                return false;
+            }
+
+            if (!IsModCategoryCode(categoryCode))
+            {
+                return false;
+            }
+
+            string normalizedName = NormalizeCategoryName(newDisplayName);
+            if (normalizedName == null)
+            {
+                capi.ShowChatMessage("[Handbook Categories] Please enter a valid category name.");
+                return false;
+            }
+
+            if (!TryGetCategoryConfig(categoryCode, out HandbookCategoriesConfig config, out HandbookCategoryConfigEntry category))
+            {
+                capi.ShowChatMessage("[Handbook Categories] Unable to locate the selected category.");
+                return false;
+            }
+
+            string sanitizedNew = Sanitize(normalizedName);
+            if (string.IsNullOrEmpty(sanitizedNew))
+            {
+                capi.ShowChatMessage("[Handbook Categories] Please choose a different category name.");
+                return false;
+            }
+
+            string sanitizedExisting = Sanitize(category.Name);
+
+            if (config?.Categories != null)
+            {
+                foreach (HandbookCategoryConfigEntry entry in config.Categories)
+                {
+                    if (entry == null || ReferenceEquals(entry, category))
+                    {
+                        continue;
+                    }
+
+                    string otherSanitized = Sanitize(entry.Name);
+                    if (!string.IsNullOrEmpty(otherSanitized) && string.Equals(otherSanitized, sanitizedNew, StringComparison.Ordinal))
+                    {
+                        capi.ShowChatMessage($"[Handbook Categories] A category named \"{normalizedName}\" already exists.");
+                        return false;
+                    }
+                }
+            }
+
+            bool nameChanged = !string.Equals(category.Name, normalizedName, StringComparison.Ordinal);
+            bool codeChanged = !string.Equals(sanitizedExisting, sanitizedNew, StringComparison.Ordinal);
+
+            if (!nameChanged && !codeChanged)
+            {
+                return false;
+            }
+
+            category.Name = normalizedName;
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+            ReloadConfiguration();
+            RequestTabsRebuild();
+
+            newCategoryCode = codeChanged ? $"{CategoryCodePrefix}{sanitizedNew}" : categoryCode;
+            return true;
+        }
+
         private static string FormatChatArgument(string value)
         {
             if (string.IsNullOrEmpty(value))
@@ -2691,6 +2797,7 @@ namespace Enhanced_Handbook
                 trackedCreateButtonComposer = null;
                 trackedCreateButton = null;
                 trackedCloseButton = null;
+                trackedHandbookDialog = null;
                 return;
             }
 
@@ -2700,6 +2807,7 @@ namespace Enhanced_Handbook
                 trackedCreateButtonComposer = null;
                 trackedCreateButton = null;
                 trackedCloseButton = null;
+                trackedHandbookDialog = null;
                 return;
             }
 
@@ -2711,6 +2819,7 @@ namespace Enhanced_Handbook
                 trackedCreateButtonComposer = null;
                 trackedCreateButton = null;
                 trackedCloseButton = null;
+                trackedHandbookDialog = null;
 
                 return;
             }
@@ -2747,7 +2856,20 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string desiredText = ShouldShowDeleteText(button) ? GetDeleteCategoryButtonText() : GetCreateCategoryButtonText();
+            string desiredText;
+            if (ShouldShowDeleteText(button))
+            {
+                desiredText = GetDeleteCategoryButtonText();
+            }
+            else if (ShouldShowRenameText(button))
+            {
+                desiredText = GetRenameCategoryButtonText();
+            }
+            else
+            {
+                desiredText = GetCreateCategoryButtonText();
+            }
+
             if (!string.Equals(button.Text, desiredText, StringComparison.Ordinal))
             {
                 button.Text = desiredText;
@@ -2799,12 +2921,33 @@ namespace Enhanced_Handbook
 
         private static bool ShouldShowDeleteText(GuiElementTextButton button)
         {
-            if (button?.Bounds == null || capi?.Input == null)
+            if (!IsControlKeyHeld() || IsShiftKeyHeld())
             {
                 return false;
             }
 
-            if (!IsControlKeyHeld())
+            return IsMouseOverButton(button);
+        }
+
+        private static bool ShouldShowRenameText(GuiElementTextButton button)
+        {
+            if (!IsShiftKeyHeld() || IsControlKeyHeld())
+            {
+                return false;
+            }
+
+            if (!IsMouseOverButton(button))
+            {
+                return false;
+            }
+
+            string categoryCode = trackedHandbookDialog?.currentCatgoryCode;
+            return IsModCategoryCode(categoryCode);
+        }
+
+        private static bool IsMouseOverButton(GuiElementTextButton button)
+        {
+            if (button?.Bounds == null || capi?.Input == null)
             {
                 return false;
             }
@@ -2838,6 +2981,29 @@ namespace Enhanced_Handbook
             bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
 
             return leftDown || rightDown;
+        }
+
+        private static bool IsShiftKeyHeld()
+        {
+            bool[] keys = capi?.Input?.KeyboardKeyState;
+            if (keys == null)
+            {
+                return false;
+            }
+
+            int leftIndex = (int)GlKeys.ShiftLeft;
+            int rightIndex = (int)GlKeys.ShiftRight;
+
+            bool leftDown = leftIndex >= 0 && leftIndex < keys.Length && keys[leftIndex];
+            bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
+
+            return leftDown || rightDown;
+        }
+
+        private static bool IsModCategoryCode(string categoryCode)
+        {
+            return !string.IsNullOrEmpty(categoryCode)
+                && categoryCode.StartsWith(CategoryCodePrefix, StringComparison.Ordinal);
         }
 
         private static bool TryExtractCategorySegments(string searchText, out string categoryName, out string beforeHash, out string afterCategory)

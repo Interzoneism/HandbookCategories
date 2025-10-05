@@ -11,23 +11,44 @@ namespace Enhanced_Handbook
         private const string OkButtonKey = "handbookcategories-createprompt-ok";
 
         private readonly Action<string> onConfirm;
+        private readonly string dialogTitle;
+        private readonly string dialogMessage;
+        private readonly string placeholderText;
+        private readonly string okButtonText;
+        private readonly string cancelButtonText;
+        private readonly string dialogKey;
+        private readonly string initialValue;
 
         public override double DrawOrder => 2.5;
 
         public override double InputOrder => 0.1;
 
-        internal CreateCategoryPromptDialog(ICoreClientAPI capi, Action<string> onConfirm)
-            : base(HandbookCategoryManager.GetCreateCategoryPromptTitle(), capi)
+        internal CreateCategoryPromptDialog(
+            ICoreClientAPI capi,
+            Action<string> onConfirm,
+            string title = null,
+            string message = null,
+            string placeholder = null,
+            string okText = null,
+            string cancelText = null,
+            string dialogKey = "handbookcategories-createprompt",
+            string initialValue = null)
+            : base(title ?? HandbookCategoryManager.GetCreateCategoryPromptTitle(), capi)
         {
             this.onConfirm = onConfirm;
+            dialogTitle = title ?? HandbookCategoryManager.GetCreateCategoryPromptTitle();
+            dialogMessage = message ?? HandbookCategoryManager.GetCreateCategoryPromptMessage();
+            placeholderText = placeholder ?? HandbookCategoryManager.GetCreateCategoryPromptPlaceholder();
+            okButtonText = okText ?? HandbookCategoryManager.GetCreateCategoryPromptOkText();
+            cancelButtonText = cancelText ?? HandbookCategoryManager.GetCreateCategoryPromptCancelText();
+            this.dialogKey = dialogKey ?? "handbookcategories-createprompt";
+            this.initialValue = initialValue;
             ComposeDialog();
         }
 
         private void ComposeDialog()
         {
-            string title = HandbookCategoryManager.GetCreateCategoryPromptTitle();
-            string message = HandbookCategoryManager.GetCreateCategoryPromptMessage();
-            bool hasMessage = !string.IsNullOrWhiteSpace(message);
+            bool hasMessage = !string.IsNullOrWhiteSpace(dialogMessage);
 
             SingleComposer?.Dispose();
 
@@ -45,7 +66,7 @@ namespace Enhanced_Handbook
             if (hasMessage)
             {
                 messageFont = CairoFont.WhiteSmallText();
-                float messageHeight = (float)new TextDrawUtil().GetMultilineTextHeight(messageFont, message, messageBounds.fixedWidth);
+                float messageHeight = (float)new TextDrawUtil().GetMultilineTextHeight(messageFont, dialogMessage, messageBounds.fixedWidth);
                 messageBounds.fixedHeight = Math.Max(30.0f, messageHeight);
             }
 
@@ -54,28 +75,41 @@ namespace Enhanced_Handbook
                 : ElementBounds.Fixed(0.0, contentTopPadding, 360.0, 30.0);
             ElementBounds buttonBounds = inputBounds.BelowCopy(0.0, 15.0).WithFixedWidth(140.0).WithFixedHeight(30.0);
 
-            GuiComposer composer = capi.Gui.CreateCompo("handbookcategories-createprompt", dialogBounds)
+            GuiComposer composer = capi.Gui.CreateCompo(dialogKey, dialogBounds)
                 .AddShadedDialogBG(backgroundBounds, false)
-                .AddDialogTitleBar(title, OnTitleBarClose)
+                .AddDialogTitleBar(dialogTitle, OnTitleBarClose)
                 .BeginChildElements(backgroundBounds);
 
             if (hasMessage)
             {
-                composer.AddStaticText(message, messageFont, messageBounds);
+                composer.AddStaticText(dialogMessage, messageFont, messageBounds);
             }
 
             composer
                     .AddTextInput(inputBounds, OnNameChanged, CairoFont.TextInput(), TextInputKey)
-                    .AddSmallButton(HandbookCategoryManager.GetCreateCategoryPromptCancelText(), OnCancelClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.LeftFixed))
-                    .AddSmallButton(HandbookCategoryManager.GetCreateCategoryPromptOkText(), OnOkClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.RightFixed), EnumButtonStyle.Normal, OkButtonKey)
+                    .AddSmallButton(cancelButtonText, OnCancelClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.LeftFixed))
+                    .AddSmallButton(okButtonText, OnOkClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.RightFixed), EnumButtonStyle.Normal, OkButtonKey)
                 .EndChildElements();
 
             SingleComposer = composer.Compose();
-            SingleComposer.GetTextInput(TextInputKey)?.SetPlaceHolderText(HandbookCategoryManager.GetCreateCategoryPromptPlaceholder());
+            GuiElementTextInput input = SingleComposer.GetTextInput(TextInputKey);
+            input?.SetPlaceHolderText(placeholderText);
+            if (!string.IsNullOrEmpty(initialValue))
+            {
+                input?.SetValue(initialValue);
+            }
+
             GuiElementTextButton okButton = SingleComposer.GetButton(OkButtonKey);
             if (okButton != null)
             {
-                okButton.Enabled = false;
+                if (!string.IsNullOrEmpty(initialValue))
+                {
+                    OnNameChanged(initialValue);
+                }
+                else
+                {
+                    okButton.Enabled = false;
+                }
             }
         }
 
