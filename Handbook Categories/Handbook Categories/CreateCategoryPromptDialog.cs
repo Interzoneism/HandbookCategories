@@ -138,7 +138,9 @@ namespace Enhanced_Handbook
                 string trimmed = value?.Trim();
                 string sanitized = trimmed?.TrimStart('#').Trim();
                 string normalized = sanitized?.Trim('"');
-                okButton.Enabled = !string.IsNullOrWhiteSpace(normalized);
+                bool hasText = !string.IsNullOrWhiteSpace(normalized);
+                bool withinLimit = normalized != null && normalized.Length <= HandbookCategoryManager.MaxCategoryNameLength;
+                okButton.Enabled = hasText && withinLimit;
             }
         }
 
@@ -155,6 +157,12 @@ namespace Enhanced_Handbook
             string normalized = sanitized.Trim('"');
             if (string.IsNullOrWhiteSpace(normalized))
             {
+                return false;
+            }
+
+            if (normalized.Length > HandbookCategoryManager.MaxCategoryNameLength)
+            {
+                capi?.ShowChatMessage(HandbookCategoryManager.GetCategoryNameTooLongMessage());
                 return false;
             }
 
