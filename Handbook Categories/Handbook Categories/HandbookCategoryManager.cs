@@ -28,6 +28,7 @@ namespace Enhanced_Handbook
         private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
         private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
+        internal const int MaxCategoryNameLength = 23;
         private const double CreateButtonMinimumWidth = 60.0;
         private const double CreateButtonCloseSpacing = 10.0;
 
@@ -120,6 +121,11 @@ namespace Enhanced_Handbook
         internal static string GetCreateCategoryPromptCancelText()
         {
             return Lang.Get(CreateCategoryPromptCancelTranslationKey);
+        }
+
+        internal static string GetCategoryNameTooLongMessage()
+        {
+            return $"[Handbook Categories] Category names are limited to {MaxCategoryNameLength} characters.";
         }
 
         internal static string GetRecipesOnlyToggleText()
@@ -2592,6 +2598,12 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            if (categoryName.Length > MaxCategoryNameLength)
+            {
+                capi.ShowChatMessage(GetCategoryNameTooLongMessage());
+                return false;
+            }
+
             string remainder = CombineCategorySegments(beforeHash, afterCategory);
             string trimmedRemainder = remainder?.Trim();
             bool hasKeywords = !string.IsNullOrEmpty(trimmedRemainder);
@@ -2725,6 +2737,12 @@ namespace Enhanced_Handbook
             if (normalizedName == null)
             {
                 capi.ShowChatMessage("[Handbook Categories] Please enter a valid category name.");
+                return false;
+            }
+
+            if (normalizedName.Length > MaxCategoryNameLength)
+            {
+                capi.ShowChatMessage(GetCategoryNameTooLongMessage());
                 return false;
             }
 
@@ -3067,6 +3085,24 @@ namespace Enhanced_Handbook
 
             string trimmed = categoryName.Trim();
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        private static string TrimCategoryNameToMaximum(string categoryName, out bool wasTrimmed)
+        {
+            wasTrimmed = false;
+            if (string.IsNullOrEmpty(categoryName))
+            {
+                return categoryName;
+            }
+
+            string trimmed = categoryName.Trim();
+            if (trimmed.Length <= MaxCategoryNameLength)
+            {
+                return trimmed;
+            }
+
+            wasTrimmed = true;
+            return trimmed.Substring(0, MaxCategoryNameLength);
         }
 
         private static string FormatCategoryNameForCommand(string categoryName)
@@ -3419,6 +3455,14 @@ namespace Enhanced_Handbook
                 if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
+                }
+
+                string originalName = name;
+                name = TrimCategoryNameToMaximum(name, out bool wasTrimmedForLength);
+                if (wasTrimmedForLength)
+                {
+                    capi?.Logger?.Warning("[HandbookCategories] Category name \"{0}\" exceeds {1} characters and was truncated to \"{2}\".", originalName, MaxCategoryNameLength, name);
+                    entry.Name = name;
                 }
 
                 string sanitized = Sanitize(name);
