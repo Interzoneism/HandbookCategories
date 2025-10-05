@@ -1271,7 +1271,15 @@ namespace Enhanced_Handbook
                     return;
                 }
 
-                string simulatedSearch = $"#{trimmedName}";
+                string unquotedName = trimmedName.Trim('"');
+                if (string.IsNullOrWhiteSpace(unquotedName))
+                {
+                    return;
+                }
+
+                string escapedName = unquotedName.Replace("\"", "\\\"");
+                string quotedName = $"\"{escapedName}\"";
+                string simulatedSearch = $"#{quotedName}";
                 if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(simulatedSearch))
                 {
                     return;
