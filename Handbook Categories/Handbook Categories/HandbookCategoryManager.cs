@@ -1592,6 +1592,8 @@ namespace Enhanced_Handbook
 
             string overrideTitle = BuildOverrideTitle(cache.OriginalTitle, null, null);
             ApplyPageTitleOverride(selectedPage, overrideTitle);
+
+            CenterSearchListOnPage(overviewGui, searchList, selectedPage);
         }
 
         private static void RestoreHiddenPages(
@@ -1649,6 +1651,73 @@ namespace Enhanced_Handbook
             if (!string.IsNullOrWhiteSpace(cachedHiddenPages.OriginalTitle))
             {
                 ApplyPageTitleOverride(selectedPage, cachedHiddenPages.OriginalTitle);
+            }
+
+            CenterSearchListOnPage(overviewGui, searchList, selectedPage);
+        }
+
+        private static void CenterSearchListOnPage(GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
+        {
+            if (overviewGui == null || searchList == null || selectedPage == null)
+            {
+                return;
+            }
+
+            GuiElementScrollbar scrollbar = overviewGui.GetScrollbar("scrollbar");
+            if (scrollbar == null)
+            {
+                return;
+            }
+
+            List<IFlatListItem> elements = searchList.Elements;
+            if (elements == null || elements.Count == 0)
+            {
+                return;
+            }
+
+            ElementBounds listBounds = searchList.Bounds;
+            if (listBounds != null && listBounds.RequiresRecalculation)
+            {
+                listBounds.CalcWorldBounds();
+            }
+
+            ElementBounds insideBounds = searchList.insideBounds;
+            if (insideBounds != null && insideBounds.RequiresRecalculation)
+            {
+                insideBounds.CalcWorldBounds();
+            }
+
+            double visibleHeight = listBounds?.InnerHeight ?? 0.0;
+            double totalHeight = insideBounds?.fixedHeight ?? 0.0;
+            double maxScroll = Math.Max(0.0, totalHeight - visibleHeight);
+
+            double rowHeight = GuiElement.scaled(searchList.unscaledCellHeight + searchList.unscaledCellSpacing);
+            if (rowHeight <= 0.0 || visibleHeight <= 0.0)
+            {
+                return;
+            }
+
+            double accumulatedHeight = 0.0;
+
+            foreach (IFlatListItem element in elements)
+            {
+                if (!element.Visible)
+                {
+                    continue;
+                }
+
+                double rowCenter = accumulatedHeight + (rowHeight * 0.5);
+
+                if (ReferenceEquals(element, selectedPage))
+                {
+                    double target = rowCenter - (visibleHeight * 0.5);
+                    float clamped = (float)Math.Clamp(target, 0.0, maxScroll);
+                    scrollbar.CurrentYPosition = clamped;
+                    scrollbar.TriggerChanged();
+                    return;
+                }
+
+                accumulatedHeight += rowHeight;
             }
         }
 
