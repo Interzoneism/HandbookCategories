@@ -127,8 +127,12 @@ namespace Enhanced_Handbook
         private static DragOrigin draggingOrigin;
         private static bool isDragging;
         private static bool wasLeftDown;
+        private static bool wasRightDown;
         private static bool suppressListClick;
         private static bool featureEnabled = true;
+
+        private static DragState pendingRightClickState;
+        private static GuiHandbookPage pendingRightClickPage;
 
         internal static void Initialize(ICoreClientAPI api)
         {
@@ -244,6 +248,7 @@ namespace Enhanced_Handbook
             RemoveClosedDialogs();
 
             bool leftDown = capi.Input.MouseButton?.Left == true;
+            bool rightDown = capi.Input.MouseButton?.Right == true;
             int mouseX = capi.Input.MouseX;
             int mouseY = capi.Input.MouseY;
 
@@ -268,6 +273,24 @@ namespace Enhanced_Handbook
             }
 
             wasLeftDown = true;
+
+            if (!rightDown)
+            {
+                if (wasRightDown)
+                {
+                    OnRightMouseReleased(mouseX, mouseY);
+                }
+
+                wasRightDown = false;
+                return;
+            }
+
+            if (!wasRightDown)
+            {
+                OnRightMousePressed(mouseX, mouseY);
+            }
+
+            wasRightDown = true;
         }
 
         private static void RemoveClosedDialogs()
@@ -348,6 +371,57 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static void OnRightMousePressed(int mouseX, int mouseY)
+        {
+            pendingRightClickState = null;
+            pendingRightClickPage = null;
+
+            if (capi?.Gui?.OpenedGuis == null)
+            {
+                return;
+            }
+
+            foreach (GuiDialog dialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
+            {
+                if (dialog is GuiDialogHandbook handbookDialog)
+                {
+                    if (!trackedDialogs.TryGetValue(handbookDialog, out DragState state))
+                    {
+                        continue;
+                    }
+
+                    if (!IsFrontmostHandbookDialog(handbookDialog))
+                    {
+                        continue;
+                    }
+
+                    if (IsHandbookObscured(state, mouseX, mouseY))
+                    {
+                        return;
+                    }
+
+                    if (TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page))
+                    {
+                        pendingRightClickState = state;
+                        pendingRightClickPage = page;
+                        break;
+                    }
+
+                    if (IsMouseInsideHandbookGui(state, mouseX, mouseY))
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
+                if (IsMouseInsideDialog(dialog, mouseX, mouseY))
+                {
+                    return;
+                }
+            }
+        }
+
         private static void EvaluateDragThreshold(int mouseX, int mouseY)
         {
             if (pendingPage == null || pendingSlot?.Itemstack == null)
@@ -396,6 +470,42 @@ namespace Enhanced_Handbook
             }
 
             ResetDrag();
+        }
+
+        private static void OnRightMouseReleased(int mouseX, int mouseY)
+        {
+            if (pendingRightClickState == null || pendingRightClickPage == null)
+            {
+                return;
+            }
+
+            DragState state = pendingRightClickState;
+            GuiHandbookPage page = pendingRightClickPage;
+
+            pendingRightClickState = null;
+            pendingRightClickPage = null;
+
+            if (state == null || state.Dialog == null)
+            {
+                return;
+            }
+
+            if (!IsFrontmostHandbookDialog(state.Dialog) || IsHandbookObscured(state, mouseX, mouseY))
+            {
+                return;
+            }
+
+            if (!TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage hoveredPage))
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(page, hoveredPage))
+            {
+                return;
+            }
+
+            HandbookCategoryManager.HandleSearchEntryRightClick(state.Dialog, state.Overview, state.SearchList, page);
         }
 
         private static bool TrySpawnCreativeStack()
@@ -520,7 +630,12 @@ namespace Enhanced_Handbook
             return true;
         }
 
-        private static bool TryGetSearchEntryUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot)
+        private static bool TryGetSearchEntryUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page)
+        {
+            return TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out page, out DummySlot _, requireSlot: false);
+        }
+
+        private static bool TryGetSearchEntryUnderMouse(DragState state, int mouseX, int mouseY, out GuiHandbookPage page, out DummySlot slot, bool requireSlot = true)
         {
             page = null;
             slot = null;
@@ -579,6 +694,11 @@ namespace Enhanced_Handbook
                     }
 
                     slot = GetSlotForPage(page);
+                    if (!requireSlot)
+                    {
+                        return true;
+                    }
+
                     return slot?.Itemstack != null;
                 }
 

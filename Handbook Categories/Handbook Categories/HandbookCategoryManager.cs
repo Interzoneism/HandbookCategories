@@ -38,6 +38,8 @@ namespace Enhanced_Handbook
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
         private static readonly Dictionary<GuiHandbookPage, string> englishNormalizedTitleByPage = new();
+        private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private const string EnglishLocaleCode = "en";
         private static bool usingDefaultEnglishWordCategories;
@@ -1448,6 +1450,104 @@ namespace Enhanced_Handbook
             }
 
             UpdateScrollArea(overviewGui, listHeight);
+        }
+
+        internal static void HandleSearchEntryRightClick(GuiDialogHandbook dialog, GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
+        {
+            if (dialog == null || selectedPage == null)
+            {
+                return;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages || shownPages.Count == 0)
+            {
+                return;
+            }
+
+            string selectedTitle = GetLocalizedPageTitle(selectedPage);
+            if (string.IsNullOrWhiteSpace(selectedTitle))
+            {
+                return;
+            }
+
+            List<string> selectedWords = ExtractOrderedWordsPreservingCase(selectedTitle);
+            if (selectedWords.Count == 0)
+            {
+                selectedWords.Add(selectedTitle.Trim());
+            }
+
+            List<GuiHandbookPage> pagesToHide = new();
+            int? differingIndex = null;
+            int matchCount = 0;
+
+            foreach (GuiHandbookPage page in shownPages.OfType<GuiHandbookPage>())
+            {
+                if (page == null)
+                {
+                    continue;
+                }
+
+                string title = GetLocalizedPageTitle(page);
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                List<string> candidateWords = ExtractOrderedWordsPreservingCase(title);
+                if (candidateWords.Count == 0)
+                {
+                    candidateWords.Add(title.Trim());
+                }
+
+                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out int differenceIndex))
+                {
+                    continue;
+                }
+
+                matchCount++;
+
+                if (!ReferenceEquals(page, selectedPage))
+                {
+                    pagesToHide.Add(page);
+                }
+
+                if (differenceIndex >= 0)
+                {
+                    if (differingIndex == null)
+                    {
+                        differingIndex = differenceIndex;
+                    }
+                    else if (differingIndex != differenceIndex)
+                    {
+                        differingIndex = -1;
+                    }
+                }
+            }
+
+            if (matchCount <= 1)
+            {
+                return;
+            }
+
+            foreach (GuiHandbookPage page in pagesToHide)
+            {
+                shownPages.Remove(page);
+            }
+
+            if (searchList != null)
+            {
+                searchList.CalcTotalHeight();
+            }
+
+            if (overviewGui != null && searchList != null)
+            {
+                double listHeight = GetListHeight(dialog);
+                overviewGui.GetScrollbar("scrollbar")?.SetHeights((float)listHeight, (float)searchList.insideBounds.fixedHeight);
+            }
+
+            int? removalIndex = differingIndex >= 0 ? differingIndex : null;
+            string overrideTitle = BuildOverrideTitle(selectedTitle, selectedWords, removalIndex);
+            ApplyPageTitleOverride(selectedPage, overrideTitle);
         }
 
         private static GuiHandbookItemStackPage FindPageForRecipe(GridRecipe recipe, Dictionary<string, GuiHandbookItemStackPage> itemPagesByCode)
@@ -3414,6 +3514,34 @@ namespace Enhanced_Handbook
             return string.Equals(text, closeText, StringComparison.Ordinal);
         }
 
+        private static double GetListHeight(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || ListHeightField == null)
+            {
+                return 0.0;
+            }
+
+            try
+            {
+                object value = ListHeightField.GetValue(dialog);
+                if (value is double doubleValue)
+                {
+                    return doubleValue;
+                }
+
+                if (value is float floatValue)
+                {
+                    return floatValue;
+                }
+            }
+            catch
+            {
+                // Ignore reflection errors and fall back to zero.
+            }
+
+            return 0.0;
+        }
+
         private static void UpdateScrollArea(GuiComposer overviewGui, double listHeight)
         {
             if (overviewGui == null)
@@ -3495,6 +3623,161 @@ namespace Enhanced_Handbook
             AddWordFromBuilder(builder, words);
 
             return words;
+        }
+
+        private static List<string> ExtractOrderedWordsPreservingCase(string text)
+        {
+            List<string> words = new();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return words;
+            }
+
+            StringBuilder builder = new();
+
+            foreach (char ch in text)
+            {
+                if (char.IsLetterOrDigit(ch))
+                {
+                    builder.Append(ch);
+                }
+                else if (builder.Length > 0)
+                {
+                    words.Add(builder.ToString());
+                    builder.Clear();
+                }
+            }
+
+            if (builder.Length > 0)
+            {
+                words.Add(builder.ToString());
+            }
+
+            return words;
+        }
+
+        private static bool TitlesMatchAllowingOneWordDifference(IList<string> selectedWords, IList<string> candidateWords, out int differingIndex)
+        {
+            differingIndex = -1;
+
+            if (selectedWords == null || candidateWords == null || selectedWords.Count != candidateWords.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < selectedWords.Count; i++)
+            {
+                string left = selectedWords[i];
+                string right = candidateWords[i];
+
+                if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (differingIndex >= 0)
+                {
+                    differingIndex = -1;
+                    return false;
+                }
+
+                differingIndex = i;
+            }
+
+            return true;
+        }
+
+        private static string BuildOverrideTitle(string originalTitle, IList<string> originalWords, int? removalIndex)
+        {
+            string trimmed = (originalTitle ?? string.Empty).Trim();
+
+            if (removalIndex.HasValue && removalIndex.Value >= 0 && originalWords != null && removalIndex.Value < originalWords.Count)
+            {
+                IEnumerable<string> filtered = originalWords
+                    .Where((word, index) => index != removalIndex.Value && !string.IsNullOrEmpty(word));
+                string rebuilt = string.Join(" ", filtered).Trim();
+                if (!string.IsNullOrWhiteSpace(rebuilt))
+                {
+                    trimmed = rebuilt;
+                }
+            }
+
+            trimmed = CapitalizeFirstLetter(trimmed);
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return "(*)";
+            }
+
+            return trimmed + " (*)";
+        }
+
+        private static string CapitalizeFirstLetter(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            char first = value[0];
+            char capitalized = char.ToUpperInvariant(first);
+
+            if (value.Length == 1)
+            {
+                return capitalized.ToString();
+            }
+
+            if (char.IsUpper(first))
+            {
+                return value;
+            }
+
+            return capitalized + value.Substring(1);
+        }
+
+        private static void ApplyPageTitleOverride(GuiHandbookPage page, string newTitle)
+        {
+            if (page == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(newTitle))
+            {
+                return;
+            }
+
+            ICoreClientAPI api = capi;
+            if (api == null)
+            {
+                return;
+            }
+
+            try
+            {
+                switch (page)
+                {
+                    case GuiHandbookGroupedItemstackPage groupedPage:
+                        groupedPage.Name = newTitle;
+                        groupedPage.Texture?.Dispose();
+                        groupedPage.Texture = new TextTextureUtil(api).GenTextTexture(newTitle, CairoFont.WhiteSmallText());
+                        break;
+                    case GuiHandbookItemStackPage itemPage:
+                        itemPage.Texture?.Dispose();
+                        itemPage.Texture = new TextTextureUtil(api).GenTextTexture(newTitle, CairoFont.WhiteSmallText());
+                        break;
+                    case GuiHandbookMealRecipePage mealPage:
+                        mealPage.Title = newTitle;
+                        mealPage.Texture?.Dispose();
+                        mealPage.Texture = new TextTextureUtil(api).GenTextTexture(newTitle, CairoFont.WhiteSmallText());
+                        break;
+                }
+            }
+            catch
+            {
+                // Ignore texture regeneration failures to avoid crashing the UI.
+            }
         }
 
         private static WordCategoryDefinition[] BuildWordCategories(HandbookCategoriesConfig config)
