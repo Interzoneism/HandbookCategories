@@ -1508,7 +1508,9 @@ namespace Enhanced_Handbook
                 if (hideVariantTypes && seenVariantGroups != null)
                 {
                     string variantKey = GetVariantGroupKey(page);
-                    if (!string.IsNullOrEmpty(variantKey) && !seenVariantGroups.Add(variantKey))
+                    if (!string.IsNullOrEmpty(variantKey)
+                        && variantGroupDisplayNameByKey.ContainsKey(variantKey)
+                        && !seenVariantGroups.Add(variantKey))
                     {
                         continue;
                     }
@@ -1573,11 +1575,11 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            Dictionary<string, List<string>> titlesByGroup = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, List<VariantGroupEntry>> titlesByGroup = new(StringComparer.OrdinalIgnoreCase);
 
             foreach (GuiHandbookPage page in pages)
             {
-                if (page == null)
+                if (page == null || !PageHasRecipe(page))
                 {
                     continue;
                 }
@@ -1594,42 +1596,166 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                if (!titlesByGroup.TryGetValue(key, out List<string> titles))
-                {
-                    titles = new List<string>();
-                    titlesByGroup[key] = titles;
-                }
-
                 string trimmed = rawTitle.Trim();
                 if (trimmed.Length == 0)
                 {
                     continue;
                 }
 
-                bool exists = false;
-                for (int i = 0; i < titles.Count; i++)
+                if (!titlesByGroup.TryGetValue(key, out List<VariantGroupEntry> entries))
                 {
-                    if (string.Equals(titles[i], trimmed, StringComparison.Ordinal))
-                    {
-                        exists = true;
-                        break;
-                    }
+                    entries = new List<VariantGroupEntry>();
+                    titlesByGroup[key] = entries;
                 }
 
-                if (!exists)
-                {
-                    titles.Add(trimmed);
-                }
+                entries.Add(new VariantGroupEntry(page, trimmed));
             }
 
-            foreach (KeyValuePair<string, List<string>> entry in titlesByGroup)
+            foreach (KeyValuePair<string, List<VariantGroupEntry>> entry in titlesByGroup)
             {
-                string displayName = DeriveVariantDisplayName(entry.Value);
-                if (!string.IsNullOrWhiteSpace(displayName))
+                if (TryGetVariantGroupDisplayName(entry.Value, out string displayName))
                 {
                     variantGroupDisplayNameByKey[entry.Key] = displayName.Trim();
                 }
             }
+        }
+
+        private sealed class VariantGroupEntry
+        {
+            internal VariantGroupEntry(GuiHandbookPage page, string title)
+            {
+                Page = page;
+                Title = title;
+            }
+
+            internal GuiHandbookPage Page { get; }
+
+            internal string Title { get; }
+        }
+
+        private static bool TryGetVariantGroupDisplayName(List<VariantGroupEntry> entries, out string displayName)
+        {
+            displayName = string.Empty;
+
+            if (entries == null)
+            {
+                return false;
+            }
+
+            List<string> distinctTitles = new();
+            HashSet<string> seenTitles = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (VariantGroupEntry entry in entries)
+            {
+                string title = entry?.Title;
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    continue;
+                }
+
+                string trimmed = title.Trim();
+                if (trimmed.Length == 0)
+                {
+                    continue;
+                }
+
+                if (seenTitles.Add(trimmed))
+                {
+                    distinctTitles.Add(trimmed);
+                }
+            }
+
+            if (distinctTitles.Count < 3 || !TitlesShareSingleWordDifference(distinctTitles))
+            {
+                return false;
+            }
+
+            displayName = DeriveVariantDisplayName(distinctTitles);
+            return !string.IsNullOrWhiteSpace(displayName);
+        }
+
+        private static bool TitlesShareSingleWordDifference(IReadOnlyList<string> titles)
+        {
+            if (titles == null || titles.Count < 3)
+            {
+                return false;
+            }
+
+            List<string[]> tokenized = new(titles.Count);
+
+            foreach (string title in titles)
+            {
+                string[] tokens = TokenizeTitle(title);
+                if (tokens.Length == 0)
+                {
+                    return false;
+                }
+
+                tokenized.Add(tokens);
+            }
+
+            int expectedLength = tokenized[0].Length;
+            for (int i = 1; i < tokenized.Count; i++)
+            {
+                if (tokenized[i].Length != expectedLength)
+                {
+                    return false;
+                }
+            }
+
+            string[] baseTokens = tokenized[0];
+            int? variantIndex = null;
+            HashSet<string> variantValues = new(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 1; i < tokenized.Count; i++)
+            {
+                string[] tokens = tokenized[i];
+                int differences = 0;
+                int differingIndex = -1;
+
+                for (int j = 0; j < expectedLength; j++)
+                {
+                    string baseToken = NormalizeToken(baseTokens[j]);
+                    string currentToken = NormalizeToken(tokens[j]);
+
+                    if (!string.Equals(baseToken, currentToken, StringComparison.Ordinal))
+                    {
+                        differences++;
+                        differingIndex = j;
+                    }
+                }
+
+                if (differences != 1)
+                {
+                    return false;
+                }
+
+                if (variantIndex == null)
+                {
+                    variantIndex = differingIndex;
+                    string baseVariant = NormalizeToken(baseTokens[differingIndex]);
+                    if (baseVariant.Length == 0)
+                    {
+                        return false;
+                    }
+
+                    variantValues.Add(baseVariant);
+                }
+                else if (variantIndex.Value != differingIndex)
+                {
+                    return false;
+                }
+
+                string variantToken = NormalizeToken(tokens[variantIndex.Value]);
+                if (variantToken.Length == 0)
+                {
+                    return false;
+                }
+
+                variantValues.Add(variantToken);
+            }
+
+            return variantIndex.HasValue && variantValues.Count >= 3;
         }
 
         private static string DeriveVariantDisplayName(List<string> titles)
@@ -1643,17 +1769,12 @@ namespace Enhanced_Handbook
                 .Where(title => !string.IsNullOrWhiteSpace(title))
                 .Select(title => title.Trim())
                 .Where(title => title.Length > 0)
-                .Distinct(StringComparer.Ordinal)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            if (distinct.Count == 0)
+            if (distinct.Count <= 1)
             {
                 return string.Empty;
-            }
-
-            if (distinct.Count == 1)
-            {
-                return RemoveTrailingParenthetical(distinct[0]);
             }
 
             List<string[]> tokenized = distinct
@@ -1777,6 +1898,254 @@ namespace Enhanced_Handbook
             }
 
             return string.Empty;
+        }
+
+        private static bool PageHasRecipe(GuiHandbookPage page)
+        {
+            if (page is GuiHandbookMealRecipePage)
+            {
+                return true;
+            }
+
+            if (page is not GuiHandbookItemStackPage itemPage)
+            {
+                return false;
+            }
+
+            if (capi?.World == null)
+            {
+                return false;
+            }
+
+            ItemStack stack = itemPage.Stack;
+            if (stack == null)
+            {
+                return false;
+            }
+
+            return HasGridRecipe(stack)
+                || HasSmithingRecipe(stack)
+                || HasClayFormingRecipe(stack)
+                || HasKnappingRecipe(stack)
+                || HasBarrelRecipe(stack)
+                || HasCookingRecipe(stack)
+                || HasAlloyRecipe(stack);
+        }
+
+        private static bool HasGridRecipe(ItemStack stack)
+        {
+            if (stack == null || capi?.World?.GridRecipes == null)
+            {
+                return false;
+            }
+
+            foreach (GridRecipe recipe in capi.World.GridRecipes)
+            {
+                if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                {
+                    continue;
+                }
+
+                if (StacksMatch(recipe.Output.ResolvedItemstack, stack))
+                {
+                    return true;
+                }
+
+                GridRecipeIngredient[] ingredients = recipe.resolvedIngredients;
+                if (ingredients == null)
+                {
+                    continue;
+                }
+
+                foreach (GridRecipeIngredient ingredient in ingredients)
+                {
+                    ItemStack returned = ingredient?.ReturnedStack?.ResolvedItemstack;
+                    if (returned == null || !StacksMatch(returned, stack))
+                    {
+                        continue;
+                    }
+
+                    ItemStack resolved = ingredient.ResolvedItemstack;
+                    if (resolved == null || StacksMatch(resolved, stack))
+                    {
+                        continue;
+                    }
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasSmithingRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<SmithingRecipe> recipes = capi.GetSmithingRecipes();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (SmithingRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.Output?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasClayFormingRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<ClayFormingRecipe> recipes = capi.GetClayformingRecipes();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (ClayFormingRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.Output?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasKnappingRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<KnappingRecipe> recipes = capi.GetKnappingRecipes();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (KnappingRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.Output?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasBarrelRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<BarrelRecipe> recipes = capi.GetBarrelRecipes();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (BarrelRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.Output?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasCookingRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<CookingRecipe> recipes = capi.GetCookingRecipes();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (CookingRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.CooksInto?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasAlloyRecipe(ItemStack stack)
+        {
+            if (stack == null || capi == null)
+            {
+                return false;
+            }
+
+            List<AlloyRecipe> recipes = capi.GetMetalAlloys();
+            if (recipes == null)
+            {
+                return false;
+            }
+
+            foreach (AlloyRecipe recipe in recipes)
+            {
+                ItemStack output = recipe?.Output?.ResolvedItemstack;
+                if (StacksMatch(output, stack))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool StacksMatch(ItemStack candidate, ItemStack target)
+        {
+            if (candidate == null || target == null || capi?.World == null)
+            {
+                return false;
+            }
+
+            if (candidate.Equals(capi.World, target, GlobalConstants.IgnoredStackAttributes))
+            {
+                return true;
+            }
+
+            if (target.Equals(capi.World, candidate, GlobalConstants.IgnoredStackAttributes))
+            {
+                return true;
+            }
+
+            return candidate.Satisfies(target) || target.Satisfies(candidate);
         }
 
         private static string RemoveTrailingParenthetical(string text)
