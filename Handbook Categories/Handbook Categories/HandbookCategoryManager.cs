@@ -1646,14 +1646,9 @@ namespace Enhanced_Handbook
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
 
-            if (distinct.Count == 0)
+            if (distinct.Count <= 1)
             {
                 return string.Empty;
-            }
-
-            if (distinct.Count == 1)
-            {
-                return RemoveTrailingParenthetical(distinct[0]);
             }
 
             List<string[]> tokenized = distinct
