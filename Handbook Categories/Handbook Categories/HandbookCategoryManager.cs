@@ -1452,7 +1452,7 @@ namespace Enhanced_Handbook
             UpdateScrollArea(overviewGui, listHeight);
         }
 
-        internal static void HandleSearchEntryRightClick(GuiDialogHandbook dialog, GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
+        internal static void HandleSearchEntryHideSimilar(GuiDialogHandbook dialog, GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
         {
             if (dialog == null || selectedPage == null)
             {

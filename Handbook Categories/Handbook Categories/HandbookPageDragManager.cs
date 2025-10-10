@@ -127,12 +127,8 @@ namespace Enhanced_Handbook
         private static DragOrigin draggingOrigin;
         private static bool isDragging;
         private static bool wasLeftDown;
-        private static bool wasRightDown;
         private static bool suppressListClick;
         private static bool featureEnabled = true;
-
-        private static DragState pendingRightClickState;
-        private static GuiHandbookPage pendingRightClickPage;
 
         internal static void Initialize(ICoreClientAPI api)
         {
@@ -231,6 +227,48 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        internal static bool TryHandleShiftClick(GuiDialogHandbook dialog, int index)
+        {
+            if (!featureEnabled || dialog == null || index < 0)
+            {
+                return false;
+            }
+
+            if (capi?.Input == null || !IsShiftKeyHeld())
+            {
+                return false;
+            }
+
+            if (!trackedDialogs.TryGetValue(dialog, out DragState state))
+            {
+                return false;
+            }
+
+            GuiComposer overview = state.Overview;
+            GuiElementFlatList searchList = state.SearchList ?? overview?.GetFlatList("stacklist");
+
+            if (overview == null || searchList == null)
+            {
+                return false;
+            }
+
+            List<IFlatListItem> elements = searchList.Elements;
+            if (elements == null || index < 0 || index >= elements.Count)
+            {
+                return false;
+            }
+
+            if (elements[index] is not GuiHandbookPage page)
+            {
+                return false;
+            }
+
+            state.SearchList = searchList;
+
+            HandbookCategoryManager.HandleSearchEntryHideSimilar(dialog, overview, searchList, page);
+            return true;
+        }
+
         private static void UpdateDragState()
         {
             if (!featureEnabled)
@@ -248,7 +286,6 @@ namespace Enhanced_Handbook
             RemoveClosedDialogs();
 
             bool leftDown = capi.Input.MouseButton?.Left == true;
-            bool rightDown = capi.Input.MouseButton?.Right == true;
             int mouseX = capi.Input.MouseX;
             int mouseY = capi.Input.MouseY;
 
@@ -260,37 +297,22 @@ namespace Enhanced_Handbook
                 }
 
                 wasLeftDown = false;
-                return;
             }
-
-            if (!wasLeftDown)
+            else
             {
-                OnLeftMousePressed(mouseX, mouseY);
-            }
-            else if (!isDragging)
-            {
-                EvaluateDragThreshold(mouseX, mouseY);
-            }
-
-            wasLeftDown = true;
-
-            if (!rightDown)
-            {
-                if (wasRightDown)
+                if (!wasLeftDown)
                 {
-                    OnRightMouseReleased(mouseX, mouseY);
+                    OnLeftMousePressed(mouseX, mouseY);
+                }
+                else if (!isDragging)
+                {
+                    EvaluateDragThreshold(mouseX, mouseY);
                 }
 
-                wasRightDown = false;
-                return;
+                wasLeftDown = true;
             }
 
-            if (!wasRightDown)
-            {
-                OnRightMousePressed(mouseX, mouseY);
-            }
-
-            wasRightDown = true;
+            // Right-click handling has been replaced by a shift + left-click gesture.
         }
 
         private static void RemoveClosedDialogs()
@@ -332,54 +354,7 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            foreach (GuiDialog dialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
-            {
-                if (dialog is GuiDialogHandbook handbookDialog)
-                {
-                    if (!trackedDialogs.TryGetValue(handbookDialog, out DragState state))
-                    {
-                        continue;
-                    }
-
-                    if (!IsFrontmostHandbookDialog(handbookDialog))
-                    {
-                        continue;
-                    }
-
-                    if (IsHandbookObscured(state, mouseX, mouseY))
-                    {
-                        return;
-                    }
-
-                    if (TryBeginDragFromSearchList(state, mouseX, mouseY) || TryBeginDragFromDetailIcon(state, mouseX, mouseY))
-                    {
-                        break;
-                    }
-
-                    if (IsMouseInsideHandbookGui(state, mouseX, mouseY))
-                    {
-                        return;
-                    }
-
-                    continue;
-                }
-
-                if (IsMouseInsideDialog(dialog, mouseX, mouseY))
-                {
-                    return;
-                }
-            }
-        }
-
-        private static void OnRightMousePressed(int mouseX, int mouseY)
-        {
-            pendingRightClickState = null;
-            pendingRightClickPage = null;
-
-            if (capi?.Gui?.OpenedGuis == null)
-            {
-                return;
-            }
+            bool shiftHeld = IsShiftKeyHeld();
 
             foreach (GuiDialog dialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
             {
@@ -400,10 +375,8 @@ namespace Enhanced_Handbook
                         return;
                     }
 
-                    if (TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page))
+                    if (!shiftHeld && (TryBeginDragFromSearchList(state, mouseX, mouseY) || TryBeginDragFromDetailIcon(state, mouseX, mouseY)))
                     {
-                        pendingRightClickState = state;
-                        pendingRightClickPage = page;
                         break;
                     }
 
@@ -470,42 +443,6 @@ namespace Enhanced_Handbook
             }
 
             ResetDrag();
-        }
-
-        private static void OnRightMouseReleased(int mouseX, int mouseY)
-        {
-            if (pendingRightClickState == null || pendingRightClickPage == null)
-            {
-                return;
-            }
-
-            DragState state = pendingRightClickState;
-            GuiHandbookPage page = pendingRightClickPage;
-
-            pendingRightClickState = null;
-            pendingRightClickPage = null;
-
-            if (state == null || state.Dialog == null)
-            {
-                return;
-            }
-
-            if (!IsFrontmostHandbookDialog(state.Dialog) || IsHandbookObscured(state, mouseX, mouseY))
-            {
-                return;
-            }
-
-            if (!TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage hoveredPage))
-            {
-                return;
-            }
-
-            if (!ReferenceEquals(page, hoveredPage))
-            {
-                return;
-            }
-
-            HandbookCategoryManager.HandleSearchEntryRightClick(state.Dialog, state.Overview, state.SearchList, page);
         }
 
         private static bool TrySpawnCreativeStack()
@@ -1330,6 +1267,23 @@ namespace Enhanced_Handbook
             }
 
             return false;
+        }
+
+        private static bool IsShiftKeyHeld()
+        {
+            bool[] keys = capi?.Input?.KeyboardKeyState;
+            if (keys == null)
+            {
+                return false;
+            }
+
+            int leftIndex = (int)GlKeys.ShiftLeft;
+            int rightIndex = (int)GlKeys.ShiftRight;
+
+            bool leftDown = leftIndex >= 0 && leftIndex < keys.Length && keys[leftIndex];
+            bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
+
+            return leftDown || rightDown;
         }
 
         private static void ResetDrag()
