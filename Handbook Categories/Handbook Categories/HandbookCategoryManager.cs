@@ -38,6 +38,7 @@ namespace Enhanced_Handbook
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
         private static readonly Dictionary<GuiHandbookPage, string> englishNormalizedTitleByPage = new();
+        private static readonly Dictionary<GuiHandbookPage, HiddenPageCache> hiddenPagesBySource = new();
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -460,6 +461,31 @@ namespace Enhanced_Handbook
 
                 return term.ToSearchFriendly().ToLowerInvariant().Trim();
             }
+        }
+
+        private sealed class HiddenPageCache
+        {
+            internal HiddenPageCache(string originalTitle)
+            {
+                OriginalTitle = originalTitle ?? string.Empty;
+            }
+
+            internal string OriginalTitle { get; }
+
+            internal List<HiddenPageEntry> HiddenPages { get; } = new();
+        }
+
+        private sealed class HiddenPageEntry
+        {
+            internal HiddenPageEntry(GuiHandbookPage page, int index)
+            {
+                Page = page;
+                Index = index;
+            }
+
+            internal GuiHandbookPage Page { get; }
+
+            internal int Index { get; }
         }
 
         private readonly struct SearchQuery
@@ -1464,42 +1490,55 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string selectedTitle = GetLocalizedPageTitle(selectedPage);
-            if (string.IsNullOrWhiteSpace(selectedTitle))
+            if (hiddenPagesBySource.TryGetValue(selectedPage, out HiddenPageCache cachedHiddenPages))
+            {
+                if (cachedHiddenPages.HiddenPages.Count == 0)
+                {
+                    hiddenPagesBySource.Remove(selectedPage);
+                }
+                else
+                {
+                    RestoreHiddenPages(dialog, overviewGui, searchList, shownPages, selectedPage, cachedHiddenPages);
+                    hiddenPagesBySource.Remove(selectedPage);
+                    return;
+                }
+            }
+
+            string normalizedSelectedCode = GetNormalizedPageCode(selectedPage);
+            if (string.IsNullOrWhiteSpace(normalizedSelectedCode))
             {
                 return;
             }
 
-            List<string> selectedWords = ExtractOrderedWordsPreservingCase(selectedTitle);
+            List<string> selectedWords = ExtractOrderedPageCodeWords(normalizedSelectedCode);
             if (selectedWords.Count == 0)
             {
-                selectedWords.Add(selectedTitle.Trim());
+                selectedWords.Add(normalizedSelectedCode);
             }
 
-            List<GuiHandbookPage> pagesToHide = new();
-            int? differingIndex = null;
+            List<HiddenPageEntry> pagesToHide = new();
             int matchCount = 0;
 
-            foreach (GuiHandbookPage page in shownPages.OfType<GuiHandbookPage>())
+            for (int index = 0; index < shownPages.Count; index++)
             {
-                if (page == null)
+                if (shownPages[index] is not GuiHandbookPage page)
                 {
                     continue;
                 }
 
-                string title = GetLocalizedPageTitle(page);
-                if (string.IsNullOrWhiteSpace(title))
+                string normalizedCandidateCode = GetNormalizedPageCode(page);
+                if (string.IsNullOrWhiteSpace(normalizedCandidateCode))
                 {
                     continue;
                 }
 
-                List<string> candidateWords = ExtractOrderedWordsPreservingCase(title);
+                List<string> candidateWords = ExtractOrderedPageCodeWords(normalizedCandidateCode);
                 if (candidateWords.Count == 0)
                 {
-                    candidateWords.Add(title.Trim());
+                    candidateWords.Add(normalizedCandidateCode);
                 }
 
-                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out int differenceIndex))
+                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out _))
                 {
                     continue;
                 }
@@ -1508,31 +1547,37 @@ namespace Enhanced_Handbook
 
                 if (!ReferenceEquals(page, selectedPage))
                 {
-                    pagesToHide.Add(page);
-                }
-
-                if (differenceIndex >= 0)
-                {
-                    if (differingIndex == null)
-                    {
-                        differingIndex = differenceIndex;
-                    }
-                    else if (differingIndex != differenceIndex)
-                    {
-                        differingIndex = -1;
-                    }
+                    pagesToHide.Add(new HiddenPageEntry(page, index));
                 }
             }
 
             if (matchCount <= 1)
             {
+                hiddenPagesBySource.Remove(selectedPage);
                 return;
             }
 
-            foreach (GuiHandbookPage page in pagesToHide)
+            HiddenPageCache cache = new HiddenPageCache(GetLocalizedPageTitle(selectedPage));
+
+            foreach (HiddenPageEntry entry in pagesToHide)
             {
-                shownPages.Remove(page);
+                if (entry?.Page == null)
+                {
+                    continue;
+                }
+
+                if (shownPages.Remove(entry.Page))
+                {
+                    cache.HiddenPages.Add(entry);
+                }
             }
+
+            if (cache.HiddenPages.Count == 0)
+            {
+                return;
+            }
+
+            hiddenPagesBySource[selectedPage] = cache;
 
             if (searchList != null)
             {
@@ -1545,9 +1590,66 @@ namespace Enhanced_Handbook
                 overviewGui.GetScrollbar("scrollbar")?.SetHeights((float)listHeight, (float)searchList.insideBounds.fixedHeight);
             }
 
-            int? removalIndex = differingIndex >= 0 ? differingIndex : null;
-            string overrideTitle = BuildOverrideTitle(selectedTitle, selectedWords, removalIndex);
+            string overrideTitle = BuildOverrideTitle(cache.OriginalTitle, null, null);
             ApplyPageTitleOverride(selectedPage, overrideTitle);
+        }
+
+        private static void RestoreHiddenPages(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            List<IFlatListItem> shownPages,
+            GuiHandbookPage selectedPage,
+            HiddenPageCache cachedHiddenPages)
+        {
+            if (cachedHiddenPages == null)
+            {
+                return;
+            }
+
+            bool reinsertedAny = false;
+
+            foreach (HiddenPageEntry entry in cachedHiddenPages.HiddenPages.OrderBy(entry => entry.Index))
+            {
+                if (entry?.Page == null)
+                {
+                    continue;
+                }
+
+                if (shownPages.Contains(entry.Page))
+                {
+                    continue;
+                }
+
+                int insertIndex = entry.Index;
+                if (insertIndex < 0)
+                {
+                    insertIndex = 0;
+                }
+                else if (insertIndex > shownPages.Count)
+                {
+                    insertIndex = shownPages.Count;
+                }
+
+                shownPages.Insert(insertIndex, entry.Page);
+                reinsertedAny = true;
+            }
+
+            if (reinsertedAny && searchList != null)
+            {
+                searchList.CalcTotalHeight();
+            }
+
+            if (reinsertedAny && overviewGui != null && searchList != null)
+            {
+                double listHeight = GetListHeight(dialog);
+                overviewGui.GetScrollbar("scrollbar")?.SetHeights((float)listHeight, (float)searchList.insideBounds.fixedHeight);
+            }
+
+            if (!string.IsNullOrWhiteSpace(cachedHiddenPages.OriginalTitle))
+            {
+                ApplyPageTitleOverride(selectedPage, cachedHiddenPages.OriginalTitle);
+            }
         }
 
         private static GuiHandbookItemStackPage FindPageForRecipe(GridRecipe recipe, Dictionary<string, GuiHandbookItemStackPage> itemPagesByCode)
@@ -3652,6 +3754,29 @@ namespace Enhanced_Handbook
             if (builder.Length > 0)
             {
                 words.Add(builder.ToString());
+            }
+
+            return words;
+        }
+
+        private static List<string> ExtractOrderedPageCodeWords(string pageCode)
+        {
+            List<string> words = new();
+
+            if (string.IsNullOrWhiteSpace(pageCode))
+            {
+                return words;
+            }
+
+            string[] segments = pageCode.Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (string segment in segments)
+            {
+                string trimmed = segment.Trim();
+                if (!string.IsNullOrEmpty(trimmed))
+                {
+                    words.Add(trimmed);
+                }
             }
 
             return words;
