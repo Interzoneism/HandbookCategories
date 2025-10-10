@@ -3,5 +3,6 @@
   "button-delete-category": "删除分类",
   "tab-armor": "盔甲",
   "toggle-original-search": "原版搜索",
-  "toggle-recipes-only": "仅限配方"
+  "toggle-recipes-only": "仅限配方",
+  "toggle-hide-types": "Hide Types"
 }

@@ -3,5 +3,6 @@
   "button-delete-category": "Excluir categoria",
   "tab-armor": "Armadura",
   "toggle-original-search": "Pesquisa original",
-  "toggle-recipes-only": "Apenas receitas"
+  "toggle-recipes-only": "Apenas receitas",
+  "toggle-hide-types": "Hide Types"
 }

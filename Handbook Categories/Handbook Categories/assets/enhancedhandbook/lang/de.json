@@ -3,5 +3,6 @@
   "button-delete-category": "Kategorie löschen",
   "tab-armor": "Rüstung",
   "toggle-original-search": "Originalsuche",
-  "toggle-recipes-only": "Nur Rezepte"
+  "toggle-recipes-only": "Nur Rezepte",
+  "toggle-hide-types": "Hide Types"
 }

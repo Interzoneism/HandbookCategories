@@ -3,5 +3,6 @@
   "button-delete-category": "Slet kategori",
   "tab-armor": "Rustning",
   "toggle-original-search": "Original søgning",
-  "toggle-recipes-only": "Kun opskrifter"
+  "toggle-recipes-only": "Kun opskrifter",
+  "toggle-hide-types": "Hide Types"
 }
