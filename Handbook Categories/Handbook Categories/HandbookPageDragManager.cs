@@ -312,7 +312,28 @@ namespace Enhanced_Handbook
                 wasLeftDown = true;
             }
 
-            // Right-click handling has been replaced by a shift + left-click gesture.
+            if (!rightDown)
+            {
+                if (!wasLeftDown)
+                {
+                    OnLeftMousePressed(mouseX, mouseY);
+                }
+                else if (!isDragging)
+                {
+                    EvaluateDragThreshold(mouseX, mouseY);
+                }
+
+                wasRightDown = false;
+            }
+            else
+            {
+                if (!wasRightDown)
+                {
+                    OnRightMousePressed(mouseX, mouseY);
+                }
+
+                wasRightDown = true;
+            }
         }
 
         private static void RemoveClosedDialogs()
