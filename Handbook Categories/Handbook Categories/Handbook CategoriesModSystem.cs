@@ -920,11 +920,16 @@ namespace Enhanced_Handbook
             }
         }
 
-        public static bool OnLeftClickListElementPrefix()
+        public static bool OnLeftClickListElementPrefix(GuiDialogHandbook __instance, int index)
         {
             if (!HandbookCategoryManager.DragAndDropEnabled)
             {
                 return true;
+            }
+
+            if (HandbookPageDragManager.TryHandleShiftClick(__instance, index))
+            {
+                return false;
             }
 
             return !HandbookPageDragManager.TryConsumeClickSuppression();
