@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -66,6 +67,7 @@ namespace Enhanced_Handbook
 
         private static readonly HashSet<string> gridRecipePageCodes = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, HashSet<string>> vanillaSearchExtrasByPageCode = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> variantGroupDisplayNameByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> recipesOnlyExemptCategories = new(StringComparer.OrdinalIgnoreCase)
         {
             "tutorial",
@@ -74,6 +76,7 @@ namespace Enhanced_Handbook
             "guide",
             "guides"
         };
+        private static readonly Regex WordRegex = new(@"[\p{L}\p{M}\p{Nd}]+(?:['\-][\p{L}\p{M}\p{Nd}]+)*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
@@ -725,6 +728,7 @@ namespace Enhanced_Handbook
 
             gridRecipePageCodes.Clear();
             vanillaSearchExtrasByPageCode.Clear();
+            variantGroupDisplayNameByKey.Clear();
 
 
             if (createButtonListenerId != 0)
@@ -1181,6 +1185,8 @@ namespace Enhanced_Handbook
                 englishNormalizedTitleByPage.Clear();
             }
 
+            ComputeVariantGroupDisplayNames(allPages);
+
             var itemPagesByCode = allPages
                 .OfType<GuiHandbookItemStackPage>()
                 .Where(page => page?.Stack?.Collectible != null)
@@ -1508,10 +1514,22 @@ namespace Enhanced_Handbook
                     }
                 }
 
+                PreparePageForDisplay(page);
                 shownPages.Add(page);
             }
 
             UpdateScrollArea(overviewGui, listHeight);
+        }
+
+        private static void PreparePageForDisplay(GuiHandbookPage page)
+        {
+            if (page is not GuiHandbookItemStackPage itemPage)
+            {
+                return;
+            }
+
+            itemPage.Texture?.Dispose();
+            itemPage.Texture = null;
         }
 
         private static string GetVariantGroupKey(GuiHandbookPage page)
@@ -1544,6 +1562,245 @@ namespace Enhanced_Handbook
             }
 
             return null;
+        }
+
+        private static void ComputeVariantGroupDisplayNames(IEnumerable<GuiHandbookPage> pages)
+        {
+            variantGroupDisplayNameByKey.Clear();
+
+            if (pages == null)
+            {
+                return;
+            }
+
+            Dictionary<string, List<string>> titlesByGroup = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (GuiHandbookPage page in pages)
+            {
+                if (page == null)
+                {
+                    continue;
+                }
+
+                string key = GetVariantGroupKey(page);
+                if (string.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                string rawTitle = GetRawTitle(page, allowCachedItemStackTitle: false);
+                if (string.IsNullOrWhiteSpace(rawTitle))
+                {
+                    continue;
+                }
+
+                if (!titlesByGroup.TryGetValue(key, out List<string> titles))
+                {
+                    titles = new List<string>();
+                    titlesByGroup[key] = titles;
+                }
+
+                string trimmed = rawTitle.Trim();
+                if (trimmed.Length == 0)
+                {
+                    continue;
+                }
+
+                bool exists = false;
+                for (int i = 0; i < titles.Count; i++)
+                {
+                    if (string.Equals(titles[i], trimmed, StringComparison.Ordinal))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                {
+                    titles.Add(trimmed);
+                }
+            }
+
+            foreach (KeyValuePair<string, List<string>> entry in titlesByGroup)
+            {
+                string displayName = DeriveVariantDisplayName(entry.Value);
+                if (!string.IsNullOrWhiteSpace(displayName))
+                {
+                    variantGroupDisplayNameByKey[entry.Key] = displayName.Trim();
+                }
+            }
+        }
+
+        private static string DeriveVariantDisplayName(List<string> titles)
+        {
+            if (titles == null || titles.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            List<string> distinct = titles
+                .Where(title => !string.IsNullOrWhiteSpace(title))
+                .Select(title => title.Trim())
+                .Where(title => title.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            if (distinct.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (distinct.Count == 1)
+            {
+                return RemoveTrailingParenthetical(distinct[0]);
+            }
+
+            List<string[]> tokenized = distinct
+                .Select(TokenizeTitle)
+                .Where(tokens => tokens.Length > 0)
+                .ToList();
+
+            if (tokenized.Count > 0)
+            {
+                string[] firstTokens = tokenized[0];
+                List<string> commonTokens = new();
+
+                foreach (string token in firstTokens)
+                {
+                    string normalized = NormalizeToken(token);
+                    if (normalized.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    bool presentInAll = true;
+
+                    for (int i = 1; i < tokenized.Count && presentInAll; i++)
+                    {
+                        if (!tokenized[i].Any(other => string.Equals(NormalizeToken(other), normalized, StringComparison.Ordinal)))
+                        {
+                            presentInAll = false;
+                        }
+                    }
+
+                    if (presentInAll && !commonTokens.Any(existing => string.Equals(NormalizeToken(existing), normalized, StringComparison.Ordinal)))
+                    {
+                        commonTokens.Add(token);
+                    }
+                }
+
+                string candidate = string.Join(" ", commonTokens).Trim();
+                if (candidate.Length > 0)
+                {
+                    return candidate;
+                }
+            }
+
+            string commonSubstring = FindCommonSubstring(distinct);
+            if (!string.IsNullOrWhiteSpace(commonSubstring))
+            {
+                return commonSubstring.Trim();
+            }
+
+            return RemoveTrailingParenthetical(distinct[0]);
+        }
+
+        private static string[] TokenizeTitle(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return Array.Empty<string>();
+            }
+
+            MatchCollection matches = WordRegex.Matches(text);
+            if (matches.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            string[] tokens = new string[matches.Count];
+            for (int i = 0; i < matches.Count; i++)
+            {
+                tokens[i] = matches[i].Value;
+            }
+
+            return tokens;
+        }
+
+        private static string NormalizeToken(string token)
+        {
+            return string.IsNullOrWhiteSpace(token) ? string.Empty : token.Trim().ToLowerInvariant();
+        }
+
+        private static string FindCommonSubstring(IReadOnlyList<string> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            string reference = values[0];
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                return string.Empty;
+            }
+
+            string trimmedReference = reference.Trim();
+            int referenceLength = trimmedReference.Length;
+
+            for (int length = referenceLength; length >= 3; length--)
+            {
+                for (int start = 0; start <= referenceLength - length; start++)
+                {
+                    string candidate = trimmedReference.Substring(start, length);
+                    if (string.IsNullOrWhiteSpace(candidate))
+                    {
+                        continue;
+                    }
+
+                    bool presentInAll = true;
+                    for (int i = 1; i < values.Count; i++)
+                    {
+                        if (values[i].IndexOf(candidate, StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            presentInAll = false;
+                            break;
+                        }
+                    }
+
+                    if (presentInAll)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string RemoveTrailingParenthetical(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = text.Trim();
+            int openIndex = trimmed.LastIndexOf('(');
+            if (openIndex < 0)
+            {
+                return trimmed;
+            }
+
+            int closeIndex = trimmed.IndexOf(')', openIndex);
+            if (closeIndex != trimmed.Length - 1)
+            {
+                return trimmed;
+            }
+
+            string withoutParenthetical = trimmed.Substring(0, openIndex).TrimEnd();
+            return withoutParenthetical.Length > 0 ? withoutParenthetical : trimmed;
         }
 
         private static string GetVariantGroupKeyForStack(ItemStack stack, GuiHandbookPage page)
@@ -2270,6 +2527,40 @@ namespace Enhanced_Handbook
             return new PageTitleData(englishTitle, localizedTitle);
         }
 
+        internal static bool TryGetVariantDisplayText(GuiHandbookPage page, out string displayText)
+        {
+            displayText = null;
+
+            if (page == null || !hideVariantTypes)
+            {
+                return false;
+            }
+
+            string rawTitle = GetRawTitle(page, allowCachedItemStackTitle: false);
+            if (string.IsNullOrWhiteSpace(rawTitle))
+            {
+                return false;
+            }
+
+            string variantKey = GetVariantGroupKey(page);
+            if (!string.IsNullOrEmpty(variantKey)
+                && variantGroupDisplayNameByKey.TryGetValue(variantKey, out string derivedTitle)
+                && !string.IsNullOrWhiteSpace(derivedTitle))
+            {
+                displayText = derivedTitle;
+                return true;
+            }
+
+            string trimmed = RemoveTrailingParenthetical(rawTitle);
+            if (!string.Equals(trimmed, rawTitle.Trim(), StringComparison.Ordinal))
+            {
+                displayText = trimmed;
+                return true;
+            }
+
+            return false;
+        }
+
         internal static string GetLocalizedPageTitle(GuiHandbookPage page)
         {
             if (page == null)
@@ -2278,6 +2569,10 @@ namespace Enhanced_Handbook
             }
 
             string title = GetRawTitle(page, allowCachedItemStackTitle: true);
+            if (hideVariantTypes && TryGetVariantDisplayText(page, out string variantTitle) && !string.IsNullOrWhiteSpace(variantTitle))
+            {
+                title = variantTitle;
+            }
             return string.IsNullOrWhiteSpace(title) ? string.Empty : title.Trim();
         }
 

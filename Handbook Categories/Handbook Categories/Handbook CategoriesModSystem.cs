@@ -94,6 +94,13 @@ namespace Enhanced_Handbook
                 typeof(Cairo.ImageSurface)
             }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.ComposeVerticalTabsPrefix)));
 
+            harmony.Patch(AccessTools.Method(typeof(GuiHandbookItemStackPage), nameof(GuiHandbookItemStackPage.Recompose)),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.ItemPageRecomposePostfix)));
+
+            harmony.Patch(AccessTools.Method(typeof(GuiHandbookGroupedItemstackPage), nameof(GuiHandbookGroupedItemstackPage.RenderListEntryTo)),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GroupedRenderListEntryPrefix)),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GroupedRenderListEntryPostfix)));
+
             api.Event.LeaveWorld += OnLeaveWorld;
         }
 
@@ -1901,6 +1908,55 @@ namespace Enhanced_Handbook
             }
 
             return false;
+        }
+
+        public static void ItemPageRecomposePostfix(GuiHandbookItemStackPage __instance, ICoreClientAPI capi)
+        {
+            if (__instance == null || capi == null)
+            {
+                return;
+            }
+
+            if (!HandbookCategoryManager.TryGetVariantDisplayText(__instance, out string displayText) || string.IsNullOrWhiteSpace(displayText))
+            {
+                return;
+            }
+
+            __instance.Texture?.Dispose();
+            __instance.Texture = new TextTextureUtil(capi).GenTextTexture(displayText, CairoFont.WhiteSmallText());
+        }
+
+        public static void GroupedRenderListEntryPrefix(GuiHandbookGroupedItemstackPage __instance, ref (string OriginalName, bool Replaced) __state)
+        {
+            __state = (__instance?.Name, false);
+
+            if (__instance == null)
+            {
+                return;
+            }
+
+            if (!HandbookCategoryManager.TryGetVariantDisplayText(__instance, out string displayText) || string.IsNullOrWhiteSpace(displayText))
+            {
+                return;
+            }
+
+            __instance.Texture?.Dispose();
+            __instance.Texture = null;
+            __instance.Name = displayText;
+            __state.Replaced = true;
+        }
+
+        public static void GroupedRenderListEntryPostfix(GuiHandbookGroupedItemstackPage __instance, ref (string OriginalName, bool Replaced) __state)
+        {
+            if (__instance == null)
+            {
+                return;
+            }
+
+            if (__state.Replaced)
+            {
+                __instance.Name = __state.OriginalName;
+            }
         }
 
         private static void ReindexTabs(List<GuiTab> tabs)
