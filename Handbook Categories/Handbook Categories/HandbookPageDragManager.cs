@@ -260,19 +260,20 @@ namespace Enhanced_Handbook
                 }
 
                 wasLeftDown = false;
-                return;
             }
-
-            if (!wasLeftDown)
+            else
             {
-                OnLeftMousePressed(mouseX, mouseY);
-            }
-            else if (!isDragging)
-            {
-                EvaluateDragThreshold(mouseX, mouseY);
-            }
+                if (!wasLeftDown)
+                {
+                    OnLeftMousePressed(mouseX, mouseY);
+                }
+                else if (!isDragging)
+                {
+                    EvaluateDragThreshold(mouseX, mouseY);
+                }
 
-            wasLeftDown = true;
+                wasLeftDown = true;
+            }
 
             if (!rightDown)
             {
@@ -282,15 +283,16 @@ namespace Enhanced_Handbook
                 }
 
                 wasRightDown = false;
-                return;
             }
-
-            if (!wasRightDown)
+            else
             {
-                OnRightMousePressed(mouseX, mouseY);
-            }
+                if (!wasRightDown)
+                {
+                    OnRightMousePressed(mouseX, mouseY);
+                }
 
-            wasRightDown = true;
+                wasRightDown = true;
+            }
         }
 
         private static void RemoveClosedDialogs()
