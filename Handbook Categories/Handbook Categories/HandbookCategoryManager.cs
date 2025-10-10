@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Globalization;
 using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.Util;
 using Vintagestory.GameContent;
 
@@ -19,6 +21,7 @@ namespace Enhanced_Handbook
 
         internal const string RecipesOnlyToggleTranslationKey = "enhancedhandbook:toggle-recipes-only";
         internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
+        internal const string HideVariantsToggleTranslationKey = "enhancedhandbook:toggle-hide-types";
         private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
         private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
         private const string CreateCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-create-category-title";
@@ -46,7 +49,9 @@ namespace Enhanced_Handbook
 
         internal const string RecipesOnlyToggleKey = "handbookcategories-recipes-toggle";
         internal const string OriginalSearchToggleKey = "handbookcategories-original-search-toggle";
+        internal const string HideVariantsToggleKey = "handbookcategories-hide-variants-toggle";
         private static bool onlyGridPages = false;
+        private static bool hideVariantTypes = false;
         private static bool useOriginalSearch = false;
         private static bool showOriginalSearchToggle = true;
         private static bool showTutorialTab = true;
@@ -71,6 +76,8 @@ namespace Enhanced_Handbook
         };
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
+
+        internal static bool HideVariantTypesEnabled => hideVariantTypes;
 
         internal static bool OriginalSearchEnabled => showOriginalSearchToggle && useOriginalSearch;
 
@@ -133,6 +140,11 @@ namespace Enhanced_Handbook
             return Lang.Get(RecipesOnlyToggleTranslationKey);
         }
 
+        internal static string GetHideVariantsToggleText()
+        {
+            return Lang.Get(HideVariantsToggleTranslationKey);
+        }
+
         internal static string GetOriginalSearchToggleText()
         {
             return Lang.Get(OriginalSearchToggleTranslationKey);
@@ -147,6 +159,19 @@ namespace Enhanced_Handbook
 
             onlyGridPages = enabled;
             StoreRecipesOnlySetting();
+            MarkCategoriesDirty();
+            return true;
+        }
+
+        internal static bool TrySetHideVariantTypes(bool enabled)
+        {
+            if (hideVariantTypes == enabled)
+            {
+                return false;
+            }
+
+            hideVariantTypes = enabled;
+            StoreHideVariantTypesSetting();
             MarkCategoriesDirty();
             return true;
         }
@@ -192,6 +217,29 @@ namespace Enhanced_Handbook
             }
 
             config.OnlyGridPages = onlyGridPages;
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
+        }
+
+        private static void StoreHideVariantTypesSetting()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName);
+
+            if (config == null)
+            {
+                config = LoadDefaultConfiguration() ?? HandbookCategoriesConfig.CreateDefault();
+            }
+
+            if (config == null || config.HideVariantTypes == hideVariantTypes)
+            {
+                return;
+            }
+
+            config.HideVariantTypes = hideVariantTypes;
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
         }
 
@@ -572,6 +620,7 @@ namespace Enhanced_Handbook
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
                 onlyGridPages = true;
+                hideVariantTypes = false;
                 showOriginalSearchToggle = true;
                 useOriginalSearch = false;
                 showTutorialTab = true;
@@ -618,6 +667,7 @@ namespace Enhanced_Handbook
             }
 
             onlyGridPages = config?.OnlyGridPages ?? false;
+            hideVariantTypes = config?.HideVariantTypes ?? false;
             showTutorialTab = !(config?.DisableTutorialTab ?? false);
             showBlocksAndItemsTab = !(config?.DisableBlocksAndItemsTab ?? false);
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
@@ -1442,12 +1492,269 @@ namespace Enhanced_Handbook
                 }
             }
 
+            HashSet<string> seenVariantGroups = hideVariantTypes
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : null;
+
             foreach (WeightedHandbookPage weighted in weightedPages.OrderByDescending(w => w.Weight))
             {
-                shownPages.Add(weighted.Page);
+                GuiHandbookPage page = weighted.Page;
+                if (hideVariantTypes && seenVariantGroups != null)
+                {
+                    string variantKey = GetVariantGroupKey(page);
+                    if (!string.IsNullOrEmpty(variantKey) && !seenVariantGroups.Add(variantKey))
+                    {
+                        continue;
+                    }
+                }
+
+                shownPages.Add(page);
             }
 
             UpdateScrollArea(overviewGui, listHeight);
+        }
+
+        private static string GetVariantGroupKey(GuiHandbookPage page)
+        {
+            if (page == null)
+            {
+                return null;
+            }
+
+            if (page is GuiHandbookGroupedItemstackPage groupedPage)
+            {
+                if (groupedPage.Stacks != null)
+                {
+                    foreach (ItemStack stack in groupedPage.Stacks)
+                    {
+                        string key = GetVariantGroupKeyForStack(stack, groupedPage);
+                        if (!string.IsNullOrEmpty(key))
+                        {
+                            return key;
+                        }
+                    }
+                }
+
+                return GetVariantGroupKeyForStack(groupedPage.Stack, groupedPage);
+            }
+
+            if (page is GuiHandbookItemStackPage itemPage)
+            {
+                return GetVariantGroupKeyForStack(itemPage.Stack, page);
+            }
+
+            return null;
+        }
+
+        private static string GetVariantGroupKeyForStack(ItemStack stack, GuiHandbookPage page)
+        {
+            if (stack == null)
+            {
+                return null;
+            }
+
+            CollectibleObject collectible = stack.Collectible;
+            if (collectible == null)
+            {
+                return null;
+            }
+
+            string groupByKey = GetGroupByKey(collectible);
+            if (!string.IsNullOrEmpty(groupByKey))
+            {
+                return groupByKey;
+            }
+
+            string variantKey = BuildVariantPlaceholderKey(collectible);
+            if (string.IsNullOrEmpty(variantKey))
+            {
+                variantKey = collectible.Code?.ToString();
+            }
+
+            if (string.IsNullOrEmpty(variantKey))
+            {
+                variantKey = GetNormalizedPageCode(page);
+            }
+
+            string attributeKey = GetAttributeStructureKey(stack);
+            if (!string.IsNullOrEmpty(attributeKey))
+            {
+                return string.Concat(variantKey, "|attrs:", attributeKey);
+            }
+
+            return variantKey;
+        }
+
+        private static string GetGroupByKey(CollectibleObject collectible)
+        {
+            if (collectible == null)
+            {
+                return null;
+            }
+
+            JsonObject handbook = collectible.Attributes?["handbook"];
+            JsonObject groupBy = handbook?["groupBy"];
+            if (groupBy == null || !groupBy.Exists)
+            {
+                return null;
+            }
+
+            string[] patterns = groupBy.AsArray<string>();
+            if (patterns == null || patterns.Length == 0)
+            {
+                return null;
+            }
+
+            string domain = collectible.Code?.Domain ?? string.Empty;
+            StringBuilder builder = new StringBuilder();
+
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                string pattern = patterns[i] ?? string.Empty;
+                if (pattern.IndexOf(':') < 0 && !string.IsNullOrEmpty(domain))
+                {
+                    pattern = string.Concat(domain, ":", pattern);
+                }
+
+                if (i > 0)
+                {
+                    builder.Append('|');
+                }
+
+                builder.Append(pattern);
+            }
+
+            return builder.ToString();
+        }
+
+        private static string BuildVariantPlaceholderKey(CollectibleObject collectible)
+        {
+            AssetLocation code = collectible?.Code;
+            if (code == null)
+            {
+                return null;
+            }
+
+            string path = code.Path ?? string.Empty;
+            if (path.Length == 0)
+            {
+                return code.ToString();
+            }
+
+            int variantCount = collectible.VariantStrict?.Count ?? 0;
+            if (variantCount <= 0)
+            {
+                return code.ToString();
+            }
+
+            string[] parts = path.Split('-');
+            int baseSegmentCount = parts.Length - variantCount;
+            if (baseSegmentCount < 1)
+            {
+                baseSegmentCount = 1;
+            }
+
+            StringBuilder builder = new StringBuilder(parts[0]);
+            for (int i = 1; i < baseSegmentCount && i < parts.Length; i++)
+            {
+                builder.Append('-').Append(parts[i]);
+            }
+
+            int index = 0;
+            foreach (KeyValuePair<string, string> variant in collectible.VariantStrict)
+            {
+                builder.Append('-');
+                string key = variant.Key;
+                if (string.IsNullOrEmpty(key))
+                {
+                    key = string.Concat("variant", index.ToString(CultureInfo.InvariantCulture));
+                }
+                builder.Append('{').Append(key).Append('}');
+                index++;
+            }
+
+            if (parts.Length > baseSegmentCount + variantCount)
+            {
+                for (int i = baseSegmentCount + variantCount; i < parts.Length; i++)
+                {
+                    builder.Append('-').Append(parts[i]);
+                }
+            }
+
+            return string.Concat(code.Domain, ":", builder.ToString());
+        }
+
+        private static string GetAttributeStructureKey(ItemStack stack)
+        {
+            ITreeAttribute attributes = stack?.Attributes;
+            if (attributes == null || attributes.Count == 0)
+            {
+                return null;
+            }
+
+            ITreeAttribute clone = attributes.Clone();
+            if (clone == null)
+            {
+                return null;
+            }
+
+            string[] ignored = GlobalConstants.IgnoredStackAttributes;
+            if (ignored != null)
+            {
+                for (int i = 0; i < ignored.Length; i++)
+                {
+                    clone.RemoveAttribute(ignored[i]);
+                }
+            }
+
+            clone.RemoveAttribute("durability");
+
+            if (clone.Count == 0)
+            {
+                return null;
+            }
+
+            List<string> parts = new List<string>();
+            CollectAttributeStructureKeys(clone, parts, string.Empty);
+
+            if (parts.Count == 0)
+            {
+                return null;
+            }
+
+            parts.Sort(StringComparer.Ordinal);
+            return string.Join("|", parts);
+        }
+
+        private static void CollectAttributeStructureKeys(ITreeAttribute tree, List<string> parts, string prefix)
+        {
+            if (tree == null || parts == null)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<string, IAttribute> entry in tree)
+            {
+                string key = entry.Key;
+                if (string.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                string path = string.IsNullOrEmpty(prefix) ? key : string.Concat(prefix, "/", key);
+                IAttribute attribute = entry.Value;
+
+                if (attribute is ITreeAttribute childTree)
+                {
+                    parts.Add(string.Concat(path, "/tree"));
+                    CollectAttributeStructureKeys(childTree, parts, path);
+                }
+                else
+                {
+                    int attributeId = attribute?.GetAttributeId() ?? -1;
+                    parts.Add(string.Concat(path, ":", attributeId.ToString(CultureInfo.InvariantCulture)));
+                }
+            }
         }
 
         private static GuiHandbookItemStackPage FindPageForRecipe(GridRecipe recipe, Dictionary<string, GuiHandbookItemStackPage> itemPagesByCode)
@@ -2178,6 +2485,7 @@ namespace Enhanced_Handbook
             HandbookCategoriesConfig defaultConfig = HandbookCategoriesConfig.CreateDefault();
 
             if (config.OnlyGridPages != defaultConfig.OnlyGridPages
+                || config.HideVariantTypes != defaultConfig.HideVariantTypes
                 || config.DisableTutorialTab != defaultConfig.DisableTutorialTab
                 || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
                 || config.DisableGuidesTab != defaultConfig.DisableGuidesTab

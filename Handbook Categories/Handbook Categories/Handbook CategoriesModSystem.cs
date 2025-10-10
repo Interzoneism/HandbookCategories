@@ -1019,25 +1019,32 @@ namespace Enhanced_Handbook
             bool shouldShowOriginalToggle = HandbookCategoryManager.ShouldShowOriginalSearchToggle;
             ElementBounds originalSearchBounds = null;
             ElementBounds recipesOnlyBounds = null;
+            ElementBounds hideVariantsBounds = null;
 
             GuiElementToggleButton originalSearchToggle = overviewGui.GetToggleButton(HandbookCategoryManager.OriginalSearchToggleKey);
             GuiElementToggleButton recipesToggle = overviewGui.GetToggleButton(HandbookCategoryManager.RecipesOnlyToggleKey);
+            GuiElementToggleButton hideVariantsToggle = overviewGui.GetToggleButton(HandbookCategoryManager.HideVariantsToggleKey);
+
+            double toggleWidth = 0.0;
+            double toggleHeight = 0.0;
 
             if (pauseButton?.Bounds != null)
             {
-                double width = pauseButton.Bounds.fixedWidth;
-                double height = pauseButton.Bounds.fixedHeight;
-
-                recipesOnlyBounds = pauseButton.Bounds.CopyOffsetedSibling(-(width + pauseButtonSpacing), 0.0);
-                recipesOnlyBounds.fixedWidth = width;
-                recipesOnlyBounds.fixedHeight = height;
-
-                if (shouldShowOriginalToggle)
+                toggleWidth = pauseButton.Bounds.fixedWidth;
+                if (toggleWidth <= 0.0)
                 {
-                    originalSearchBounds = recipesOnlyBounds.CopyOffsetedSibling(-(width + toggleSpacing), 0.0);
-                    originalSearchBounds.fixedWidth = width;
-                    originalSearchBounds.fixedHeight = height;
+                    toggleWidth = pauseButtonDefaultWidth;
                 }
+
+                toggleHeight = pauseButton.Bounds.fixedHeight;
+                if (toggleHeight <= 0.0)
+                {
+                    toggleHeight = pauseButtonDefaultHeight;
+                }
+
+                recipesOnlyBounds = pauseButton.Bounds.CopyOffsetedSibling(-(toggleWidth + pauseButtonSpacing), 0.0);
+                recipesOnlyBounds.fixedWidth = toggleWidth;
+                recipesOnlyBounds.fixedHeight = toggleHeight;
             }
 
             if (recipesOnlyBounds == null)
@@ -1053,6 +1060,9 @@ namespace Enhanced_Handbook
                 {
                     height = searchInput?.Bounds?.fixedHeight ?? pauseButtonDefaultHeight;
                 }
+
+                toggleWidth = width;
+                toggleHeight = height;
 
                 ElementBounds baseBounds = ElementBounds.Fixed(pauseButtonDefaultX, pauseButtonDefaultY, width, height);
                 recipesOnlyBounds = baseBounds;
@@ -1074,6 +1084,9 @@ namespace Enhanced_Handbook
                     width = fallbackMinWidth;
                 }
 
+                toggleWidth = width;
+                toggleHeight = height;
+
                 ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
                 baseBounds.fixedWidth = width;
                 baseBounds.fixedHeight = height;
@@ -1081,13 +1094,23 @@ namespace Enhanced_Handbook
                 if (shouldShowOriginalToggle)
                 {
                     originalSearchBounds = baseBounds;
-                    recipesOnlyBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                    hideVariantsBounds = originalSearchBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                    hideVariantsBounds.fixedWidth = width;
+                    hideVariantsBounds.fixedHeight = height;
+
+                    recipesOnlyBounds = hideVariantsBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
                     recipesOnlyBounds.fixedWidth = width;
                     recipesOnlyBounds.fixedHeight = height;
                 }
                 else
                 {
-                    recipesOnlyBounds = baseBounds;
+                    hideVariantsBounds = baseBounds;
+                    hideVariantsBounds.fixedWidth = width;
+                    hideVariantsBounds.fixedHeight = height;
+
+                    recipesOnlyBounds = hideVariantsBounds.CopyOffsetedSibling(width + toggleSpacing, 0.0);
+                    recipesOnlyBounds.fixedWidth = width;
+                    recipesOnlyBounds.fixedHeight = height;
                 }
             }
 
@@ -1096,9 +1119,62 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            double resolvedWidth = toggleWidth > 0.0 ? toggleWidth : (recipesOnlyBounds.fixedWidth > 0.0 ? recipesOnlyBounds.fixedWidth : pauseButtonDefaultWidth);
+            double resolvedHeight = toggleHeight > 0.0 ? toggleHeight : (recipesOnlyBounds.fixedHeight > 0.0 ? recipesOnlyBounds.fixedHeight : pauseButtonDefaultHeight);
+
+            recipesOnlyBounds.fixedWidth = resolvedWidth;
+            recipesOnlyBounds.fixedHeight = resolvedHeight;
+
+            if (hideVariantsBounds == null)
+            {
+                if (shouldShowOriginalToggle && originalSearchBounds != null)
+                {
+                    originalSearchBounds.fixedWidth = resolvedWidth;
+                    originalSearchBounds.fixedHeight = resolvedHeight;
+
+                    hideVariantsBounds = originalSearchBounds.CopyOffsetedSibling(resolvedWidth + toggleSpacing, 0.0);
+                    hideVariantsBounds.fixedWidth = resolvedWidth;
+                    hideVariantsBounds.fixedHeight = resolvedHeight;
+
+                    ElementBounds adjustedRecipes = hideVariantsBounds.CopyOffsetedSibling(resolvedWidth + toggleSpacing, 0.0);
+                    adjustedRecipes.fixedWidth = resolvedWidth;
+                    adjustedRecipes.fixedHeight = resolvedHeight;
+                    recipesOnlyBounds = adjustedRecipes;
+                }
+                else
+                {
+                    hideVariantsBounds = recipesOnlyBounds.CopyOffsetedSibling(-(resolvedWidth + toggleSpacing), 0.0);
+                    hideVariantsBounds.fixedWidth = resolvedWidth;
+                    hideVariantsBounds.fixedHeight = resolvedHeight;
+
+                    if (shouldShowOriginalToggle)
+                    {
+                        originalSearchBounds = hideVariantsBounds.CopyOffsetedSibling(-(resolvedWidth + toggleSpacing), 0.0);
+                        originalSearchBounds.fixedWidth = resolvedWidth;
+                        originalSearchBounds.fixedHeight = resolvedHeight;
+                    }
+                }
+            }
+            else
+            {
+                hideVariantsBounds.fixedWidth = resolvedWidth;
+                hideVariantsBounds.fixedHeight = resolvedHeight;
+
+                if (shouldShowOriginalToggle && originalSearchBounds != null)
+                {
+                    originalSearchBounds.fixedWidth = resolvedWidth;
+                    originalSearchBounds.fixedHeight = resolvedHeight;
+                }
+            }
+
             if (shouldShowOriginalToggle && originalSearchBounds == null)
             {
                 shouldShowOriginalToggle = false;
+            }
+
+            if (hideVariantsBounds == null)
+            {
+                return;
             }
 
             CairoFont font = pauseButton?.Font ?? recipesToggle?.Font ?? CairoFont.WhiteDetailText();
@@ -1155,6 +1231,43 @@ namespace Enhanced_Handbook
                 originalSearchToggle.Bounds.fixedWidth = 0.0;
                 originalSearchToggle.Bounds.fixedHeight = 0.0;
                 originalSearchToggle.Bounds.CalcWorldBounds();
+            }
+
+            bool desiredHideVariantsState = HandbookCategoryManager.HideVariantTypesEnabled;
+            string hideVariantsText = HandbookCategoryManager.GetHideVariantsToggleText();
+
+            if (hideVariantsToggle == null)
+            {
+                hideVariantsToggle = new GuiElementToggleButton(api, string.Empty, hideVariantsText, font, on => OnHideVariantsToggled(dialog, on), hideVariantsBounds, toggleable: true);
+                hideVariantsToggle.SetValue(desiredHideVariantsState);
+                hideVariantsToggle.Bounds.CalcWorldBounds();
+                overviewGui.AddInteractiveElement(hideVariantsToggle, HandbookCategoryManager.HideVariantsToggleKey);
+                recompose = true;
+            }
+            else
+            {
+                if (hideVariantsBounds != null)
+                {
+                    hideVariantsToggle.Bounds = hideVariantsBounds;
+                    hideVariantsToggle.Bounds.CalcWorldBounds();
+                }
+
+                if (hideVariantsToggle.On != desiredHideVariantsState)
+                {
+                    hideVariantsToggle.SetValue(desiredHideVariantsState);
+                }
+
+                if (!string.Equals(hideVariantsToggle.Text, hideVariantsText, StringComparison.Ordinal))
+                {
+                    hideVariantsToggle.Text = hideVariantsText;
+                    recompose = true;
+                }
+
+            }
+
+            if (hideVariantsToggle != null)
+            {
+                hideVariantsToggle.Enabled = true;
             }
 
             bool desiredRecipesState = HandbookCategoryManager.RecipesOnlyEnabled;
@@ -1441,6 +1554,19 @@ namespace Enhanced_Handbook
         {
             string searchText = CaptureActiveSearchText(dialog);
             bool stateChanged = HandbookCategoryManager.TrySetRecipesOnly(enabled);
+
+            RefreshActiveTab(dialog, clearSearch: false, searchTextToRestore: searchText);
+
+            if (stateChanged)
+            {
+                HandbookCategoryManager.RequestTabsRebuild();
+            }
+        }
+
+        private static void OnHideVariantsToggled(GuiDialogHandbook dialog, bool enabled)
+        {
+            string searchText = CaptureActiveSearchText(dialog);
+            bool stateChanged = HandbookCategoryManager.TrySetHideVariantTypes(enabled);
 
             RefreshActiveTab(dialog, clearSearch: false, searchTextToRestore: searchText);
 

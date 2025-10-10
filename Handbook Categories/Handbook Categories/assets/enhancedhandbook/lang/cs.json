@@ -3,5 +3,6 @@
   "button-delete-category": "Odstranit kategorii",
   "tab-armor": "Brnění",
   "toggle-original-search": "Původní vyhledávání",
-  "toggle-recipes-only": "Pouze recepty"
+  "toggle-recipes-only": "Pouze recepty",
+  "toggle-hide-types": "Hide Types"
 }

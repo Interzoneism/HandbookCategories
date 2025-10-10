@@ -3,5 +3,6 @@
   "button-delete-category": "Удалить категорию",
   "tab-armor": "Доспехи",
   "toggle-original-search": "Оригинальный поиск",
-  "toggle-recipes-only": "Только рецепты"
+  "toggle-recipes-only": "Только рецепты",
+  "toggle-hide-types": "Hide Types"
 }

@@ -3,5 +3,6 @@
   "button-delete-category": "Radera kategori",
   "tab-armor": "Rustning",
   "toggle-original-search": "Originalsökning",
-  "toggle-recipes-only": "Endast recept"
+  "toggle-recipes-only": "Endast recept",
+  "toggle-hide-types": "Hide Types"
 }

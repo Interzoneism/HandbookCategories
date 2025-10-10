@@ -10,6 +10,9 @@ namespace Enhanced_Handbook
         [JsonProperty("onlyGridPages")]
         public bool OnlyGridPages { get; set; } = false;
 
+        [JsonProperty("hideVariantTypes")]
+        public bool HideVariantTypes { get; set; } = false;
+
         [JsonProperty("disableTutorialTab")]
         public bool DisableTutorialTab { get; set; }
 
@@ -41,6 +44,7 @@ namespace Enhanced_Handbook
                 DisableGuidesTab = false,
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
+                HideVariantTypes = false,
                 UsesEnglishDefaults = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {

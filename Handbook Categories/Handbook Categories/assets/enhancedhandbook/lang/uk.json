@@ -3,5 +3,6 @@
   "button-delete-category": "Видалити категорію",
   "tab-armor": "Броня",
   "toggle-original-search": "Оригінальний пошук",
-  "toggle-recipes-only": "Тільки рецепти"
+  "toggle-recipes-only": "Тільки рецепти",
+  "toggle-hide-types": "Hide Types"
 }

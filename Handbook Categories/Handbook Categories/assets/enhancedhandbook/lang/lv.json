@@ -3,5 +3,6 @@
   "button-delete-category": "Dzēst kategoriju",
   "tab-armor": "Bruņas",
   "toggle-original-search": "Oriģināla meklēšana",
-  "toggle-recipes-only": "Tikai receptes"
+  "toggle-recipes-only": "Tikai receptes",
+  "toggle-hide-types": "Hide Types"
 }
