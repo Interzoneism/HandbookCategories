@@ -41,6 +41,7 @@ namespace Enhanced_Handbook
         private const string GroupPageCodePrefix = "handbookcategories-grouppage-";
         private const string EverythingCategoryKey = "\0";
         private const string DefaultGroupName = "Group";
+        private const string GroupTabBackgroundColorName = "yellow";
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -2232,6 +2233,11 @@ namespace Enhanced_Handbook
             return groupPage.DisplayCategoryCode == null;
         }
 
+        private static double[] CreateGroupBackgroundColor()
+        {
+            return HandbookCategoryColors.ResolveBackgroundColorOrDefault(GroupTabBackgroundColorName);
+        }
+
         private static void RegisterGroupPage(GroupHandbookPage groupPage)
         {
             if (groupPage == null)
@@ -2251,7 +2257,7 @@ namespace Enhanced_Handbook
                 pagesByCategory[hiddenCode] = groupPage.Members.Where(page => page != null).ToList();
                 displayNameByCategory[hiddenCode] = groupPage.DisplayName;
                 translationKeyByCategory[hiddenCode] = null;
-                tabBackgroundByCategory[hiddenCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
+                tabBackgroundByCategory[hiddenCode] = CreateGroupBackgroundColor();
             }
 
             foreach (GuiHandbookPage member in groupPage.Members)
@@ -2736,7 +2742,7 @@ namespace Enhanced_Handbook
                 pagesByCategory[hiddenCode] = members;
                 displayNameByCategory[hiddenCode] = group.DisplayName;
                 translationKeyByCategory[hiddenCode] = null;
-                tabBackgroundByCategory[hiddenCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
+                tabBackgroundByCategory[hiddenCode] = CreateGroupBackgroundColor();
 
                 foreach (GuiHandbookPage member in members)
                 {
