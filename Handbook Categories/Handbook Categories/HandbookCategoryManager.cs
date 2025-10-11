@@ -1653,6 +1653,7 @@ namespace Enhanced_Handbook
             }
 
             bool allowMatches = selectedWords.Count > 0;
+            int? allowedDifferingIndex = null;
 
             for (int index = 0; index < shownPages.Count; index++)
             {
@@ -1683,9 +1684,21 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out _))
+                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out int differingIndex))
                 {
                     continue;
+                }
+
+                if (allowedDifferingIndex.HasValue)
+                {
+                    if (differingIndex >= 0 && allowedDifferingIndex.Value != differingIndex)
+                    {
+                        continue;
+                    }
+                }
+                else if (differingIndex >= 0)
+                {
+                    allowedDifferingIndex = differingIndex;
                 }
 
                 candidateEntries.Add(new HiddenPageEntry(candidate, index));
