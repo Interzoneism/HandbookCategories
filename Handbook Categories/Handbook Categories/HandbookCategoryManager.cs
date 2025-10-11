@@ -4186,6 +4186,11 @@ namespace Enhanced_Handbook
             ApplyCreateButtonEnabledState(trackedCreateButton);
         }
 
+        internal static bool IsCreateCategoryPromptOpen()
+        {
+            return createCategoryPromptOpen;
+        }
+
         internal static bool TryExecuteCategoryDeleteCommand(GuiDialogHandbook dialog)
         {
             if (dialog == null || capi == null)
