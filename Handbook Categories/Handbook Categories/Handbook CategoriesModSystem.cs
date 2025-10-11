@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -84,6 +86,13 @@ namespace Enhanced_Handbook
 
             harmony.Patch(AccessTools.Method(baseType, "onLeftClickListElement"),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnLeftClickListElementPrefix)));
+
+            harmony.Patch(AccessTools.Method(baseType, "OnButtonBack"),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnButtonBackPrefix)));
+
+            harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnRenderGUI), new[] { typeof(float) }),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)),
+                transpiler: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiTranspiler)));
 
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
@@ -940,12 +949,79 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
+            {
+                return false;
+            }
+
             if (HandbookPageDragManager.TryHandleShiftClick(__instance, index))
             {
                 return false;
             }
 
+            if (HandbookCategoryManager.TryHandleGroupPageClick(__instance, index))
+            {
+                return false;
+            }
+
             return !HandbookPageDragManager.TryConsumeClickSuppression();
+        }
+
+        public static bool OnButtonBackPrefix(GuiDialogHandbook __instance, ref bool __result)
+        {
+            if (!HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return true;
+            }
+
+            if (HandbookCategoryManager.TryHandleGroupBackNavigation(__instance))
+            {
+                __result = true;
+                return false;
+            }
+
+            return true;
+        }
+
+        public static IEnumerable<CodeInstruction> OnRenderGuiTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+        {
+            if (instructions == null)
+            {
+                yield break;
+            }
+
+            LocalBuilder baseEnabledLocal = generator?.DeclareLocal(typeof(bool));
+            MethodInfo setEnabled = AccessTools.PropertySetter(typeof(GuiElementTextButton), nameof(GuiElementTextButton.Enabled));
+            MethodInfo shouldEnable = AccessTools.Method(typeof(HandbookCategoryManager), nameof(HandbookCategoryManager.ShouldEnableBackButton));
+
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (setEnabled != null && instruction.Calls(setEnabled))
+                {
+                    if (baseEnabledLocal != null && shouldEnable != null)
+                    {
+                        yield return new CodeInstruction(OpCodes.Stloc, baseEnabledLocal);
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Ldloc, baseEnabledLocal);
+                        yield return new CodeInstruction(OpCodes.Call, shouldEnable);
+                    }
+
+                    yield return instruction;
+                    continue;
+                }
+
+                yield return instruction;
+            }
+        }
+
+        public static void OnRenderGuiPostfix(GuiDialogHandbook __instance)
+        {
+            if (__instance == null)
+            {
+                return;
+            }
+
+            HandbookCategoryManager.UpdateBackButtonState(__instance);
         }
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
@@ -1004,6 +1080,8 @@ namespace Enhanced_Handbook
             }
 
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, candidatePages, shownPages, overviewGui, currentSearch, loading, listHeight);
+
+            HandbookCategoryManager.UpdateBackButtonState(__instance);
 
             return false;
         }

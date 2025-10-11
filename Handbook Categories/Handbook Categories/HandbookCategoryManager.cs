@@ -37,16 +37,30 @@ namespace Enhanced_Handbook
         private static readonly int CollapseHighlightColor = ColorUtil.ToRgba(160, 255, 230, 0);
         private static readonly int RestoreHighlightColor = ColorUtil.ToRgba(160, 80, 140, 255);
 
+        private const string GroupCategoryCodePrefix = "handbookcategories-groupcat-";
+        private const string GroupPageCodePrefix = "handbookcategories-grouppage-";
+        private const string EverythingCategoryKey = "\0";
+        private const string DefaultGroupName = "Group";
+
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
         private static readonly Dictionary<string, string> translationKeyByCategory = new();
         private static readonly List<string> orderedCategories = new();
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
         private static readonly Dictionary<GuiHandbookPage, string> englishNormalizedTitleByPage = new();
-        private static readonly Dictionary<GuiHandbookPage, HiddenPageCache> hiddenPagesBySource = new();
         private static readonly Dictionary<GuiHandbookPage, RowHighlight> rowHighlights = new();
+        private static readonly List<GroupHandbookPage> activeGroupPages = new();
+        private static readonly Dictionary<GuiHandbookPage, GroupHandbookPage> groupByMemberPage = new();
+        private static readonly Dictionary<string, GroupHandbookPage> groupByHiddenCategoryCode = new(StringComparer.Ordinal);
+        private static readonly Dictionary<string, List<GroupHandbookPage>> groupPagesByDisplayCategory = new(StringComparer.Ordinal);
+        private static readonly Dictionary<GuiDialogHandbook, PendingGroupCreation> pendingGroupCreations = new();
+        private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static int nextGroupId = 1;
+        private static HandbookGroupConfig groupConfig = HandbookGroupConfig.CreateDefault();
+        private static readonly Dictionary<string, HandbookGroupConfigEntry> groupConfigEntriesByHiddenCode = new(StringComparer.Ordinal);
 
         private const string EnglishLocaleCode = "en";
         private static bool usingDefaultEnglishWordCategories;
@@ -469,18 +483,6 @@ namespace Enhanced_Handbook
             }
         }
 
-        private sealed class HiddenPageCache
-        {
-            internal HiddenPageCache(string originalTitle)
-            {
-                OriginalTitle = originalTitle ?? string.Empty;
-            }
-
-            internal string OriginalTitle { get; }
-
-            internal List<HiddenPageEntry> HiddenPages { get; } = new();
-        }
-
         private sealed class HiddenPageEntry
         {
             internal HiddenPageEntry(GuiHandbookPage page, int index)
@@ -492,6 +494,83 @@ namespace Enhanced_Handbook
             internal GuiHandbookPage Page { get; }
 
             internal int Index { get; }
+        }
+
+        private sealed class RowHighlight
+        {
+            internal RowHighlight(int color, long expiresAtMs)
+            {
+                Color = color;
+                ExpiresAtMs = expiresAtMs;
+            }
+
+            internal int Color { get; }
+
+            internal long ExpiresAtMs { get; }
+        }
+
+        private sealed class PendingGroupCreation
+        {
+            internal PendingGroupCreation(
+                GuiDialogHandbook dialog,
+                GuiComposer overviewGui,
+                GuiElementFlatList searchList,
+                List<IFlatListItem> shownPages,
+                List<GuiHandbookPage> members,
+                int insertIndex,
+                string displayCategoryCode,
+                GuiHandbookPage selectedPage)
+            {
+                Dialog = dialog;
+                OverviewGui = overviewGui;
+                SearchList = searchList;
+                ShownPages = shownPages;
+                Members = members;
+                InsertIndex = insertIndex;
+                DisplayCategoryCode = displayCategoryCode;
+                SelectedPage = selectedPage;
+            }
+
+            internal GuiDialogHandbook Dialog { get; }
+
+            internal GuiComposer OverviewGui { get; }
+
+            internal GuiElementFlatList SearchList { get; }
+
+            internal List<IFlatListItem> ShownPages { get; }
+
+            internal List<GuiHandbookPage> Members { get; }
+
+            internal int InsertIndex { get; }
+
+            internal string DisplayCategoryCode { get; }
+
+            internal GuiHandbookPage SelectedPage { get; }
+        }
+
+        private readonly struct WeightedHandbookPage
+        {
+            internal GuiHandbookPage Page { get; init; }
+
+            internal float Weight { get; init; }
+
+            internal int SortHint { get; init; }
+        }
+
+        private sealed class GroupNavigationState
+        {
+            internal GroupNavigationState(string previousCategoryCode, string hiddenCategoryCode, float scrollPosition)
+            {
+                PreviousCategoryCode = previousCategoryCode;
+                HiddenCategoryCode = hiddenCategoryCode;
+                ScrollPosition = scrollPosition;
+            }
+
+            internal string PreviousCategoryCode { get; }
+
+            internal string HiddenCategoryCode { get; }
+
+            internal float ScrollPosition { get; }
         }
 
         private sealed class RowHighlight
@@ -630,6 +709,9 @@ namespace Enhanced_Handbook
                 enableDragAndDrop = false;
                 usingDefaultEnglishWordCategories = false;
                 HandbookPageDragManager.SetEnabled(null, false);
+                groupConfig = HandbookGroupConfig.CreateDefault();
+                groupConfigEntriesByHiddenCode.Clear();
+                ResetNextGroupIdFromConfig();
                 return;
             }
 
@@ -687,6 +769,110 @@ namespace Enhanced_Handbook
             {
                 capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             }
+
+            LoadGroupConfiguration();
+        }
+
+        private static void LoadGroupConfiguration()
+        {
+            if (capi == null)
+            {
+                groupConfig = HandbookGroupConfig.CreateDefault();
+                groupConfigEntriesByHiddenCode.Clear();
+                ResetNextGroupIdFromConfig();
+                return;
+            }
+
+            HandbookGroupConfig loaded = capi.LoadModConfig<HandbookGroupConfig>(HandbookGroupConfig.ConfigFileName);
+            bool shouldStore = false;
+
+            if (loaded == null)
+            {
+                loaded = HandbookGroupConfig.CreateDefault();
+                shouldStore = true;
+            }
+
+            groupConfig = loaded ?? HandbookGroupConfig.CreateDefault();
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            if (NormalizeGroupConfiguration())
+            {
+                shouldStore = true;
+            }
+
+            if (shouldStore)
+            {
+                StoreGroupConfig();
+            }
+            else
+            {
+                ResetNextGroupIdFromConfig();
+            }
+        }
+
+        private static bool NormalizeGroupConfiguration()
+        {
+            if (groupConfig == null)
+            {
+                groupConfig = HandbookGroupConfig.CreateDefault();
+                groupConfigEntriesByHiddenCode.Clear();
+                ResetNextGroupIdFromConfig();
+                return false;
+            }
+
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            var normalizedGroups = new List<HandbookGroupConfigEntry>();
+            var seenIds = new HashSet<int>();
+            var seenHiddenCodes = new HashSet<string>(StringComparer.Ordinal);
+            bool changed = false;
+
+            foreach (HandbookGroupConfigEntry entry in groupConfig.Groups)
+            {
+                if (entry == null)
+                {
+                    changed = true;
+                    continue;
+                }
+
+                if (entry.MemberPageCodes == null)
+                {
+                    entry.MemberPageCodes = new List<string>();
+                    changed = true;
+                }
+
+                if (NormalizeGroupConfigEntry(entry, seenIds, seenHiddenCodes))
+                {
+                    changed = true;
+                }
+
+                normalizedGroups.Add(entry);
+            }
+
+            if (normalizedGroups.Count != groupConfig.Groups.Count)
+            {
+                groupConfig.Groups = normalizedGroups;
+                changed = true;
+            }
+            else if (!ReferenceEquals(groupConfig.Groups, normalizedGroups))
+            {
+                groupConfig.Groups = normalizedGroups;
+            }
+
+            groupConfigEntriesByHiddenCode.Clear();
+            foreach (HandbookGroupConfigEntry entry in groupConfig.Groups)
+            {
+                if (entry?.HiddenCategoryCode == null)
+                {
+                    continue;
+                }
+
+                groupConfigEntriesByHiddenCode[entry.HiddenCategoryCode] = entry;
+            }
+
+            ResetNextGroupIdFromConfig();
+
+            return changed;
         }
 
         internal static bool ShouldDisplayVanillaTab(string categoryCode)
@@ -740,6 +926,8 @@ namespace Enhanced_Handbook
             trackedHandbookDialog = null;
             categoriesInitialized = false;
             categoriesDirty = true;
+
+            ClearGroupData();
 
             HandbookPageDragManager.Clear();
 
@@ -1322,6 +1510,9 @@ namespace Enhanced_Handbook
                 tabBackgroundByCategory[categoryCode] = definition.BackgroundColor;
             }
 
+            LoadGroupPagesFromConfig(allPages);
+            RestoreGroupCategories();
+
             categoriesInitialized = true;
             categoriesDirty = false;
         }
@@ -1379,7 +1570,7 @@ namespace Enhanced_Handbook
 
                 PageTitleData titleData = GetPageTitleData(page);
                 string normalizedTitle = titleData.NormalizedPrimaryTitle;
-                string searchableContent = GetSearchableContent(titleData);
+                string searchableContent = GetSearchableContent(page, titleData);
                 HashSet<string> searchableWords = ExtractWords(searchableContent);
 
                 for (int i = 0; i < wordCategories.Length; i++)
@@ -1483,17 +1674,27 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
+                if (ShouldHidePageForCategory(page, categoryCode))
+                {
+                    continue;
+                }
+
                 if (MatchesSearchQuery(page, searchQuery, out float weight))
                 {
                     weightedPages.Add(new WeightedHandbookPage
                     {
                         Page = page,
-                        Weight = weight
+                        Weight = weight,
+                        SortHint = page?.PageNumber ?? int.MaxValue
                     });
                 }
             }
 
-            foreach (WeightedHandbookPage weighted in weightedPages.OrderByDescending(w => w.Weight))
+            AppendGroupPages(categoryCode, searchQuery, weightedPages);
+
+            foreach (WeightedHandbookPage weighted in weightedPages
+                .OrderByDescending(w => w.Weight)
+                .ThenBy(w => w.SortHint))
             {
                 shownPages.Add(weighted.Page);
             }
@@ -1501,198 +1702,1181 @@ namespace Enhanced_Handbook
             UpdateScrollArea(overviewGui, listHeight);
         }
 
-        internal static void HandleSearchEntryHideSimilar(GuiDialogHandbook dialog, GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
+        internal static bool TryHandleGroupShiftClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage)
+        {
+            return TryHandleGroupClick(
+                dialog,
+                overviewGui,
+                searchList,
+                selectedPage,
+                GetNormalizedPageCode,
+                ExtractOrderedPageCodeWords,
+                minimumWordCount: 3);
+        }
+
+        internal static bool TryHandleGroupCtrlClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage)
+        {
+            return TryHandleGroupClick(
+                dialog,
+                overviewGui,
+                searchList,
+                selectedPage,
+                GetLocalizedPageTitle,
+                ExtractOrderedWordsPreservingCase);
+        }
+
+        private static bool TryHandleGroupClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage,
+            System.Func<GuiHandbookPage, string> keySelector,
+            System.Func<string, List<string>> wordExtractor,
+            int minimumWordCount = 0)
         {
             if (dialog == null || selectedPage == null)
             {
-                return;
+                return false;
+            }
+
+            if (selectedPage is GroupHandbookPage existingGroup)
+            {
+                return TryRemoveGroupPage(dialog, overviewGui, searchList, existingGroup);
+            }
+
+            if (groupByMemberPage.ContainsKey(selectedPage))
+            {
+                return false;
             }
 
             if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages || shownPages.Count == 0)
             {
-                return;
+                return false;
             }
 
-            if (hiddenPagesBySource.TryGetValue(selectedPage, out HiddenPageCache cachedHiddenPages))
+            int selectedIndex = shownPages.IndexOf(selectedPage);
+            if (selectedIndex < 0)
             {
-                if (cachedHiddenPages.HiddenPages.Count == 0)
-                {
-                    hiddenPagesBySource.Remove(selectedPage);
-                }
-                else
-                {
-                    RestoreHiddenPages(dialog, overviewGui, searchList, shownPages, selectedPage, cachedHiddenPages);
-                    hiddenPagesBySource.Remove(selectedPage);
-                    return;
-                }
+                return false;
             }
 
-            string normalizedSelectedCode = GetNormalizedPageCode(selectedPage);
-            if (string.IsNullOrWhiteSpace(normalizedSelectedCode))
+            List<HiddenPageEntry> candidateEntries = new()
             {
-                return;
+                new HiddenPageEntry(selectedPage, selectedIndex)
+            };
+
+            string selectedKey = GetGroupingKey(selectedPage, keySelector);
+            List<string> selectedWords = ExtractWordsForGrouping(selectedKey, wordExtractor);
+            if (minimumWordCount > 0 && selectedWords.Count > 0 && selectedWords.Count < minimumWordCount)
+            {
+                return false;
+            }
+            if (selectedWords.Count == 0 && !string.IsNullOrWhiteSpace(selectedKey))
+            {
+                selectedWords.Add(selectedKey.Trim());
             }
 
-            List<string> selectedWords = ExtractOrderedPageCodeWords(normalizedSelectedCode);
-            if (selectedWords.Count == 0)
-            {
-                selectedWords.Add(normalizedSelectedCode);
-            }
+            bool allowMatches = selectedWords.Count > 0;
+            int? allowedDifferingIndex = null;
 
-            List<HiddenPageEntry> pagesToHide = new();
-            int matchCount = 0;
-
-            for (int index = 0; index < shownPages.Count; index++)
+            foreach (int index in EnumerateGroupSearchOrder(shownPages.Count, selectedIndex))
             {
-                if (shownPages[index] is not GuiHandbookPage page)
+                if (shownPages[index] is not GuiHandbookPage candidate || ReferenceEquals(candidate, selectedPage))
                 {
                     continue;
                 }
 
-                string normalizedCandidateCode = GetNormalizedPageCode(page);
-                if (string.IsNullOrWhiteSpace(normalizedCandidateCode))
+                if (candidate is GroupHandbookPage || groupByMemberPage.ContainsKey(candidate))
                 {
                     continue;
                 }
 
-                List<string> candidateWords = ExtractOrderedPageCodeWords(normalizedCandidateCode);
+                string candidateKey = GetGroupingKey(candidate, keySelector);
+                if (string.IsNullOrWhiteSpace(candidateKey))
+                {
+                    continue;
+                }
+
+                List<string> candidateWords = ExtractWordsForGrouping(candidateKey, wordExtractor);
+                if (minimumWordCount > 0 && candidateWords.Count > 0 && candidateWords.Count < minimumWordCount)
+                {
+                    continue;
+                }
                 if (candidateWords.Count == 0)
                 {
-                    candidateWords.Add(normalizedCandidateCode);
+                    candidateWords.Add(candidateKey.Trim());
                 }
 
-                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out _))
+                if (!allowMatches)
                 {
                     continue;
                 }
 
-                matchCount++;
-
-                if (!ReferenceEquals(page, selectedPage))
+                if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out int differingIndex))
                 {
-                    pagesToHide.Add(new HiddenPageEntry(page, index));
+                    continue;
                 }
+
+                if (allowedDifferingIndex.HasValue)
+                {
+                    if (differingIndex >= 0 && allowedDifferingIndex.Value != differingIndex)
+                    {
+                        continue;
+                    }
+                }
+                else if (differingIndex >= 0)
+                {
+                    allowedDifferingIndex = differingIndex;
+                }
+
+                candidateEntries.Add(new HiddenPageEntry(candidate, index));
             }
 
-            if (matchCount <= 1)
-            {
-                hiddenPagesBySource.Remove(selectedPage);
-                return;
-            }
+            candidateEntries.Sort((a, b) => a.Index.CompareTo(b.Index));
 
-            HiddenPageCache cache = new HiddenPageCache(GetLocalizedPageTitle(selectedPage));
-
-            foreach (HiddenPageEntry entry in pagesToHide)
+            List<GuiHandbookPage> members = new();
+            foreach (HiddenPageEntry entry in candidateEntries)
             {
                 if (entry?.Page == null)
                 {
                     continue;
                 }
 
-                if (shownPages.Remove(entry.Page))
+                if (!members.Contains(entry.Page))
                 {
-                    cache.HiddenPages.Add(entry);
+                    members.Add(entry.Page);
                 }
             }
 
-            if (cache.HiddenPages.Count == 0)
+            if (members.Count == 0)
+            {
+                members.Add(selectedPage);
+            }
+
+            int insertIndex = candidateEntries.Count > 0
+                ? Math.Max(0, candidateEntries.Min(entry => entry.Index))
+                : selectedIndex;
+
+            PendingGroupCreation pending = new(
+                dialog,
+                overviewGui,
+                searchList,
+                shownPages,
+                members,
+                insertIndex,
+                dialog.currentCatgoryCode,
+                selectedPage);
+
+            pendingGroupCreations[dialog] = pending;
+
+            string defaultName = GetDefaultGroupName(selectedPage);
+            ShowGroupNamePrompt(pending, defaultName);
+
+            return true;
+        }
+
+        private static IEnumerable<int> EnumerateGroupSearchOrder(int pageCount, int selectedIndex)
+        {
+            if (pageCount <= 0)
+            {
+                yield break;
+            }
+
+            if (selectedIndex < 0)
+            {
+                selectedIndex = 0;
+            }
+            else if (selectedIndex >= pageCount)
+            {
+                selectedIndex = pageCount - 1;
+            }
+
+            for (int index = selectedIndex + 1; index < pageCount; index++)
+            {
+                yield return index;
+            }
+
+            for (int index = selectedIndex - 1; index >= 0; index--)
+            {
+                yield return index;
+            }
+        }
+
+        internal static bool TryAddPageToGroup(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GroupHandbookPage groupPage,
+            GuiHandbookPage memberPage)
+        {
+            if (dialog == null || groupPage == null || memberPage == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(groupPage, memberPage) || memberPage is GroupHandbookPage)
+            {
+                return false;
+            }
+
+            if (groupByMemberPage.TryGetValue(memberPage, out GroupHandbookPage existingGroup) && existingGroup != null)
+            {
+                return false;
+            }
+
+            bool added = groupPage.AddMembers(new[] { memberPage });
+            if (!added)
+            {
+                return false;
+            }
+
+            groupByMemberPage[memberPage] = groupPage;
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (!string.IsNullOrEmpty(hiddenCode))
+            {
+                pagesByCategory[hiddenCode] = groupPage.Members
+                    .Where(page => page != null)
+                    .ToList();
+            }
+
+            UpdateConfigEntryMembers(groupPage);
+
+            if (ShownPagesField?.GetValue(dialog) is List<IFlatListItem> shownPages)
+            {
+                int index = shownPages.IndexOf(memberPage);
+                if (index >= 0)
+                {
+                    shownPages.RemoveAt(index);
+
+                    searchList?.CalcTotalHeight();
+
+                    if (overviewGui != null)
+                    {
+                        UpdateScrollArea(overviewGui, GetListHeight(dialog));
+                    }
+                }
+            }
+
+            CenterSearchListOnPage(overviewGui, searchList, groupPage);
+            AddRowHighlight(groupPage, CollapseHighlightColor, RowHighlightDurationMs);
+
+            return true;
+        }
+
+        private static string GetGroupingKey(GuiHandbookPage page, System.Func<GuiHandbookPage, string> selector)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string key = selector?.Invoke(page);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                return key;
+            }
+
+            return GetNormalizedPageCode(page);
+        }
+
+        private static List<string> ExtractWordsForGrouping(string key, System.Func<string, List<string>> extractor)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return new List<string>();
+            }
+
+            List<string> words = extractor?.Invoke(key) ?? new List<string>();
+
+            if (words.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            List<string> filtered = new(words.Count);
+            for (int i = 0; i < words.Count; i++)
+            {
+                string word = words[i];
+                if (!string.IsNullOrWhiteSpace(word))
+                {
+                    filtered.Add(word.Trim());
+                }
+            }
+
+            return filtered;
+        }
+
+        private static string GetDefaultGroupName(GuiHandbookPage selectedPage)
+        {
+            string title = GetLocalizedPageTitle(selectedPage);
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return DefaultGroupName;
+            }
+
+            string trimmed = TrimCategoryNameToMaximum(title, out _);
+            return string.IsNullOrWhiteSpace(trimmed) ? DefaultGroupName : trimmed;
+        }
+
+        private static void ShowGroupNamePrompt(PendingGroupCreation pending, string initialName)
+        {
+            if (pending == null)
             {
                 return;
             }
 
-            hiddenPagesBySource[selectedPage] = cache;
+            ICoreClientAPI api = capi;
+            if (api == null)
+            {
+                return;
+            }
+
+            string sanitizedInitial = string.IsNullOrWhiteSpace(initialName) ? DefaultGroupName : initialName.Trim();
+            sanitizedInitial = TrimCategoryNameToMaximum(sanitizedInitial, out _);
+            if (string.IsNullOrWhiteSpace(sanitizedInitial))
+            {
+                sanitizedInitial = DefaultGroupName;
+            }
+
+            var prompt = new CreateCategoryPromptDialog(
+                api,
+                value => FinalizePendingGroupCreation(pending, value),
+                GetCreateCategoryPromptTitle(),
+                GetCreateCategoryPromptMessage(),
+                GetCreateCategoryPromptPlaceholder(),
+                GetCreateCategoryPromptOkText(),
+                GetCreateCategoryPromptCancelText(),
+                $"handbookcategories-groupprompt-{Guid.NewGuid():N}",
+                sanitizedInitial);
+
+            prompt.TryOpen();
+        }
+
+        private static void FinalizePendingGroupCreation(PendingGroupCreation pending, string chosenName)
+        {
+            if (pending == null)
+            {
+                return;
+            }
+
+            pendingGroupCreations.Remove(pending.Dialog);
+
+            List<GuiHandbookPage> members = pending.Members?.Where(page => page != null).ToList();
+            if (members == null || members.Count == 0)
+            {
+                return;
+            }
+
+            string displayName = string.IsNullOrWhiteSpace(chosenName) ? DefaultGroupName : chosenName.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = DefaultGroupName;
+            }
+
+            string normalizedName = NormalizeGroupName(displayName);
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                normalizedName = NormalizeGroupName(DefaultGroupName);
+            }
+
+            if (TryMergeMembersWithExistingGroup(pending, members, normalizedName))
+            {
+                return;
+            }
+
+            int assignedId = nextGroupId++;
+            string uniqueSuffix = $"{assignedId:D4}";
+            string sanitized = Sanitize(displayName);
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "group";
+            }
+            string hiddenCategoryCode = $"{GroupCategoryCodePrefix}{sanitized}-{uniqueSuffix}";
+            string pageCode = $"{GroupPageCodePrefix}{sanitized}-{uniqueSuffix}";
+
+            var groupPage = new GroupHandbookPage(pageCode, hiddenCategoryCode, pending.DisplayCategoryCode, displayName, members);
+            GuiHandbookPage referencePage = pending.SelectedPage ?? members.FirstOrDefault();
+            if (referencePage != null)
+            {
+                groupPage.PageNumber = referencePage.PageNumber;
+            }
+            else
+            {
+                groupPage.PageNumber = pending.SelectedPage?.PageNumber ?? 0;
+            }
+
+            int sortHint = referencePage?.PageNumber ?? int.MaxValue;
+            groupPage.SetSortOrderHint(sortHint);
+            groupPage.AdoptAppearanceFrom(referencePage);
+
+            RegisterGroupPage(groupPage);
+            PersistGroupToConfig(groupPage, referencePage, assignedId);
+            ReplaceMembersWithGroup(pending, groupPage);
+        }
+
+        private static void ReplaceMembersWithGroup(PendingGroupCreation pending, GroupHandbookPage groupPage)
+        {
+            if (pending == null || groupPage == null)
+            {
+                return;
+            }
+
+            List<IFlatListItem> shownPages = pending.ShownPages;
+            if (shownPages == null)
+            {
+                return;
+            }
+
+            foreach (GuiHandbookPage member in groupPage.Members)
+            {
+                if (member == null)
+                {
+                    continue;
+                }
+
+                shownPages.Remove(member);
+            }
+
+            int insertIndex = Math.Clamp(pending.InsertIndex, 0, shownPages.Count);
+            int existingIndex = shownPages.IndexOf(groupPage);
+            if (existingIndex >= 0)
+            {
+                shownPages.RemoveAt(existingIndex);
+                if (existingIndex < insertIndex)
+                {
+                    insertIndex = Math.Max(0, insertIndex - 1);
+                }
+            }
+
+            insertIndex = Math.Clamp(insertIndex, 0, shownPages.Count);
+            shownPages.Insert(insertIndex, groupPage);
+
+            if (pending.SearchList != null)
+            {
+                pending.SearchList.CalcTotalHeight();
+            }
+
+            if (pending.OverviewGui != null)
+            {
+                UpdateScrollArea(pending.OverviewGui, GetListHeight(pending.Dialog));
+            }
+
+            if (pending.OverviewGui != null && pending.SearchList != null)
+            {
+                CenterSearchListOnPage(pending.OverviewGui, pending.SearchList, groupPage);
+            }
+
+            AddRowHighlight(groupPage, CollapseHighlightColor, RowHighlightDurationMs);
+        }
+
+        private static bool TryMergeMembersWithExistingGroup(
+            PendingGroupCreation pending,
+            List<GuiHandbookPage> members,
+            string normalizedName)
+        {
+            if (pending == null || members == null || members.Count == 0 || string.IsNullOrEmpty(normalizedName))
+            {
+                return false;
+            }
+
+            if (!TryFindExistingGroupForName(pending, normalizedName, out GroupHandbookPage existingGroup))
+            {
+                return false;
+            }
+
+            List<GuiHandbookPage> filteredMembers = members
+                .Where(page => page != null)
+                .ToList();
+
+            if (filteredMembers.Count == 0)
+            {
+                return false;
+            }
+
+            HashSet<GuiHandbookPage> existingMembers = existingGroup.Members
+                .Where(page => page != null)
+                .ToHashSet();
+
+            List<GuiHandbookPage> additions = filteredMembers
+                .Where(page => !existingMembers.Contains(page))
+                .ToList();
+
+            bool addedMembers = additions.Count > 0 && existingGroup.AddMembers(additions);
+
+            if (addedMembers)
+            {
+                foreach (GuiHandbookPage page in additions)
+                {
+                    groupByMemberPage[page] = existingGroup;
+                }
+
+                string hiddenCode = existingGroup.HiddenCategoryCode;
+                if (!string.IsNullOrEmpty(hiddenCode))
+                {
+                    pagesByCategory[hiddenCode] = existingGroup.Members
+                        .Where(page => page != null)
+                        .ToList();
+                }
+
+                UpdateConfigEntryMembers(existingGroup);
+            }
+
+            ReplaceMembersWithGroup(pending, existingGroup);
+            return true;
+        }
+
+        private static bool TryFindExistingGroupForName(
+            PendingGroupCreation pending,
+            string normalizedName,
+            out GroupHandbookPage groupPage)
+        {
+            groupPage = null;
+
+            if (pending == null || string.IsNullOrEmpty(normalizedName))
+            {
+                return false;
+            }
+
+            string displayCategory = pending.DisplayCategoryCode;
+            string selectedCategory = pending.SelectedPage?.CategoryCode;
+
+            List<string> searchCategories = BuildGroupSearchCategories(displayCategory, selectedCategory);
+
+            foreach (string category in searchCategories)
+            {
+                if (!TryGetGroupPagesForCategory(category, out List<GroupHandbookPage> groups) || groups == null)
+                {
+                    continue;
+                }
+
+                foreach (GroupHandbookPage group in groups)
+                {
+                    if (group == null)
+                    {
+                        continue;
+                    }
+
+                    if (!MatchesPendingDisplayCategory(group, displayCategory, selectedCategory))
+                    {
+                        continue;
+                    }
+
+                    string existingNormalized = NormalizeGroupName(group.DisplayName);
+                    if (string.Equals(existingNormalized, normalizedName, StringComparison.Ordinal))
+                    {
+                        groupPage = group;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static List<string> BuildGroupSearchCategories(string displayCategory, string selectedCategory)
+        {
+            var searchCategories = new List<string>();
+            var seenCategories = new HashSet<string>();
+
+            void AddCategory(string category)
+            {
+                if (seenCategories.Add(category))
+                {
+                    searchCategories.Add(category);
+                }
+            }
+
+            if (string.IsNullOrEmpty(displayCategory))
+            {
+                if (!string.IsNullOrEmpty(selectedCategory))
+                {
+                    AddCategory(selectedCategory);
+                }
+
+                AddCategory(displayCategory);
+            }
+            else
+            {
+                AddCategory(displayCategory);
+
+                if (!string.IsNullOrEmpty(selectedCategory))
+                {
+                    AddCategory(selectedCategory);
+                }
+            }
+
+            AddCategory(null);
+
+            return searchCategories;
+        }
+
+        private static bool MatchesPendingDisplayCategory(
+            GroupHandbookPage groupPage,
+            string pendingDisplayCategory,
+            string selectedCategory)
+        {
+            if (groupPage == null)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(pendingDisplayCategory))
+            {
+                return string.Equals(groupPage.DisplayCategoryCode, pendingDisplayCategory, StringComparison.Ordinal);
+            }
+
+            if (!string.IsNullOrEmpty(selectedCategory))
+            {
+                if (groupPage.DisplayCategoryCode == null)
+                {
+                    return true;
+                }
+
+                return string.Equals(groupPage.DisplayCategoryCode, selectedCategory, StringComparison.Ordinal);
+            }
+
+            return groupPage.DisplayCategoryCode == null;
+        }
+
+        private static void RegisterGroupPage(GroupHandbookPage groupPage)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            if (!activeGroupPages.Contains(groupPage))
+            {
+                activeGroupPages.Add(groupPage);
+            }
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (!string.IsNullOrEmpty(hiddenCode))
+            {
+                groupByHiddenCategoryCode[hiddenCode] = groupPage;
+                pagesByCategory[hiddenCode] = groupPage.Members.Where(page => page != null).ToList();
+                displayNameByCategory[hiddenCode] = groupPage.DisplayName;
+                translationKeyByCategory[hiddenCode] = null;
+                tabBackgroundByCategory[hiddenCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
+            }
+
+            foreach (GuiHandbookPage member in groupPage.Members)
+            {
+                if (member != null)
+                {
+                    groupByMemberPage[member] = groupPage;
+                }
+            }
+
+            AddGroupToDisplayCategory(groupPage.DisplayCategoryCode, groupPage);
+            if (groupPage.DisplayCategoryCode != null)
+            {
+                AddGroupToDisplayCategory(null, groupPage);
+            }
+        }
+
+        private static void AddGroupToDisplayCategory(string categoryCode, GroupHandbookPage groupPage)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            string key = GetGroupDisplayKey(categoryCode);
+            if (!groupPagesByDisplayCategory.TryGetValue(key, out List<GroupHandbookPage> list) || list == null)
+            {
+                list = new List<GroupHandbookPage>();
+                groupPagesByDisplayCategory[key] = list;
+            }
+
+            if (!list.Contains(groupPage))
+            {
+                list.Add(groupPage);
+            }
+        }
+
+        private static void RemoveGroupFromDisplayCategory(string categoryCode, GroupHandbookPage groupPage)
+        {
+            string key = GetGroupDisplayKey(categoryCode);
+            if (!groupPagesByDisplayCategory.TryGetValue(key, out List<GroupHandbookPage> list) || list == null)
+            {
+                return;
+            }
+
+            list.Remove(groupPage);
+
+            if (list.Count == 0)
+            {
+                groupPagesByDisplayCategory.Remove(key);
+            }
+        }
+
+        private static void RemoveNavigationStatesFor(GuiDialogHandbook dialog, string hiddenCategoryCode)
+        {
+            if (dialog == null || string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack) || stack.Count == 0)
+            {
+                return;
+            }
+
+            Stack<GroupNavigationState> retained = new();
+            while (stack.Count > 0)
+            {
+                GroupNavigationState state = stack.Pop();
+                if (!string.Equals(state.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal))
+                {
+                    retained.Push(state);
+                }
+            }
+
+            while (retained.Count > 0)
+            {
+                stack.Push(retained.Pop());
+            }
+
+            if (stack.Count == 0)
+            {
+                groupNavigationHistory.Remove(dialog);
+            }
+        }
+
+        private static bool TryRemoveGroupPage(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GroupHandbookPage groupPage)
+        {
+            if (dialog == null || groupPage == null)
+            {
+                return false;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages || shownPages.Count == 0)
+            {
+                return false;
+            }
+
+            int index = shownPages.IndexOf(groupPage);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            shownPages.RemoveAt(index);
+
+            List<GuiHandbookPage> members = groupPage.Members.Where(page => page != null).ToList();
+            int insertIndex = index;
+            foreach (GuiHandbookPage member in members)
+            {
+                shownPages.Insert(insertIndex++, member);
+            }
 
             if (searchList != null)
             {
                 searchList.CalcTotalHeight();
             }
 
-            if (overviewGui != null && searchList != null)
+            if (overviewGui != null)
             {
-                double listHeight = GetListHeight(dialog);
-                overviewGui.GetScrollbar("scrollbar")?.SetHeights((float)listHeight, (float)searchList.insideBounds.fixedHeight);
+                UpdateScrollArea(overviewGui, GetListHeight(dialog));
             }
 
-            string overrideTitle = BuildOverrideTitle(cache.OriginalTitle, null, null);
-            ApplyPageTitleOverride(selectedPage, overrideTitle);
+            if (overviewGui != null && searchList != null && members.Count > 0)
+            {
+                CenterSearchListOnPage(overviewGui, searchList, members[0]);
+            }
 
-            CenterSearchListOnPage(overviewGui, searchList, selectedPage);
+            AddRowHighlights(members, RestoreHighlightColor, RowHighlightDurationMs);
 
-            AddPersistentRowHighlight(selectedPage, CollapseHighlightColor);
+            RemoveNavigationStatesFor(dialog, groupPage.HiddenCategoryCode);
+            pendingGroupCreations.Remove(dialog);
+
+            UnregisterGroupPage(groupPage);
+            RemoveGroupFromConfig(groupPage);
+            groupPage.DisposeTexture();
+
+            return true;
         }
 
-        private static void RestoreHiddenPages(
-            GuiDialogHandbook dialog,
-            GuiComposer overviewGui,
-            GuiElementFlatList searchList,
-            List<IFlatListItem> shownPages,
-            GuiHandbookPage selectedPage,
-            HiddenPageCache cachedHiddenPages)
+        private static void UnregisterGroupPage(GroupHandbookPage groupPage)
         {
-            if (cachedHiddenPages == null)
+            if (groupPage == null)
             {
                 return;
             }
 
-            bool reinsertedAny = false;
-            List<GuiHandbookPage> restoredPages = new();
+            activeGroupPages.Remove(groupPage);
 
-            foreach (HiddenPageEntry entry in cachedHiddenPages.HiddenPages.OrderBy(entry => entry.Index))
+            foreach (GuiHandbookPage member in groupPage.Members)
             {
-                if (entry?.Page == null)
+                if (member != null)
+                {
+                    groupByMemberPage.Remove(member);
+                }
+            }
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (!string.IsNullOrEmpty(hiddenCode))
+            {
+                groupByHiddenCategoryCode.Remove(hiddenCode);
+                pagesByCategory.Remove(hiddenCode);
+                displayNameByCategory.Remove(hiddenCode);
+                translationKeyByCategory.Remove(hiddenCode);
+                tabBackgroundByCategory.Remove(hiddenCode);
+            }
+
+            RemoveGroupFromDisplayCategory(groupPage.DisplayCategoryCode, groupPage);
+            if (groupPage.DisplayCategoryCode != null)
+            {
+                RemoveGroupFromDisplayCategory(null, groupPage);
+            }
+        }
+
+        private static void PushGroupNavigation(GuiDialogHandbook dialog, string hiddenCategoryCode, string previousCategoryCode, float scrollPosition)
+        {
+            if (dialog == null || string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack))
+            {
+                stack = new Stack<GroupNavigationState>();
+                groupNavigationHistory[dialog] = stack;
+            }
+
+            stack.Push(new GroupNavigationState(previousCategoryCode, hiddenCategoryCode, scrollPosition));
+        }
+
+        internal static bool HasGroupBackNavigation(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack) || stack == null || stack.Count == 0)
+            {
+                return false;
+            }
+
+            string currentCode = dialog.currentCatgoryCode;
+            if (string.IsNullOrEmpty(currentCode))
+            {
+                return false;
+            }
+
+            foreach (GroupNavigationState state in stack)
+            {
+                if (state != null && string.Equals(state.HiddenCategoryCode, currentCode, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static bool ShouldEnableBackButton(GuiDialogHandbook dialog, bool baseEnabled)
+        {
+            if (dialog == null)
+            {
+                return baseEnabled;
+            }
+
+            return baseEnabled || HasGroupBackNavigation(dialog);
+        }
+
+        internal static void UpdateBackButtonState(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            GuiComposer overviewGui = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+            GuiElementTextButton backButton = overviewGui?.GetButton("backButton");
+            if (backButton == null)
+            {
+                return;
+            }
+
+            bool shouldEnable = ShouldEnableBackButton(dialog, backButton.Enabled);
+            if (backButton.Enabled != shouldEnable)
+            {
+                backButton.Enabled = shouldEnable;
+            }
+        }
+
+        internal static bool TryHandleGroupPageClick(GuiDialogHandbook dialog, int index)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages)
+            {
+                return false;
+            }
+
+            if (index < 0 || index >= shownPages.Count)
+            {
+                return false;
+            }
+
+            if (shownPages[index] is not GroupHandbookPage groupPage)
+            {
+                return false;
+            }
+
+            GuiComposer overviewGui = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+            GuiElementScrollbar scrollbar = overviewGui?.GetScrollbar("scrollbar");
+            float scrollPosition = scrollbar?.CurrentYPosition ?? 0f;
+
+            PushGroupNavigation(dialog, groupPage.HiddenCategoryCode, dialog.currentCatgoryCode, scrollPosition);
+
+            dialog.currentCatgoryCode = groupPage.HiddenCategoryCode;
+            dialog.FilterItems();
+
+            RestoreOverviewScroll(dialog, 0f);
+
+            UpdateBackButtonState(dialog);
+
+            return true;
+        }
+
+        internal static bool TryHandleGroupBackNavigation(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack) || stack.Count == 0)
+            {
+                return false;
+            }
+
+            Stack<GroupNavigationState> retained = new();
+            GroupNavigationState target = null;
+
+            while (stack.Count > 0)
+            {
+                GroupNavigationState state = stack.Pop();
+                if (target == null && string.Equals(dialog.currentCatgoryCode, state.HiddenCategoryCode, StringComparison.Ordinal))
+                {
+                    target = state;
+                    break;
+                }
+
+                retained.Push(state);
+            }
+
+            while (retained.Count > 0)
+            {
+                stack.Push(retained.Pop());
+            }
+
+            if (stack.Count == 0)
+            {
+                groupNavigationHistory.Remove(dialog);
+            }
+
+            if (target == null)
+            {
+                return false;
+            }
+
+            dialog.currentCatgoryCode = target.PreviousCategoryCode;
+            dialog.FilterItems();
+
+            RestoreOverviewScroll(dialog, target.ScrollPosition);
+
+            UpdateBackButtonState(dialog);
+
+            return true;
+        }
+
+        private static void RestoreOverviewScroll(GuiDialogHandbook dialog, float scrollPosition)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            GuiComposer overviewGui = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+            if (overviewGui == null)
+            {
+                return;
+            }
+
+            UpdateScrollArea(overviewGui, GetListHeight(dialog));
+
+            GuiElementFlatList list = overviewGui.GetFlatList("stacklist");
+            GuiElementScrollbar scrollbar = overviewGui.GetScrollbar("scrollbar");
+            if (list == null || scrollbar == null)
+            {
+                return;
+            }
+
+            ElementBounds listBounds = list.Bounds;
+            if (listBounds != null && listBounds.RequiresRecalculation)
+            {
+                listBounds.CalcWorldBounds();
+            }
+
+            ElementBounds insideBounds = list.insideBounds;
+            if (insideBounds != null && insideBounds.RequiresRecalculation)
+            {
+                insideBounds.CalcWorldBounds();
+            }
+
+            double visibleHeight = listBounds?.InnerHeight ?? 0.0;
+            double totalHeight = insideBounds?.fixedHeight ?? 0.0;
+            float clamped = float.IsNaN(scrollPosition)
+                ? 0f
+                : Math.Clamp(scrollPosition, 0f, (float)Math.Max(0.0, totalHeight - visibleHeight));
+
+            scrollbar.CurrentYPosition = clamped;
+            scrollbar.TriggerChanged();
+        }
+
+        private static bool ShouldHidePageForCategory(GuiHandbookPage page, string categoryCode)
+        {
+            if (page == null)
+            {
+                return false;
+            }
+
+            if (!groupByMemberPage.TryGetValue(page, out GroupHandbookPage group) || group == null)
+            {
+                return false;
+            }
+
+            string hiddenCode = group.HiddenCategoryCode;
+            if (string.IsNullOrEmpty(hiddenCode))
+            {
+                return false;
+            }
+
+            return !string.Equals(categoryCode, hiddenCode, StringComparison.Ordinal);
+        }
+
+        private static void AppendGroupPages(string categoryCode, SearchQuery searchQuery, List<WeightedHandbookPage> weightedPages)
+        {
+            if (weightedPages == null)
+            {
+                return;
+            }
+
+            if (!TryGetGroupPagesForCategory(categoryCode, out List<GroupHandbookPage> groups) || groups.Count == 0)
+            {
+                return;
+            }
+
+            foreach (GroupHandbookPage group in groups)
+            {
+                if (group == null)
                 {
                     continue;
                 }
 
-                GuiHandbookPage page = entry.Page;
-                restoredPages.Add(page);
-
-                if (shownPages.Contains(page))
+                if (!MatchesSearchQuery(group, searchQuery, out float weight))
                 {
                     continue;
                 }
 
-                int insertIndex = entry.Index;
-                if (insertIndex < 0)
+                weightedPages.Add(new WeightedHandbookPage
                 {
-                    insertIndex = 0;
-                }
-                else if (insertIndex > shownPages.Count)
+                    Page = group,
+                    Weight = weight,
+                    SortHint = group?.SortOrderHint ?? int.MaxValue
+                });
+            }
+        }
+
+        private static bool TryGetGroupPagesForCategory(string categoryCode, out List<GroupHandbookPage> groups)
+        {
+            string key = GetGroupDisplayKey(categoryCode);
+            if (!groupPagesByDisplayCategory.TryGetValue(key, out List<GroupHandbookPage> existing) || existing == null)
+            {
+                groups = null;
+                return false;
+            }
+
+            groups = existing.Where(group => group != null).ToList();
+            return groups.Count > 0;
+        }
+
+        private static string GetGroupDisplayKey(string categoryCode)
+        {
+            return categoryCode ?? EverythingCategoryKey;
+        }
+
+        private static void RestoreGroupCategories()
+        {
+            if (activeGroupPages.Count == 0)
+            {
+                return;
+            }
+
+            foreach (GroupHandbookPage group in activeGroupPages)
+            {
+                if (group == null)
                 {
-                    insertIndex = shownPages.Count;
+                    continue;
                 }
 
-                shownPages.Insert(insertIndex, page);
-                reinsertedAny = true;
-            }
+                string hiddenCode = group.HiddenCategoryCode;
+                if (string.IsNullOrEmpty(hiddenCode))
+                {
+                    continue;
+                }
 
-            if (reinsertedAny && searchList != null)
-            {
-                searchList.CalcTotalHeight();
-            }
+                List<GuiHandbookPage> members = group.Members.Where(page => page != null).ToList();
+                pagesByCategory[hiddenCode] = members;
+                displayNameByCategory[hiddenCode] = group.DisplayName;
+                translationKeyByCategory[hiddenCode] = null;
+                tabBackgroundByCategory[hiddenCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
 
-            if (reinsertedAny && overviewGui != null && searchList != null)
-            {
-                double listHeight = GetListHeight(dialog);
-                overviewGui.GetScrollbar("scrollbar")?.SetHeights((float)listHeight, (float)searchList.insideBounds.fixedHeight);
-            }
+                foreach (GuiHandbookPage member in members)
+                {
+                    groupByMemberPage[member] = group;
+                }
 
-            if (!string.IsNullOrWhiteSpace(cachedHiddenPages.OriginalTitle))
-            {
-                ApplyPageTitleOverride(selectedPage, cachedHiddenPages.OriginalTitle);
-            }
+                groupByHiddenCategoryCode[hiddenCode] = group;
 
-            CenterSearchListOnPage(overviewGui, searchList, selectedPage);
-
-            if (selectedPage != null)
-            {
-                AddRowHighlight(selectedPage, RestoreHighlightColor, RowHighlightDurationMs);
+                AddGroupToDisplayCategory(group.DisplayCategoryCode, group);
+                if (group.DisplayCategoryCode != null)
+                {
+                    AddGroupToDisplayCategory(null, group);
+                }
             }
+        }
 
-            if (restoredPages.Count > 0)
-            {
-                AddRowHighlights(restoredPages, RestoreHighlightColor, RowHighlightDurationMs);
-            }
+        private static void ClearGroupData()
+        {
+            activeGroupPages.Clear();
+            groupByMemberPage.Clear();
+            groupByHiddenCategoryCode.Clear();
+            groupPagesByDisplayCategory.Clear();
+            pendingGroupCreations.Clear();
+            groupNavigationHistory.Clear();
+            ResetNextGroupIdFromConfig();
         }
 
         private static void CenterSearchListOnPage(GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
@@ -1760,16 +2944,6 @@ namespace Enhanced_Handbook
             }
         }
 
-        private static void AddPersistentRowHighlight(GuiHandbookPage page, int color)
-        {
-            if (page == null)
-            {
-                return;
-            }
-
-            rowHighlights[page] = new RowHighlight(color, long.MaxValue, true);
-        }
-
         private static void AddRowHighlight(GuiHandbookPage page, int color, long durationMs)
         {
             if (page == null || durationMs <= 0)
@@ -1778,7 +2952,7 @@ namespace Enhanced_Handbook
             }
 
             long now = GetCurrentMilliseconds();
-            rowHighlights[page] = new RowHighlight(color, now + durationMs, false);
+            rowHighlights[page] = new RowHighlight(color, now + durationMs);
         }
 
         private static void AddRowHighlights(IEnumerable<GuiHandbookPage> pages, int color, long durationMs)
@@ -1864,7 +3038,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (!highlight.IsPersistent && highlight.ExpiresAtMs <= currentTime)
+            if (highlight.ExpiresAtMs <= currentTime)
             {
                 rowHighlights.Remove(page);
                 return false;
@@ -1884,13 +3058,7 @@ namespace Enhanced_Handbook
             foreach (KeyValuePair<GuiHandbookPage, RowHighlight> entry in rowHighlights.ToList())
             {
                 RowHighlight highlight = entry.Value;
-                if (highlight == null)
-                {
-                    rowHighlights.Remove(entry.Key);
-                    continue;
-                }
-
-                if (!highlight.IsPersistent && highlight.ExpiresAtMs <= currentTime)
+                if (highlight == null || highlight.ExpiresAtMs <= currentTime)
                 {
                     rowHighlights.Remove(entry.Key);
                 }
@@ -1934,7 +3102,7 @@ namespace Enhanced_Handbook
 
             PageTitleData titleData = GetPageTitleData(page);
             string normalizedTitle = titleData.NormalizedPrimaryTitle;
-            string searchableContent = GetSearchableContent(titleData);
+            string searchableContent = GetSearchableContent(page, titleData);
             HashSet<string> searchableWords = ExtractWords(searchableContent);
 
             float bestWeight = 0f;
@@ -2389,9 +3557,20 @@ namespace Enhanced_Handbook
             extras.Add(normalized);
         }
 
-        private static string GetSearchableContent(PageTitleData titleData)
+        private static string GetSearchableContent(GuiHandbookPage page, PageTitleData titleData)
         {
-            return titleData.SearchableContent;
+            string content = titleData.SearchableContent;
+
+            if (page is GroupHandbookPage groupPage)
+            {
+                string groupSearch = groupPage.SearchableText;
+                if (!string.IsNullOrWhiteSpace(groupSearch))
+                {
+                    return string.Concat(content, " ", groupSearch).Trim();
+                }
+            }
+
+            return content;
         }
 
         private static PageTitleData GetPageTitleData(GuiHandbookPage page)
@@ -2446,6 +3625,7 @@ namespace Enhanced_Handbook
             return page switch
             {
                 GuiHandbookGroupedItemstackPage groupedPage when !string.IsNullOrWhiteSpace(groupedPage.Name) => groupedPage.Name,
+                GroupHandbookPage groupPage when !string.IsNullOrWhiteSpace(groupPage.DisplayName) => groupPage.DisplayName,
                 GuiHandbookItemStackPage itemPage when allowCachedItemStackTitle && !string.IsNullOrWhiteSpace(itemPage.TextCacheTitle) => itemPage.TextCacheTitle,
                 GuiHandbookItemStackPage itemPage when itemPage.Stack != null => itemPage.Stack.GetName(),
                 GuiHandbookCommandPage commandPage => commandPage.TextCacheTitle,
@@ -3119,6 +4299,11 @@ namespace Enhanced_Handbook
 
             createCategoryPromptOpen = isOpen;
             ApplyCreateButtonEnabledState(trackedCreateButton);
+        }
+
+        internal static bool IsCreateCategoryPromptOpen()
+        {
+            return createCategoryPromptOpen;
         }
 
         internal static bool TryExecuteCategoryDeleteCommand(GuiDialogHandbook dialog)
@@ -3944,6 +5129,16 @@ namespace Enhanced_Handbook
             return builder.ToString();
         }
 
+        private static string NormalizeGroupName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return string.Empty;
+            }
+
+            return name.Trim().ToLowerInvariant();
+        }
+
         private static HashSet<string> ExtractWords(string text)
         {
             HashSet<string> words = new(StringComparer.OrdinalIgnoreCase);
@@ -4319,6 +5514,518 @@ namespace Enhanced_Handbook
             }
 
             return normalized;
+        }
+        private static bool NormalizeGroupConfigEntry(
+            HandbookGroupConfigEntry entry,
+            HashSet<int> seenIds,
+            HashSet<string> seenHiddenCodes)
+        {
+            bool changed = false;
+
+            entry.DisplayName ??= string.Empty;
+
+            int id = entry.Id;
+            if (id <= 0 && !TryParseGroupIdSuffix(entry.HiddenCategoryCode, out id) && !TryParseGroupIdSuffix(entry.PageCode, out id))
+            {
+                id = GetNextAvailableGroupId(seenIds);
+                changed = true;
+            }
+
+            if (id <= 0)
+            {
+                id = GetNextAvailableGroupId(seenIds);
+                changed = true;
+            }
+
+            entry.Id = id;
+
+            if (!seenIds.Add(entry.Id))
+            {
+                int newId = GetNextAvailableGroupId(seenIds);
+                entry.Id = newId;
+                seenIds.Add(newId);
+                changed = true;
+            }
+
+            string sanitizedName = Sanitize(string.IsNullOrWhiteSpace(entry.DisplayName) ? DefaultGroupName : entry.DisplayName);
+            if (string.IsNullOrEmpty(sanitizedName))
+            {
+                sanitizedName = "group";
+            }
+
+            string preferredHiddenCode = string.Concat(GroupCategoryCodePrefix, sanitizedName, "-", entry.Id.ToString("D4"));
+            if (string.IsNullOrEmpty(entry.HiddenCategoryCode) || !seenHiddenCodes.Add(entry.HiddenCategoryCode))
+            {
+                entry.HiddenCategoryCode = preferredHiddenCode;
+                seenHiddenCodes.Add(entry.HiddenCategoryCode);
+                changed = true;
+            }
+
+            if (string.IsNullOrEmpty(entry.PageCode))
+            {
+                entry.PageCode = string.Concat(GroupPageCodePrefix, sanitizedName, "-", entry.Id.ToString("D4"));
+                changed = true;
+            }
+
+            List<string> normalizedMembers = entry.MemberPageCodes
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (!entry.MemberPageCodes.SequenceEqual(normalizedMembers, StringComparer.OrdinalIgnoreCase))
+            {
+                entry.MemberPageCodes = normalizedMembers;
+                changed = true;
+            }
+
+            if (!string.IsNullOrEmpty(entry.WeightSourcePageCode))
+            {
+                string trimmed = entry.WeightSourcePageCode.Trim();
+                if (!string.Equals(entry.WeightSourcePageCode, trimmed, StringComparison.Ordinal))
+                {
+                    entry.WeightSourcePageCode = trimmed;
+                    changed = true;
+                }
+            }
+
+            if (entry.SortOrderHint < 0)
+            {
+                entry.SortOrderHint = int.MaxValue;
+                changed = true;
+            }
+
+            if (entry.PageNumber < 0)
+            {
+                entry.PageNumber = 0;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static int GetNextAvailableGroupId(HashSet<int> seenIds)
+        {
+            int candidate = 1;
+
+            if (seenIds != null && seenIds.Count > 0)
+            {
+                candidate = seenIds.Max() + 1;
+            }
+
+            if (seenIds == null)
+            {
+                return candidate;
+            }
+
+            while (seenIds.Contains(candidate))
+            {
+                candidate++;
+            }
+
+            return candidate;
+        }
+
+        private static void ResetNextGroupIdFromConfig()
+        {
+            nextGroupId = ComputeNextGroupIdFromConfig();
+        }
+
+        private static int ComputeNextGroupIdFromConfig()
+        {
+            if (groupConfig?.Groups == null || groupConfig.Groups.Count == 0)
+            {
+                return 1;
+            }
+
+            int maxId = 0;
+            foreach (HandbookGroupConfigEntry entry in groupConfig.Groups)
+            {
+                int id = ExtractGroupIdFromEntry(entry);
+                if (id > maxId)
+                {
+                    maxId = id;
+                }
+            }
+
+            return maxId > 0 ? maxId + 1 : 1;
+        }
+
+        private static int ExtractGroupIdFromEntry(HandbookGroupConfigEntry entry)
+        {
+            if (entry == null)
+            {
+                return 0;
+            }
+
+            if (entry.Id > 0)
+            {
+                return entry.Id;
+            }
+
+            if (TryParseGroupIdSuffix(entry.HiddenCategoryCode, out int hiddenId))
+            {
+                entry.Id = hiddenId;
+                return hiddenId;
+            }
+
+            if (TryParseGroupIdSuffix(entry.PageCode, out int pageId))
+            {
+                entry.Id = pageId;
+                return pageId;
+            }
+
+            return 0;
+        }
+
+        private static bool TryParseGroupIdSuffix(string value, out int id)
+        {
+            id = 0;
+            if (string.IsNullOrEmpty(value))
+            {
+                return false;
+            }
+
+            int dashIndex = value.LastIndexOf('-');
+            if (dashIndex < 0 || dashIndex >= value.Length - 1)
+            {
+                return false;
+            }
+
+            string suffix = value.Substring(dashIndex + 1);
+            return int.TryParse(suffix, out id);
+        }
+
+        private static void LoadGroupPagesFromConfig(List<GuiHandbookPage> allPages)
+        {
+            activeGroupPages.Clear();
+            groupByMemberPage.Clear();
+            groupByHiddenCategoryCode.Clear();
+            groupPagesByDisplayCategory.Clear();
+            pendingGroupCreations.Clear();
+            groupNavigationHistory.Clear();
+
+            if (groupConfig?.Groups == null || groupConfig.Groups.Count == 0 || allPages == null || allPages.Count == 0)
+            {
+                ResetNextGroupIdFromConfig();
+                return;
+            }
+
+            Dictionary<string, GuiHandbookPage> pageLookup = allPages
+                .Where(page => page != null && !string.IsNullOrEmpty(page.PageCode))
+                .GroupBy(page => page.PageCode, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (HandbookGroupConfigEntry entry in groupConfig.Groups)
+            {
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(entry.HiddenCategoryCode))
+                {
+                    groupConfigEntriesByHiddenCode[entry.HiddenCategoryCode] = entry;
+                }
+
+                var members = new List<GuiHandbookPage>();
+                List<string> missingCodes = null;
+
+                foreach (string memberCode in entry.MemberPageCodes)
+                {
+                    if (string.IsNullOrWhiteSpace(memberCode))
+                    {
+                        continue;
+                    }
+
+                    if (pageLookup.TryGetValue(memberCode, out GuiHandbookPage page))
+                    {
+                        if (!members.Contains(page))
+                        {
+                            members.Add(page);
+                        }
+                    }
+                    else
+                    {
+                        missingCodes ??= new List<string>();
+                        missingCodes.Add(memberCode);
+                    }
+                }
+
+                if (missingCodes != null && missingCodes.Count > 0)
+                {
+                    LogMissingGroupMembers(entry, missingCodes);
+                }
+
+                if (members.Count == 0)
+                {
+                    continue;
+                }
+
+                var groupPage = new GroupHandbookPage(
+                    entry.PageCode,
+                    entry.HiddenCategoryCode,
+                    entry.DisplayCategoryCode,
+                    entry.DisplayName,
+                    members);
+
+                groupPage.PageNumber = entry.PageNumber;
+                groupPage.SetSortOrderHint(entry.SortOrderHint);
+
+                GuiHandbookPage weightSource = null;
+                if (!string.IsNullOrEmpty(entry.WeightSourcePageCode))
+                {
+                    pageLookup.TryGetValue(entry.WeightSourcePageCode, out weightSource);
+                    if (weightSource == null)
+                    {
+                        LogMissingWeightSource(entry);
+                    }
+                }
+
+                if (weightSource == null)
+                {
+                    weightSource = members.FirstOrDefault();
+                }
+
+                groupPage.AdoptAppearanceFrom(weightSource);
+                activeGroupPages.Add(groupPage);
+            }
+
+            ResetNextGroupIdFromConfig();
+        }
+
+        private static void StoreGroupConfig()
+        {
+            groupConfig ??= HandbookGroupConfig.CreateDefault();
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            NormalizeGroupConfiguration();
+
+            if (capi == null)
+            {
+                ResetNextGroupIdFromConfig();
+                return;
+            }
+
+            capi.StoreModConfig(groupConfig, HandbookGroupConfig.ConfigFileName);
+            ResetNextGroupIdFromConfig();
+        }
+
+        private static void PersistGroupToConfig(
+            GroupHandbookPage groupPage,
+            GuiHandbookPage referencePage,
+            int groupId)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            groupConfig ??= HandbookGroupConfig.CreateDefault();
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (string.IsNullOrEmpty(hiddenCode))
+            {
+                return;
+            }
+
+            int id = groupId;
+            if (id <= 0 && !TryParseGroupIdSuffix(hiddenCode, out id) && !TryParseGroupIdSuffix(groupPage.PageCode, out id))
+            {
+                id = ComputeNextGroupIdFromConfig();
+            }
+
+            List<string> memberCodes = groupPage.Members?
+                .Where(page => !string.IsNullOrWhiteSpace(page?.PageCode))
+                .Select(page => page.PageCode)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+                ?? new List<string>();
+
+            string weightSourceCode = referencePage?.PageCode;
+            if (string.IsNullOrWhiteSpace(weightSourceCode))
+            {
+                weightSourceCode = groupPage.Members?
+                    .FirstOrDefault(page => !string.IsNullOrWhiteSpace(page?.PageCode))?
+                    .PageCode;
+            }
+
+            HandbookGroupConfigEntry entry = null;
+            int entryIndex = -1;
+            for (int i = 0; i < groupConfig.Groups.Count; i++)
+            {
+                HandbookGroupConfigEntry candidate = groupConfig.Groups[i];
+                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, hiddenCode, StringComparison.Ordinal))
+                {
+                    entry = candidate;
+                    entryIndex = i;
+                    break;
+                }
+            }
+
+            if (entry == null)
+            {
+                entry = new HandbookGroupConfigEntry();
+                groupConfig.Groups.Add(entry);
+                entryIndex = groupConfig.Groups.Count - 1;
+            }
+
+            entry.Id = id > 0 ? id : entry.Id;
+            entry.HiddenCategoryCode = hiddenCode;
+            entry.PageCode = groupPage.PageCode ?? string.Empty;
+            entry.DisplayCategoryCode = groupPage.DisplayCategoryCode;
+            entry.DisplayName = groupPage.DisplayName ?? string.Empty;
+            entry.SortOrderHint = groupPage.SortOrderHint;
+            entry.PageNumber = groupPage.PageNumber;
+            entry.WeightSourcePageCode = weightSourceCode;
+            entry.MemberPageCodes = memberCodes;
+
+            groupConfig.Groups[entryIndex] = entry;
+            groupConfigEntriesByHiddenCode[hiddenCode] = entry;
+
+            StoreGroupConfig();
+        }
+
+        private static void UpdateConfigEntryMembers(GroupHandbookPage groupPage)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            groupConfig ??= HandbookGroupConfig.CreateDefault();
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (string.IsNullOrEmpty(hiddenCode))
+            {
+                return;
+            }
+
+            HandbookGroupConfigEntry entry = null;
+            int entryIndex = -1;
+            for (int i = 0; i < groupConfig.Groups.Count; i++)
+            {
+                HandbookGroupConfigEntry candidate = groupConfig.Groups[i];
+                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, hiddenCode, StringComparison.Ordinal))
+                {
+                    entry = candidate;
+                    entryIndex = i;
+                    break;
+                }
+            }
+
+            if (entry == null)
+            {
+                entry = new HandbookGroupConfigEntry
+                {
+                    HiddenCategoryCode = hiddenCode,
+                    PageCode = groupPage.PageCode ?? string.Empty,
+                    DisplayCategoryCode = groupPage.DisplayCategoryCode,
+                    DisplayName = groupPage.DisplayName ?? string.Empty,
+                    SortOrderHint = groupPage.SortOrderHint,
+                    PageNumber = groupPage.PageNumber
+                };
+
+                if (!TryParseGroupIdSuffix(hiddenCode, out int parsedId) && !TryParseGroupIdSuffix(groupPage.PageCode, out parsedId))
+                {
+                    parsedId = ComputeNextGroupIdFromConfig();
+                }
+
+                entry.Id = parsedId;
+                groupConfig.Groups.Add(entry);
+                entryIndex = groupConfig.Groups.Count - 1;
+            }
+            else
+            {
+                entry.PageCode = groupPage.PageCode ?? entry.PageCode;
+                entry.DisplayCategoryCode = groupPage.DisplayCategoryCode;
+                entry.DisplayName = groupPage.DisplayName ?? entry.DisplayName;
+                entry.SortOrderHint = groupPage.SortOrderHint;
+                entry.PageNumber = groupPage.PageNumber;
+            }
+
+            entry.MemberPageCodes = groupPage.Members?
+                .Where(page => !string.IsNullOrWhiteSpace(page?.PageCode))
+                .Select(page => page.PageCode)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+                ?? new List<string>();
+
+            groupConfig.Groups[entryIndex] = entry;
+            groupConfigEntriesByHiddenCode[hiddenCode] = entry;
+
+            StoreGroupConfig();
+        }
+
+        private static void RemoveGroupFromConfig(GroupHandbookPage groupPage)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            groupConfig ??= HandbookGroupConfig.CreateDefault();
+            groupConfig.Groups ??= new List<HandbookGroupConfigEntry>();
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (string.IsNullOrEmpty(hiddenCode))
+            {
+                return;
+            }
+
+            HandbookGroupConfigEntry entry = null;
+            int entryIndex = -1;
+            for (int i = 0; i < groupConfig.Groups.Count; i++)
+            {
+                HandbookGroupConfigEntry candidate = groupConfig.Groups[i];
+                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, hiddenCode, StringComparison.Ordinal))
+                {
+                    entry = candidate;
+                    entryIndex = i;
+                    break;
+                }
+            }
+
+            groupConfigEntriesByHiddenCode.Remove(hiddenCode);
+
+            if (entryIndex < 0)
+            {
+                return;
+            }
+
+            groupConfig.Groups.RemoveAt(entryIndex);
+            StoreGroupConfig();
+        }
+
+        private static void LogMissingGroupMembers(HandbookGroupConfigEntry entry, List<string> missingCodes)
+        {
+            if (entry == null || missingCodes == null || missingCodes.Count == 0)
+            {
+                return;
+            }
+
+            string label = string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? entry.HiddenCategoryCode ?? "unknown"
+                : entry.DisplayName.Trim();
+
+            string codes = string.Join(", ", missingCodes.Distinct(StringComparer.OrdinalIgnoreCase));
+            capi?.Logger?.Debug("[HandbookCategories] Missing handbook pages for group \"{0}\" ({1}): {2}", label, entry.HiddenCategoryCode, codes);
+        }
+
+        private static void LogMissingWeightSource(HandbookGroupConfigEntry entry)
+        {
+            if (entry == null || string.IsNullOrWhiteSpace(entry.WeightSourcePageCode))
+            {
+                return;
+            }
+
+            string label = string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? entry.HiddenCategoryCode ?? "unknown"
+                : entry.DisplayName.Trim();
+
+            capi?.Logger?.Debug("[HandbookCategories] Missing icon source page \"{0}\" for group \"{1}\" ({2}).", entry.WeightSourcePageCode, label, entry.HiddenCategoryCode);
         }
     }
 }
