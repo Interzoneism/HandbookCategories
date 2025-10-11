@@ -88,6 +88,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, "OnButtonBack"),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnButtonBackPrefix)));
 
+            harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnRenderGUI), new[] { typeof(float) }),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)));
+
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
@@ -977,6 +980,16 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        public static void OnRenderGuiPostfix(GuiDialogHandbook __instance)
+        {
+            if (__instance == null)
+            {
+                return;
+            }
+
+            HandbookCategoryManager.UpdateBackButtonState(__instance);
+        }
+
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
         {
             if (ShownPagesField?.GetValue(__instance) is not List<IFlatListItem> shownPages)
@@ -1033,6 +1046,8 @@ namespace Enhanced_Handbook
             }
 
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, candidatePages, shownPages, overviewGui, currentSearch, loading, listHeight);
+
+            HandbookCategoryManager.UpdateBackButtonState(__instance);
 
             return false;
         }

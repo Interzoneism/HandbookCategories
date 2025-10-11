@@ -2327,6 +2327,55 @@ namespace Enhanced_Handbook
             stack.Push(new GroupNavigationState(previousCategoryCode, hiddenCategoryCode, scrollPosition));
         }
 
+        internal static bool HasGroupBackNavigation(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack) || stack == null || stack.Count == 0)
+            {
+                return false;
+            }
+
+            string currentCode = dialog.currentCatgoryCode;
+            if (string.IsNullOrEmpty(currentCode))
+            {
+                return false;
+            }
+
+            foreach (GroupNavigationState state in stack)
+            {
+                if (state != null && string.Equals(state.HiddenCategoryCode, currentCode, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static void UpdateBackButtonState(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            GuiComposer overviewGui = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+            GuiElementTextButton backButton = overviewGui?.GetButton("backButton");
+            if (backButton == null)
+            {
+                return;
+            }
+
+            if (HasGroupBackNavigation(dialog) && !backButton.Enabled)
+            {
+                backButton.Enabled = true;
+            }
+        }
+
         internal static bool TryHandleGroupPageClick(GuiDialogHandbook dialog, int index)
         {
             if (dialog == null)
@@ -2359,6 +2408,8 @@ namespace Enhanced_Handbook
             dialog.FilterItems();
 
             RestoreOverviewScroll(dialog, 0f);
+
+            UpdateBackButtonState(dialog);
 
             return true;
         }
@@ -2409,6 +2460,8 @@ namespace Enhanced_Handbook
             dialog.FilterItems();
 
             RestoreOverviewScroll(dialog, target.ScrollPosition);
+
+            UpdateBackButtonState(dialog);
 
             return true;
         }
