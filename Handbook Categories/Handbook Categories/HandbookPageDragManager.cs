@@ -129,6 +129,7 @@ namespace Enhanced_Handbook
         private static bool wasLeftDown;
         private static bool suppressListClick;
         private static GuiDialogHandbook suppressedGroupPageDialog;
+        private static bool dropHandledByMouseUp;
         private static bool featureEnabled = true;
 
         internal static void Initialize(ICoreClientAPI api)
@@ -515,8 +516,9 @@ namespace Enhanced_Handbook
         private static void OnLeftMouseReleased(int mouseX, int mouseY)
         {
             bool wasDragging = isDragging && draggingState != null;
+            bool dropHandledEarly = dropHandledByMouseUp;
 
-            if (wasDragging)
+            if (wasDragging && !dropHandledEarly)
             {
                 bool handledDrop = TrySpawnCreativeStack();
                 if (!handledDrop)
@@ -541,6 +543,40 @@ namespace Enhanced_Handbook
             {
                 suppressListClick = true;
             }
+        }
+
+        internal static bool TryHandleMouseUpOnList(GuiElementFlatList list)
+        {
+            if (!featureEnabled || list == null)
+            {
+                return false;
+            }
+
+            if (!isDragging || draggingState == null || capi?.Input == null)
+            {
+                return false;
+            }
+
+            int mouseX = capi.Input.MouseX;
+            int mouseY = capi.Input.MouseY;
+
+            if (!TryGetGroupDropTarget(draggingState, mouseX, mouseY, out GroupHandbookPage groupPage, out GuiElementFlatList targetList))
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(targetList, list) || groupPage == null)
+            {
+                return false;
+            }
+
+            bool handled = TryHandleGroupDrop(mouseX, mouseY);
+            if (handled)
+            {
+                dropHandledByMouseUp = true;
+            }
+
+            return handled;
         }
 
         private static bool TrySpawnCreativeStack()
@@ -1553,6 +1589,7 @@ namespace Enhanced_Handbook
             draggingSlot = null;
             draggingCategoryCode = null;
             draggingOrigin = DragOrigin.None;
+            dropHandledByMouseUp = false;
             if (!preserveSuppression)
             {
                 suppressListClick = false;
