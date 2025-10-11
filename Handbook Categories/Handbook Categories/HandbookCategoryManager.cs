@@ -1852,24 +1852,28 @@ namespace Enhanced_Handbook
             }
 
             string displayName = string.IsNullOrWhiteSpace(chosenName) ? DefaultGroupName : chosenName.Trim();
-            string sanitized = Sanitize(displayName);
-            if (string.IsNullOrEmpty(sanitized))
+            if (string.IsNullOrWhiteSpace(displayName))
             {
                 displayName = DefaultGroupName;
-                sanitized = Sanitize(displayName);
             }
 
-            if (string.IsNullOrEmpty(sanitized))
+            string normalizedName = NormalizeGroupName(displayName);
+            if (string.IsNullOrEmpty(normalizedName))
             {
-                sanitized = "group";
+                normalizedName = NormalizeGroupName(DefaultGroupName);
             }
 
-            if (TryMergeMembersWithExistingGroup(pending, members, sanitized))
+            if (TryMergeMembersWithExistingGroup(pending, members, normalizedName))
             {
                 return;
             }
 
             string uniqueSuffix = $"{nextGroupId++:D4}";
+            string sanitized = Sanitize(displayName);
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "group";
+            }
             string hiddenCategoryCode = $"{GroupCategoryCodePrefix}{sanitized}-{uniqueSuffix}";
             string pageCode = $"{GroupPageCodePrefix}{sanitized}-{uniqueSuffix}";
 
@@ -1950,14 +1954,14 @@ namespace Enhanced_Handbook
         private static bool TryMergeMembersWithExistingGroup(
             PendingGroupCreation pending,
             List<GuiHandbookPage> members,
-            string sanitizedName)
+            string normalizedName)
         {
-            if (pending == null || members == null || members.Count == 0 || string.IsNullOrEmpty(sanitizedName))
+            if (pending == null || members == null || members.Count == 0 || string.IsNullOrEmpty(normalizedName))
             {
                 return false;
             }
 
-            if (!TryFindExistingGroupForName(pending, sanitizedName, out GroupHandbookPage existingGroup))
+            if (!TryFindExistingGroupForName(pending, normalizedName, out GroupHandbookPage existingGroup))
             {
                 return false;
             }
@@ -2003,12 +2007,12 @@ namespace Enhanced_Handbook
 
         private static bool TryFindExistingGroupForName(
             PendingGroupCreation pending,
-            string sanitizedName,
+            string normalizedName,
             out GroupHandbookPage groupPage)
         {
             groupPage = null;
 
-            if (pending == null || string.IsNullOrEmpty(sanitizedName))
+            if (pending == null || string.IsNullOrEmpty(normalizedName))
             {
                 return false;
             }
@@ -2037,8 +2041,8 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
-                    string existingSanitized = Sanitize(group.DisplayName);
-                    if (string.Equals(existingSanitized, sanitizedName, StringComparison.Ordinal))
+                    string existingNormalized = NormalizeGroupName(group.DisplayName);
+                    if (string.Equals(existingNormalized, normalizedName, StringComparison.Ordinal))
                     {
                         groupPage = group;
                         return true;
@@ -4824,6 +4828,16 @@ namespace Enhanced_Handbook
             }
 
             return builder.ToString();
+        }
+
+        private static string NormalizeGroupName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return string.Empty;
+            }
+
+            return name.Trim().ToLowerInvariant();
         }
 
         private static HashSet<string> ExtractWords(string text)
