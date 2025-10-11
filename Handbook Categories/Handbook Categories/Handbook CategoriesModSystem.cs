@@ -85,6 +85,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, "onLeftClickListElement"),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnLeftClickListElementPrefix)));
 
+            harmony.Patch(AccessTools.Method(baseType, "OnButtonBack"),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnButtonBackPrefix)));
+
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
@@ -945,7 +948,28 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            if (HandbookCategoryManager.TryHandleGroupPageClick(__instance, index))
+            {
+                return false;
+            }
+
             return !HandbookPageDragManager.TryConsumeClickSuppression();
+        }
+
+        public static bool OnButtonBackPrefix(GuiDialogHandbook __instance, ref bool __result)
+        {
+            if (!HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return true;
+            }
+
+            if (HandbookCategoryManager.TryHandleGroupBackNavigation(__instance))
+            {
+                __result = true;
+                return false;
+            }
+
+            return true;
         }
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
