@@ -27,6 +27,7 @@ namespace Enhanced_Handbook
         private DummySlot iconSlot;
         private GuiHandbookPage weightSourcePage;
         private int sortOrderHint = int.MaxValue;
+        private ElementBounds iconScissorBounds;
 
         internal GroupHandbookPage(
             string pageCode,
@@ -164,16 +165,30 @@ namespace Enhanced_Handbook
 
             if (hasIcon)
             {
-                capi.Render.RenderItemstackToGui(
-                    iconSlot,
-                    x + (double)iconOffset + (double)(iconSize / 2f),
-                    y + (double)(iconSize / 2f),
-                    100.0,
-                    iconSize,
-                    -1,
-                    shading: true,
-                    rotate: false,
-                    showStackSize: false);
+                EnsureIconScissorBounds(capi);
+
+                if (iconScissorBounds != null)
+                {
+                    iconScissorBounds.fixedX = ((double)iconOffset + x - (double)(iconSize / 2f)) / (double)RuntimeEnv.GUIScale;
+                    iconScissorBounds.fixedY = (y - (double)(iconSize / 2f)) / (double)RuntimeEnv.GUIScale;
+                    iconScissorBounds.CalcWorldBounds();
+
+                    if (iconScissorBounds.InnerWidth > 0.0 && iconScissorBounds.InnerHeight > 0.0)
+                    {
+                        capi.Render.PushScissor(iconScissorBounds, stacking: true);
+                        capi.Render.RenderItemstackToGui(
+                            iconSlot,
+                            x + (double)iconOffset + (double)(iconSize / 2f),
+                            y + (double)(iconSize / 2f),
+                            100.0,
+                            iconSize,
+                            -1,
+                            shading: true,
+                            rotate: false,
+                            showStackSize: false);
+                        capi.Render.PopScissor();
+                    }
+                }
             }
 
             EnsureTexture(capi);
@@ -202,6 +217,7 @@ namespace Enhanced_Handbook
         {
             DisposeTexture();
             iconSlot = null;
+            iconScissorBounds = null;
         }
 
         public override float GetTextMatchWeight(string searchText)
@@ -251,6 +267,22 @@ namespace Enhanced_Handbook
         {
             titleTexture?.Dispose();
             titleTexture = null;
+        }
+
+        private void EnsureIconScissorBounds(ICoreClientAPI capi)
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            if (iconScissorBounds != null)
+            {
+                return;
+            }
+
+            iconScissorBounds = ElementBounds.FixedSize(50.0, 50.0);
+            iconScissorBounds.ParentBounds = capi.Gui.WindowBounds;
         }
 
         private float GetGroupMatchWeight(string searchText)
