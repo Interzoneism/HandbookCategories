@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -89,7 +91,8 @@ namespace Enhanced_Handbook
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnButtonBackPrefix)));
 
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnRenderGUI), new[] { typeof(float) }),
-                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)));
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)),
+                transpiler: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiTranspiler)));
 
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
@@ -978,6 +981,37 @@ namespace Enhanced_Handbook
             }
 
             return true;
+        }
+
+        public static IEnumerable<CodeInstruction> OnRenderGuiTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+        {
+            if (instructions == null)
+            {
+                yield break;
+            }
+
+            LocalBuilder baseEnabledLocal = generator?.DeclareLocal(typeof(bool));
+            MethodInfo setEnabled = AccessTools.PropertySetter(typeof(GuiElementTextButton), nameof(GuiElementTextButton.Enabled));
+            MethodInfo shouldEnable = AccessTools.Method(typeof(HandbookCategoryManager), nameof(HandbookCategoryManager.ShouldEnableBackButton));
+
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (setEnabled != null && instruction.Calls(setEnabled))
+                {
+                    if (baseEnabledLocal != null && shouldEnable != null)
+                    {
+                        yield return new CodeInstruction(OpCodes.Stloc, baseEnabledLocal);
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Ldloc, baseEnabledLocal);
+                        yield return new CodeInstruction(OpCodes.Call, shouldEnable);
+                    }
+
+                    yield return instruction;
+                    continue;
+                }
+
+                yield return instruction;
+            }
         }
 
         public static void OnRenderGuiPostfix(GuiDialogHandbook __instance)
