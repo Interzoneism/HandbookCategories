@@ -1772,7 +1772,7 @@ namespace Enhanced_Handbook
             bool allowMatches = selectedWords.Count > 0;
             int? allowedDifferingIndex = null;
 
-            for (int index = 0; index < shownPages.Count; index++)
+            foreach (int index in EnumerateGroupSearchOrder(shownPages.Count, selectedIndex))
             {
                 if (shownPages[index] is not GuiHandbookPage candidate || ReferenceEquals(candidate, selectedPage))
                 {
@@ -1866,6 +1866,33 @@ namespace Enhanced_Handbook
             ShowGroupNamePrompt(pending, defaultName);
 
             return true;
+        }
+
+        private static IEnumerable<int> EnumerateGroupSearchOrder(int pageCount, int selectedIndex)
+        {
+            if (pageCount <= 0)
+            {
+                yield break;
+            }
+
+            if (selectedIndex < 0)
+            {
+                selectedIndex = 0;
+            }
+            else if (selectedIndex >= pageCount)
+            {
+                selectedIndex = pageCount - 1;
+            }
+
+            for (int index = selectedIndex + 1; index < pageCount; index++)
+            {
+                yield return index;
+            }
+
+            for (int index = selectedIndex - 1; index >= 0; index--)
+            {
+                yield return index;
+            }
         }
 
         internal static bool TryAddPageToGroup(
