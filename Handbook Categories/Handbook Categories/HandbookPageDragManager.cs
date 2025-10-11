@@ -514,7 +514,9 @@ namespace Enhanced_Handbook
 
         private static void OnLeftMouseReleased(int mouseX, int mouseY)
         {
-            if (isDragging && draggingState != null)
+            bool wasDragging = isDragging && draggingState != null;
+
+            if (wasDragging)
             {
                 bool handledDrop = TrySpawnCreativeStack();
                 if (!handledDrop)
@@ -533,7 +535,12 @@ namespace Enhanced_Handbook
                 }
             }
 
-            ResetDrag();
+            ResetDrag(preserveSuppression: wasDragging);
+
+            if (wasDragging)
+            {
+                suppressListClick = true;
+            }
         }
 
         private static bool TrySpawnCreativeStack()
@@ -1533,7 +1540,7 @@ namespace Enhanced_Handbook
             return leftDown || rightDown;
         }
 
-        private static void ResetDrag()
+        private static void ResetDrag(bool preserveSuppression = false)
         {
             isDragging = false;
             draggingState = null;
@@ -1541,7 +1548,10 @@ namespace Enhanced_Handbook
             draggingSlot = null;
             draggingCategoryCode = null;
             draggingOrigin = DragOrigin.None;
-            suppressListClick = false;
+            if (!preserveSuppression)
+            {
+                suppressListClick = false;
+            }
             wasLeftDown = false;
             suppressedGroupPageDialog = null;
             ResetPending();
