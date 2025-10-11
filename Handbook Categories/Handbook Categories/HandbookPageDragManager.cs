@@ -265,8 +265,7 @@ namespace Enhanced_Handbook
 
             state.SearchList = searchList;
 
-            HandbookCategoryManager.HandleSearchEntryHideSimilar(dialog, overview, searchList, page);
-            return true;
+            return HandbookCategoryManager.TryHandleGroupShiftClick(dialog, overview, searchList, page);
         }
 
         private static void UpdateDragState()
