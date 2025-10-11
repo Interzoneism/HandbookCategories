@@ -684,6 +684,11 @@ namespace Enhanced_Handbook
                 state.SearchList = targetList;
             }
 
+            if (state?.Dialog != null)
+            {
+                suppressedGroupPageDialog = state.Dialog;
+            }
+
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
                 if (state == null || pageToAdd == null || groupPage == null)
@@ -1551,9 +1556,9 @@ namespace Enhanced_Handbook
             if (!preserveSuppression)
             {
                 suppressListClick = false;
+                suppressedGroupPageDialog = null;
             }
             wasLeftDown = false;
-            suppressedGroupPageDialog = null;
             ResetPending();
         }
 
