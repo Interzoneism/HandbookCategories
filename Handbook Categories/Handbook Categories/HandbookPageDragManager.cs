@@ -473,6 +473,11 @@ namespace Enhanced_Handbook
                 bool handledDrop = TrySpawnCreativeStack();
                 if (!handledDrop)
                 {
+                    handledDrop = TryHandleGroupDrop(mouseX, mouseY);
+                }
+
+                if (!handledDrop)
+                {
                     handledDrop = TryHandleDrop(mouseX, mouseY);
                 }
 
@@ -594,6 +599,146 @@ namespace Enhanced_Handbook
             }, $"handbookcategories-drop-{Guid.NewGuid():N}");
 
             return true;
+        }
+
+        private static bool TryHandleGroupDrop(int mouseX, int mouseY)
+        {
+            if (draggingState == null || draggingPage == null)
+            {
+                return false;
+            }
+
+            if (draggingPage is GroupHandbookPage)
+            {
+                return false;
+            }
+
+            if (!TryGetGroupDropTarget(draggingState, mouseX, mouseY, out GroupHandbookPage groupPage, out GuiElementFlatList targetList))
+            {
+                return false;
+            }
+
+            string pageCode = GetEffectivePageCode(draggingPage, draggingSlot);
+            DebugLog($"Dropping page {pageCode} from {DescribeOrigin(draggingOrigin)} onto group {DescribePage(groupPage, groupPage?.PageCode)}. Item={DescribeItemstack(draggingSlot)}");
+
+            DragState state = draggingState;
+            GuiHandbookPage pageToAdd = draggingPage;
+            DummySlot slot = draggingSlot;
+            float? scrollToRestore = CaptureScrollPosition(state);
+
+            if (state != null && targetList != null)
+            {
+                state.SearchList = targetList;
+            }
+
+            capi?.Event?.EnqueueMainThreadTask(() =>
+            {
+                if (state == null || pageToAdd == null || groupPage == null)
+                {
+                    return;
+                }
+
+                bool added = HandbookCategoryManager.TryAddPageToGroup(
+                    state.Dialog,
+                    state.Overview,
+                    targetList,
+                    groupPage,
+                    pageToAdd);
+
+                if (!added)
+                {
+                    DebugLog($"Group drop rejected: Unable to add page {DescribePage(pageToAdd, GetEffectivePageCode(pageToAdd, slot))} to group {DescribePage(groupPage, groupPage.PageCode)}.");
+                    return;
+                }
+
+                DebugLog($"Group drop accepted: Added page {DescribePage(pageToAdd, GetEffectivePageCode(pageToAdd, slot))} to group {DescribePage(groupPage, groupPage.PageCode)}.");
+
+                if (state != null)
+                {
+                    state.PendingScrollPosition = scrollToRestore;
+                }
+            }, $"handbookcategories-groupdrop-{Guid.NewGuid():N}");
+
+            return true;
+        }
+
+        private static bool TryGetGroupDropTarget(DragState state, int mouseX, int mouseY, out GroupHandbookPage groupPage, out GuiElementFlatList list)
+        {
+            groupPage = null;
+            list = state?.SearchList ?? state?.Overview?.GetFlatList("stacklist");
+
+            ElementBounds bounds = list?.Bounds;
+            ElementBounds parentBounds = bounds?.ParentBounds;
+            ElementBounds insideBounds = list?.insideBounds;
+
+            if (list == null || bounds == null || parentBounds == null || insideBounds == null)
+            {
+                return false;
+            }
+
+            if (!parentBounds.PointInside(mouseX, mouseY))
+            {
+                return false;
+            }
+
+            List<IFlatListItem> elements = list.Elements;
+            if (elements == null || elements.Count == 0)
+            {
+                return false;
+            }
+
+            double currentY = insideBounds.absY;
+            double cellHeight = GuiElement.scaled(list.unscaledCellHeight);
+            double paddingY = GuiElement.scaled(list.unscalledYPad);
+            double rowSpacing = GuiElement.scaled(list.unscaledCellHeight + list.unscaledCellSpacing);
+            double iconSize = GuiElement.scaled(25.0);
+            double iconOffset = GuiElement.scaled(10.0);
+
+            foreach (IFlatListItem element in elements)
+            {
+                if (!element.Visible)
+                {
+                    continue;
+                }
+
+                float rowY = (float)(5.0 + bounds.absY + currentY);
+                double minY = rowY - paddingY;
+                double maxY = rowY + cellHeight - paddingY;
+                double minX = bounds.absX;
+                double maxX = bounds.absX + bounds.InnerWidth;
+
+                bool insideRow = mouseX > minX && mouseX <= maxX && mouseY >= minY && mouseY <= maxY;
+                if (insideRow)
+                {
+                    if (element is not GroupHandbookPage group)
+                    {
+                        return false;
+                    }
+
+                    DummySlot iconSlot = group.GetIconSlot();
+                    if (iconSlot?.Itemstack == null)
+                    {
+                        return false;
+                    }
+
+                    double iconMinX = minX + iconOffset;
+                    double iconMaxX = iconMinX + iconSize;
+                    double iconMinY = rowY;
+                    double iconMaxY = iconMinY + iconSize;
+
+                    if (mouseX >= iconMinX && mouseX <= iconMaxX && mouseY >= iconMinY && mouseY <= iconMaxY)
+                    {
+                        groupPage = group;
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                currentY += rowSpacing;
+            }
+
+            return false;
         }
 
         private static bool TryBeginDragFromSearchList(DragState state, int mouseX, int mouseY)
