@@ -2360,6 +2360,16 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        internal static bool ShouldEnableBackButton(GuiDialogHandbook dialog, bool baseEnabled)
+        {
+            if (dialog == null)
+            {
+                return baseEnabled;
+            }
+
+            return baseEnabled || HasGroupBackNavigation(dialog);
+        }
+
         internal static void UpdateBackButtonState(GuiDialogHandbook dialog)
         {
             if (dialog == null)
@@ -2374,9 +2384,10 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (HasGroupBackNavigation(dialog) && !backButton.Enabled)
+            bool shouldEnable = ShouldEnableBackButton(dialog, backButton.Enabled);
+            if (backButton.Enabled != shouldEnable)
             {
-                backButton.Enabled = true;
+                backButton.Enabled = shouldEnable;
             }
         }
 
