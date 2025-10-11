@@ -76,6 +76,38 @@ namespace Enhanced_Handbook
             iconSlot = CloneSlotFromPage(weightSourcePage);
         }
 
+        internal bool AddMembers(IEnumerable<GuiHandbookPage> newMembers)
+        {
+            if (newMembers == null)
+            {
+                return false;
+            }
+
+            bool added = false;
+            foreach (GuiHandbookPage member in newMembers)
+            {
+                if (member == null)
+                {
+                    continue;
+                }
+
+                if (members.Exists(existing => ReferenceEquals(existing, member)))
+                {
+                    continue;
+                }
+
+                members.Add(member);
+                added = true;
+            }
+
+            if (added)
+            {
+                UpdateDisplayName(displayName);
+            }
+
+            return added;
+        }
+
         private static string BuildListDisplayText(string name, int memberCount)
         {
             if (memberCount <= 0)

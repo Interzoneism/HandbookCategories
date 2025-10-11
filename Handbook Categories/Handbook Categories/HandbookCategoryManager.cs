@@ -1851,6 +1851,11 @@ namespace Enhanced_Handbook
                 sanitized = "group";
             }
 
+            if (TryMergeMembersWithExistingGroup(pending, members, sanitized))
+            {
+                return;
+            }
+
             string uniqueSuffix = $"{nextGroupId++:D4}";
             string hiddenCategoryCode = $"{GroupCategoryCodePrefix}{sanitized}-{uniqueSuffix}";
             string pageCode = $"{GroupPageCodePrefix}{sanitized}-{uniqueSuffix}";
@@ -1898,6 +1903,17 @@ namespace Enhanced_Handbook
             }
 
             int insertIndex = Math.Clamp(pending.InsertIndex, 0, shownPages.Count);
+            int existingIndex = shownPages.IndexOf(groupPage);
+            if (existingIndex >= 0)
+            {
+                shownPages.RemoveAt(existingIndex);
+                if (existingIndex < insertIndex)
+                {
+                    insertIndex = Math.Max(0, insertIndex - 1);
+                }
+            }
+
+            insertIndex = Math.Clamp(insertIndex, 0, shownPages.Count);
             shownPages.Insert(insertIndex, groupPage);
 
             if (pending.SearchList != null)
@@ -1916,6 +1932,173 @@ namespace Enhanced_Handbook
             }
 
             AddRowHighlight(groupPage, CollapseHighlightColor, RowHighlightDurationMs);
+        }
+
+        private static bool TryMergeMembersWithExistingGroup(
+            PendingGroupCreation pending,
+            List<GuiHandbookPage> members,
+            string sanitizedName)
+        {
+            if (pending == null || members == null || members.Count == 0 || string.IsNullOrEmpty(sanitizedName))
+            {
+                return false;
+            }
+
+            if (!TryFindExistingGroupForName(pending, sanitizedName, out GroupHandbookPage existingGroup))
+            {
+                return false;
+            }
+
+            List<GuiHandbookPage> filteredMembers = members
+                .Where(page => page != null)
+                .ToList();
+
+            if (filteredMembers.Count == 0)
+            {
+                return false;
+            }
+
+            HashSet<GuiHandbookPage> existingMembers = existingGroup.Members
+                .Where(page => page != null)
+                .ToHashSet();
+
+            List<GuiHandbookPage> additions = filteredMembers
+                .Where(page => !existingMembers.Contains(page))
+                .ToList();
+
+            bool addedMembers = additions.Count > 0 && existingGroup.AddMembers(additions);
+
+            if (addedMembers)
+            {
+                foreach (GuiHandbookPage page in additions)
+                {
+                    groupByMemberPage[page] = existingGroup;
+                }
+
+                string hiddenCode = existingGroup.HiddenCategoryCode;
+                if (!string.IsNullOrEmpty(hiddenCode))
+                {
+                    pagesByCategory[hiddenCode] = existingGroup.Members
+                        .Where(page => page != null)
+                        .ToList();
+                }
+            }
+
+            ReplaceMembersWithGroup(pending, existingGroup);
+            return true;
+        }
+
+        private static bool TryFindExistingGroupForName(
+            PendingGroupCreation pending,
+            string sanitizedName,
+            out GroupHandbookPage groupPage)
+        {
+            groupPage = null;
+
+            if (pending == null || string.IsNullOrEmpty(sanitizedName))
+            {
+                return false;
+            }
+
+            string displayCategory = pending.DisplayCategoryCode;
+            string selectedCategory = pending.SelectedPage?.CategoryCode;
+
+            List<string> searchCategories = BuildGroupSearchCategories(displayCategory, selectedCategory);
+
+            foreach (string category in searchCategories)
+            {
+                if (!TryGetGroupPagesForCategory(category, out List<GroupHandbookPage> groups) || groups == null)
+                {
+                    continue;
+                }
+
+                foreach (GroupHandbookPage group in groups)
+                {
+                    if (group == null)
+                    {
+                        continue;
+                    }
+
+                    if (!MatchesPendingDisplayCategory(group, displayCategory, selectedCategory))
+                    {
+                        continue;
+                    }
+
+                    string existingSanitized = Sanitize(group.DisplayName);
+                    if (string.Equals(existingSanitized, sanitizedName, StringComparison.Ordinal))
+                    {
+                        groupPage = group;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static List<string> BuildGroupSearchCategories(string displayCategory, string selectedCategory)
+        {
+            var searchCategories = new List<string>();
+            var seenCategories = new HashSet<string>();
+
+            void AddCategory(string category)
+            {
+                if (seenCategories.Add(category))
+                {
+                    searchCategories.Add(category);
+                }
+            }
+
+            if (string.IsNullOrEmpty(displayCategory))
+            {
+                if (!string.IsNullOrEmpty(selectedCategory))
+                {
+                    AddCategory(selectedCategory);
+                }
+
+                AddCategory(displayCategory);
+            }
+            else
+            {
+                AddCategory(displayCategory);
+
+                if (!string.IsNullOrEmpty(selectedCategory))
+                {
+                    AddCategory(selectedCategory);
+                }
+            }
+
+            AddCategory(null);
+
+            return searchCategories;
+        }
+
+        private static bool MatchesPendingDisplayCategory(
+            GroupHandbookPage groupPage,
+            string pendingDisplayCategory,
+            string selectedCategory)
+        {
+            if (groupPage == null)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(pendingDisplayCategory))
+            {
+                return string.Equals(groupPage.DisplayCategoryCode, pendingDisplayCategory, StringComparison.Ordinal);
+            }
+
+            if (!string.IsNullOrEmpty(selectedCategory))
+            {
+                if (groupPage.DisplayCategoryCode == null)
+                {
+                    return true;
+                }
+
+                return string.Equals(groupPage.DisplayCategoryCode, selectedCategory, StringComparison.Ordinal);
+            }
+
+            return groupPage.DisplayCategoryCode == null;
         }
 
         private static void RegisterGroupPage(GroupHandbookPage groupPage)
