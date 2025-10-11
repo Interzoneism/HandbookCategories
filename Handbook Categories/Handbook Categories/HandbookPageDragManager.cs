@@ -128,6 +128,7 @@ namespace Enhanced_Handbook
         private static bool isDragging;
         private static bool wasLeftDown;
         private static bool suppressListClick;
+        private static GuiDialogHandbook suppressedGroupPageDialog;
         private static bool featureEnabled = true;
 
         internal static void Initialize(ICoreClientAPI api)
@@ -225,6 +226,32 @@ namespace Enhanced_Handbook
 
             suppressListClick = false;
             return true;
+        }
+
+        internal static bool TryConsumeGroupPageRelease(GuiDialogHandbook dialog)
+        {
+            if (!featureEnabled || dialog == null)
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(dialog, suppressedGroupPageDialog))
+            {
+                return false;
+            }
+
+            suppressedGroupPageDialog = null;
+            return true;
+        }
+
+        private static void SuppressNextGroupPageRelease(GuiDialogHandbook dialog)
+        {
+            if (!featureEnabled || dialog == null)
+            {
+                return;
+            }
+
+            suppressedGroupPageDialog = dialog;
         }
 
         internal static bool TryHandleCtrlClick(GuiDialogHandbook dialog, int index)
@@ -386,6 +413,11 @@ namespace Enhanced_Handbook
                         pendingSlot = null;
                     }
 
+                    if (ReferenceEquals(suppressedGroupPageDialog, dialog))
+                    {
+                        suppressedGroupPageDialog = null;
+                    }
+
                     trackedDialogs.Remove(dialog);
                 }
             }
@@ -401,6 +433,7 @@ namespace Enhanced_Handbook
             }
 
             bool shiftHeld = IsShiftKeyHeld();
+            bool ctrlHeld = IsCtrlKeyHeld();
 
             foreach (GuiDialog dialog in Enumerable.Reverse(capi.Gui.OpenedGuis))
             {
@@ -419,6 +452,13 @@ namespace Enhanced_Handbook
                     if (IsHandbookObscured(state, mouseX, mouseY))
                     {
                         return;
+                    }
+
+                    if (!shiftHeld && !ctrlHeld && TryHandleGroupPageMouseDown(state, mouseX, mouseY))
+                    {
+                        suppressListClick = true;
+                        SuppressNextGroupPageRelease(handbookDialog);
+                        break;
                     }
 
                     if (!shiftHeld && (TryBeginDragFromSearchList(state, mouseX, mouseY) || TryBeginDragFromDetailIcon(state, mouseX, mouseY)))
@@ -745,6 +785,22 @@ namespace Enhanced_Handbook
             }
 
             return false;
+        }
+
+        private static bool TryHandleGroupPageMouseDown(DragState state, int mouseX, int mouseY)
+        {
+            GuiDialogHandbook dialog = state?.Dialog;
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (!TryGetSearchEntryUnderMouse(state, mouseX, mouseY, out GuiHandbookPage page))
+            {
+                return false;
+            }
+
+            return HandbookCategoryManager.TryHandleGroupPageMouseDown(dialog, page);
         }
 
         private static bool TryBeginDragFromSearchList(DragState state, int mouseX, int mouseY)
@@ -1504,6 +1560,7 @@ namespace Enhanced_Handbook
             draggingOrigin = DragOrigin.None;
             suppressListClick = false;
             wasLeftDown = false;
+            suppressedGroupPageDialog = null;
             ResetPending();
         }
 

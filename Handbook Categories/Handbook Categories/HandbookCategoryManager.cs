@@ -2605,6 +2605,26 @@ namespace Enhanced_Handbook
             }
         }
 
+        internal static bool TryHandleGroupPageMouseDown(GuiDialogHandbook dialog, GuiHandbookPage selectedPage)
+        {
+            if (dialog == null || selectedPage is not GroupHandbookPage groupPage)
+            {
+                return false;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages)
+            {
+                return false;
+            }
+
+            if (!shownPages.Contains(groupPage))
+            {
+                return false;
+            }
+
+            return TryActivateGroupPage(dialog, groupPage);
+        }
+
         internal static bool TryHandleGroupPageClick(GuiDialogHandbook dialog, int index)
         {
             if (dialog == null)
@@ -2623,6 +2643,16 @@ namespace Enhanced_Handbook
             }
 
             if (shownPages[index] is not GroupHandbookPage groupPage)
+            {
+                return false;
+            }
+
+            return TryActivateGroupPage(dialog, groupPage);
+        }
+
+        private static bool TryActivateGroupPage(GuiDialogHandbook dialog, GroupHandbookPage groupPage)
+        {
+            if (dialog == null || groupPage == null)
             {
                 return false;
             }

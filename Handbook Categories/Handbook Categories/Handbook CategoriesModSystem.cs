@@ -959,6 +959,11 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            if (HandbookPageDragManager.TryConsumeGroupPageRelease(__instance))
+            {
+                return false;
+            }
+
             if (HandbookCategoryManager.TryHandleGroupPageClick(__instance, index))
             {
                 return false;
