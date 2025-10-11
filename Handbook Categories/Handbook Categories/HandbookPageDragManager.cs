@@ -323,6 +323,12 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            if (HandbookCategoryManager.IsCreateCategoryPromptOpen())
+            {
+                ResetDrag();
+                return;
+            }
+
             RemoveClosedDialogs();
 
             bool leftDown = capi.Input.MouseButton?.Left == true;
