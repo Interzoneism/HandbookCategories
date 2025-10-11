@@ -2984,7 +2984,7 @@ namespace Enhanced_Handbook
 
         internal static void RenderFlatListHighlights(GuiElementFlatList list, ICoreClientAPI api)
         {
-            if (list == null || api == null)
+            if (list == null || api == null || rowHighlights.Count == 0)
             {
                 return;
             }
@@ -3045,17 +3045,6 @@ namespace Enhanced_Handbook
             if (page == null)
             {
                 return false;
-            }
-
-            if (page is GroupHandbookPage)
-            {
-                if (rowHighlights.TryGetValue(page, out RowHighlight temporaryHighlight) && temporaryHighlight != null && temporaryHighlight.ExpiresAtMs <= currentTime)
-                {
-                    rowHighlights.Remove(page);
-                }
-
-                color = CollapseHighlightColor;
-                return true;
             }
 
             if (!rowHighlights.TryGetValue(page, out RowHighlight highlight) || highlight == null)
