@@ -94,6 +94,9 @@ namespace Enhanced_Handbook
                 typeof(Cairo.ImageSurface)
             }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.ComposeVerticalTabsPrefix)));
 
+            harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.RenderInteractiveElements)),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.RenderFlatListPostfix)));
+
             api.Event.LeaveWorld += OnLeaveWorld;
         }
 
@@ -918,6 +921,16 @@ namespace Enhanced_Handbook
             {
                 HandbookPageDragManager.RegisterDetail(__instance, detailGui);
             }
+        }
+
+        public static void RenderFlatListPostfix(GuiElementFlatList __instance, float deltaTime, ICoreClientAPI ___api)
+        {
+            if (__instance == null || ___api == null)
+            {
+                return;
+            }
+
+            HandbookCategoryManager.RenderFlatListHighlights(__instance, ___api);
         }
 
         public static bool OnLeftClickListElementPrefix(GuiDialogHandbook __instance, int index)
