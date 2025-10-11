@@ -943,6 +943,11 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
+            {
+                return false;
+            }
+
             if (HandbookPageDragManager.TryHandleShiftClick(__instance, index))
             {
                 return false;

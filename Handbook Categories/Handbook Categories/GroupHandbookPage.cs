@@ -24,6 +24,9 @@ namespace Enhanced_Handbook
         private string listDisplayText;
         private string searchableText;
         private LoadedTexture titleTexture;
+        private DummySlot iconSlot;
+        private GuiHandbookPage weightSourcePage;
+        private int sortOrderHint = int.MaxValue;
 
         internal GroupHandbookPage(
             string pageCode,
@@ -50,6 +53,8 @@ namespace Enhanced_Handbook
 
         internal string SearchableText => searchableText;
 
+        internal int SortOrderHint => sortOrderHint;
+
         internal void UpdateDisplayName(string name)
         {
             string fallback = string.IsNullOrWhiteSpace(name) ? "Group" : name.Trim();
@@ -58,6 +63,17 @@ namespace Enhanced_Handbook
             listDisplayText = BuildListDisplayText(displayName, members.Count);
             searchableText = BuildSearchableText(displayName, members);
             DisposeTexture();
+        }
+
+        internal void SetSortOrderHint(int hint)
+        {
+            sortOrderHint = hint < 0 ? int.MaxValue : hint;
+        }
+
+        internal void AdoptAppearanceFrom(GuiHandbookPage sourcePage)
+        {
+            weightSourcePage = sourcePage ?? members.FirstOrDefault();
+            iconSlot = CloneSlotFromPage(weightSourcePage);
         }
 
         private static string BuildListDisplayText(string name, int memberCount)
@@ -110,6 +126,24 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            float iconSize = (float)GuiElement.scaled(25.0);
+            float iconOffset = (float)GuiElement.scaled(10.0);
+            bool hasIcon = iconSlot?.Itemstack != null;
+
+            if (hasIcon)
+            {
+                capi.Render.RenderItemstackToGui(
+                    iconSlot,
+                    x + (double)iconOffset + (double)(iconSize / 2f),
+                    y + (double)(iconSize / 2f),
+                    100.0,
+                    iconSize,
+                    -1,
+                    shading: true,
+                    rotate: false,
+                    showStackSize: false);
+            }
+
             EnsureTexture(capi);
 
             if (titleTexture == null)
@@ -117,13 +151,17 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            double renderX = x + GuiElement.scaled(TextOffsetX);
-            double renderY = y + GuiElement.scaled(TextOffsetY);
+            double textX = hasIcon
+                ? x + (double)iconSize + GuiElement.scaled(25.0)
+                : x + GuiElement.scaled(TextOffsetX);
+            double textY = hasIcon
+                ? y + (double)(iconSize / 4f) - GuiElement.scaled(3.0)
+                : y + GuiElement.scaled(TextOffsetY);
 
             capi.Render.Render2DTexturePremultipliedAlpha(
                 titleTexture.TextureId,
-                renderX,
-                renderY,
+                textX,
+                textY,
                 titleTexture.Width,
                 titleTexture.Height);
         }
@@ -131,9 +169,59 @@ namespace Enhanced_Handbook
         public override void Dispose()
         {
             DisposeTexture();
+            iconSlot = null;
         }
 
         public override float GetTextMatchWeight(string searchText)
+        {
+            float fallback = GetGroupMatchWeight(searchText);
+
+            if (weightSourcePage != null)
+            {
+                try
+                {
+                    float sourceWeight = weightSourcePage.GetTextMatchWeight(searchText);
+                    if (sourceWeight > fallback)
+                    {
+                        return sourceWeight;
+                    }
+                }
+                catch
+                {
+                    // Ignore failures from the original page to avoid breaking the UI.
+                }
+            }
+
+            return fallback;
+        }
+
+        public override void ComposePage(
+            GuiComposer detailViewGui,
+            ElementBounds textBounds,
+            ItemStack[] allStacks,
+            ActionConsumable<string> openDetailPageFor)
+        {
+            if (detailViewGui == null || textBounds == null)
+            {
+                return;
+            }
+
+            string description = listDisplayText;
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                description = displayName ?? string.Empty;
+            }
+
+            detailViewGui.AddStaticText(description, CairoFont.WhiteSmallText(), textBounds);
+        }
+
+        internal void DisposeTexture()
+        {
+            titleTexture?.Dispose();
+            titleTexture = null;
+        }
+
+        private float GetGroupMatchWeight(string searchText)
         {
             if (string.IsNullOrWhiteSpace(searchText))
             {
@@ -172,30 +260,35 @@ namespace Enhanced_Handbook
             return 0f;
         }
 
-        public override void ComposePage(
-            GuiComposer detailViewGui,
-            ElementBounds textBounds,
-            ItemStack[] allStacks,
-            ActionConsumable<string> openDetailPageFor)
+        private static DummySlot CloneSlotFromPage(GuiHandbookPage sourcePage)
         {
-            if (detailViewGui == null || textBounds == null)
+            if (sourcePage == null)
             {
-                return;
+                return null;
             }
 
-            string description = listDisplayText;
-            if (string.IsNullOrWhiteSpace(description))
+            return sourcePage switch
             {
-                description = displayName ?? string.Empty;
-            }
-
-            detailViewGui.AddStaticText(description, CairoFont.WhiteSmallText(), textBounds);
+                GuiHandbookItemStackPage itemPage => CloneDummySlot(itemPage.dummySlot),
+                GuiHandbookMealRecipePage mealPage => CloneDummySlot(mealPage.dummySlot),
+                _ => null
+            };
         }
 
-        internal void DisposeTexture()
+        private static DummySlot CloneDummySlot(DummySlot source)
         {
-            titleTexture?.Dispose();
-            titleTexture = null;
+            if (source?.Itemstack == null)
+            {
+                return null;
+            }
+
+            ItemStack clone = source.Itemstack.Clone();
+            if (clone == null)
+            {
+                return null;
+            }
+
+            return source.Inventory != null ? new DummySlot(clone, source.Inventory) : new DummySlot(clone);
         }
 
         private void EnsureTexture(ICoreClientAPI capi)

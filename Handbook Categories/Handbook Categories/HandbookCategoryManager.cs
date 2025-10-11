@@ -546,6 +546,15 @@ namespace Enhanced_Handbook
             internal GuiHandbookPage SelectedPage { get; }
         }
 
+        private readonly struct WeightedHandbookPage
+        {
+            internal GuiHandbookPage Page { get; init; }
+
+            internal float Weight { get; init; }
+
+            internal int SortHint { get; init; }
+        }
+
         private sealed class GroupNavigationState
         {
             internal GroupNavigationState(string previousCategoryCode, string hiddenCategoryCode, float scrollPosition)
@@ -1549,14 +1558,17 @@ namespace Enhanced_Handbook
                     weightedPages.Add(new WeightedHandbookPage
                     {
                         Page = page,
-                        Weight = weight
+                        Weight = weight,
+                        SortHint = page?.PageNumber ?? int.MaxValue
                     });
                 }
             }
 
             AppendGroupPages(categoryCode, searchQuery, weightedPages);
 
-            foreach (WeightedHandbookPage weighted in weightedPages.OrderByDescending(w => w.Weight))
+            foreach (WeightedHandbookPage weighted in weightedPages
+                .OrderByDescending(w => w.Weight)
+                .ThenBy(w => w.SortHint))
             {
                 shownPages.Add(weighted.Page);
             }
@@ -1570,14 +1582,46 @@ namespace Enhanced_Handbook
             GuiElementFlatList searchList,
             GuiHandbookPage selectedPage)
         {
+            return TryHandleGroupClick(
+                dialog,
+                overviewGui,
+                searchList,
+                selectedPage,
+                GetNormalizedPageCode,
+                ExtractOrderedPageCodeWords);
+        }
+
+        internal static bool TryHandleGroupCtrlClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage)
+        {
+            return TryHandleGroupClick(
+                dialog,
+                overviewGui,
+                searchList,
+                selectedPage,
+                GetLocalizedPageTitle,
+                ExtractOrderedWordsPreservingCase);
+        }
+
+        private static bool TryHandleGroupClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage,
+            System.Func<GuiHandbookPage, string> keySelector,
+            System.Func<string, List<string>> wordExtractor)
+        {
             if (dialog == null || selectedPage == null)
             {
                 return false;
             }
 
-            if (selectedPage is GroupHandbookPage groupPage)
+            if (selectedPage is GroupHandbookPage existingGroup)
             {
-                return TryRemoveGroupPage(dialog, overviewGui, searchList, groupPage);
+                return TryRemoveGroupPage(dialog, overviewGui, searchList, existingGroup);
             }
 
             if (groupByMemberPage.ContainsKey(selectedPage))
@@ -1601,12 +1645,14 @@ namespace Enhanced_Handbook
                 new HiddenPageEntry(selectedPage, selectedIndex)
             };
 
-            string normalizedSelectedCode = GetNormalizedPageCode(selectedPage);
-            List<string> selectedWords = ExtractOrderedPageCodeWords(normalizedSelectedCode);
-            if (selectedWords.Count == 0 && !string.IsNullOrWhiteSpace(normalizedSelectedCode))
+            string selectedKey = GetGroupingKey(selectedPage, keySelector);
+            List<string> selectedWords = ExtractWordsForGrouping(selectedKey, wordExtractor);
+            if (selectedWords.Count == 0 && !string.IsNullOrWhiteSpace(selectedKey))
             {
-                selectedWords.Add(normalizedSelectedCode);
+                selectedWords.Add(selectedKey.Trim());
             }
+
+            bool allowMatches = selectedWords.Count > 0;
 
             for (int index = 0; index < shownPages.Count; index++)
             {
@@ -1620,16 +1666,21 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                string normalizedCandidate = GetNormalizedPageCode(candidate);
-                if (string.IsNullOrWhiteSpace(normalizedCandidate))
+                string candidateKey = GetGroupingKey(candidate, keySelector);
+                if (string.IsNullOrWhiteSpace(candidateKey))
                 {
                     continue;
                 }
 
-                List<string> candidateWords = ExtractOrderedPageCodeWords(normalizedCandidate);
+                List<string> candidateWords = ExtractWordsForGrouping(candidateKey, wordExtractor);
                 if (candidateWords.Count == 0)
                 {
-                    candidateWords.Add(normalizedCandidate);
+                    candidateWords.Add(candidateKey.Trim());
+                }
+
+                if (!allowMatches)
+                {
+                    continue;
                 }
 
                 if (!TitlesMatchAllowingOneWordDifference(selectedWords, candidateWords, out _))
@@ -1681,6 +1732,49 @@ namespace Enhanced_Handbook
             ShowGroupNamePrompt(pending, defaultName);
 
             return true;
+        }
+
+        private static string GetGroupingKey(GuiHandbookPage page, System.Func<GuiHandbookPage, string> selector)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string key = selector?.Invoke(page);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                return key;
+            }
+
+            return GetNormalizedPageCode(page);
+        }
+
+        private static List<string> ExtractWordsForGrouping(string key, System.Func<string, List<string>> extractor)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return new List<string>();
+            }
+
+            List<string> words = extractor?.Invoke(key) ?? new List<string>();
+
+            if (words.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            List<string> filtered = new(words.Count);
+            for (int i = 0; i < words.Count; i++)
+            {
+                string word = words[i];
+                if (!string.IsNullOrWhiteSpace(word))
+                {
+                    filtered.Add(word.Trim());
+                }
+            }
+
+            return filtered;
         }
 
         private static string GetDefaultGroupName(GuiHandbookPage selectedPage)
@@ -1762,7 +1856,19 @@ namespace Enhanced_Handbook
             string pageCode = $"{GroupPageCodePrefix}{sanitized}-{uniqueSuffix}";
 
             var groupPage = new GroupHandbookPage(pageCode, hiddenCategoryCode, pending.DisplayCategoryCode, displayName, members);
-            groupPage.PageNumber = pending.SelectedPage?.PageNumber ?? 0;
+            GuiHandbookPage referencePage = pending.SelectedPage ?? members.FirstOrDefault();
+            if (referencePage != null)
+            {
+                groupPage.PageNumber = referencePage.PageNumber;
+            }
+            else
+            {
+                groupPage.PageNumber = pending.SelectedPage?.PageNumber ?? 0;
+            }
+
+            int sortHint = referencePage?.PageNumber ?? int.MaxValue;
+            groupPage.SetSortOrderHint(sortHint);
+            groupPage.AdoptAppearanceFrom(referencePage);
 
             RegisterGroupPage(groupPage);
             ReplaceMembersWithGroup(pending, groupPage);
@@ -2203,7 +2309,8 @@ namespace Enhanced_Handbook
                 weightedPages.Add(new WeightedHandbookPage
                 {
                     Page = group,
-                    Weight = weight + 0.0001f
+                    Weight = weight,
+                    SortHint = group?.SortOrderHint ?? int.MaxValue
                 });
             }
         }
