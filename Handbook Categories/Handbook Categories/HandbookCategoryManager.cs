@@ -1691,7 +1691,7 @@ namespace Enhanced_Handbook
             double totalHeight = insideBounds?.fixedHeight ?? 0.0;
             double maxScroll = Math.Max(0.0, totalHeight - visibleHeight);
 
-            double rowHeight = GuiElement.scaled(searchList.unscaledCellHeight + searchList.unscaledCellSpacing);
+            double rowHeight = searchList.unscaledCellHeight + searchList.unscaledCellSpacing;
             if (rowHeight <= 0.0 || visibleHeight <= 0.0)
             {
                 return;
