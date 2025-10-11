@@ -76,6 +76,11 @@ namespace Enhanced_Handbook
             iconSlot = CloneSlotFromPage(weightSourcePage);
         }
 
+        internal DummySlot GetIconSlot()
+        {
+            return iconSlot;
+        }
+
         internal bool AddMembers(IEnumerable<GuiHandbookPage> newMembers)
         {
             if (newMembers == null)

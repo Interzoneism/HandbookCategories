@@ -1699,7 +1699,8 @@ namespace Enhanced_Handbook
                 searchList,
                 selectedPage,
                 GetNormalizedPageCode,
-                ExtractOrderedPageCodeWords);
+                ExtractOrderedPageCodeWords,
+                minimumWordCount: 3);
         }
 
         internal static bool TryHandleGroupCtrlClick(
@@ -1723,7 +1724,8 @@ namespace Enhanced_Handbook
             GuiElementFlatList searchList,
             GuiHandbookPage selectedPage,
             System.Func<GuiHandbookPage, string> keySelector,
-            System.Func<string, List<string>> wordExtractor)
+            System.Func<string, List<string>> wordExtractor,
+            int minimumWordCount = 0)
         {
             if (dialog == null || selectedPage == null)
             {
@@ -1758,6 +1760,10 @@ namespace Enhanced_Handbook
 
             string selectedKey = GetGroupingKey(selectedPage, keySelector);
             List<string> selectedWords = ExtractWordsForGrouping(selectedKey, wordExtractor);
+            if (minimumWordCount > 0 && selectedWords.Count > 0 && selectedWords.Count < minimumWordCount)
+            {
+                return false;
+            }
             if (selectedWords.Count == 0 && !string.IsNullOrWhiteSpace(selectedKey))
             {
                 selectedWords.Add(selectedKey.Trim());
@@ -1785,6 +1791,10 @@ namespace Enhanced_Handbook
                 }
 
                 List<string> candidateWords = ExtractWordsForGrouping(candidateKey, wordExtractor);
+                if (minimumWordCount > 0 && candidateWords.Count > 0 && candidateWords.Count < minimumWordCount)
+                {
+                    continue;
+                }
                 if (candidateWords.Count == 0)
                 {
                     candidateWords.Add(candidateKey.Trim());
@@ -1854,6 +1864,68 @@ namespace Enhanced_Handbook
 
             string defaultName = GetDefaultGroupName(selectedPage);
             ShowGroupNamePrompt(pending, defaultName);
+
+            return true;
+        }
+
+        internal static bool TryAddPageToGroup(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GroupHandbookPage groupPage,
+            GuiHandbookPage memberPage)
+        {
+            if (dialog == null || groupPage == null || memberPage == null)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(groupPage, memberPage) || memberPage is GroupHandbookPage)
+            {
+                return false;
+            }
+
+            if (groupByMemberPage.TryGetValue(memberPage, out GroupHandbookPage existingGroup) && existingGroup != null)
+            {
+                return false;
+            }
+
+            bool added = groupPage.AddMembers(new[] { memberPage });
+            if (!added)
+            {
+                return false;
+            }
+
+            groupByMemberPage[memberPage] = groupPage;
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (!string.IsNullOrEmpty(hiddenCode))
+            {
+                pagesByCategory[hiddenCode] = groupPage.Members
+                    .Where(page => page != null)
+                    .ToList();
+            }
+
+            UpdateConfigEntryMembers(groupPage);
+
+            if (ShownPagesField?.GetValue(dialog) is List<IFlatListItem> shownPages)
+            {
+                int index = shownPages.IndexOf(memberPage);
+                if (index >= 0)
+                {
+                    shownPages.RemoveAt(index);
+
+                    searchList?.CalcTotalHeight();
+
+                    if (overviewGui != null)
+                    {
+                        UpdateScrollArea(overviewGui, GetListHeight(dialog));
+                    }
+                }
+            }
+
+            CenterSearchListOnPage(overviewGui, searchList, groupPage);
+            AddRowHighlight(groupPage, CollapseHighlightColor, RowHighlightDurationMs);
 
             return true;
         }
