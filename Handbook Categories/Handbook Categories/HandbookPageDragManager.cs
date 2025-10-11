@@ -737,13 +737,12 @@ namespace Enhanced_Handbook
             double cellHeight = GuiElement.scaled(list.unscaledCellHeight);
             double paddingY = GuiElement.scaled(list.unscalledYPad);
             double rowSpacing = GuiElement.scaled(list.unscaledCellHeight + list.unscaledCellSpacing);
-            double iconSize = GuiElement.scaled(25.0);
-            double iconOffset = GuiElement.scaled(10.0);
 
             foreach (IFlatListItem element in elements)
             {
                 if (!element.Visible)
                 {
+                    currentY += rowSpacing;
                     continue;
                 }
 
@@ -761,24 +760,8 @@ namespace Enhanced_Handbook
                         return false;
                     }
 
-                    DummySlot iconSlot = group.GetIconSlot();
-                    if (iconSlot?.Itemstack == null)
-                    {
-                        return false;
-                    }
-
-                    double iconMinX = minX + iconOffset;
-                    double iconMaxX = iconMinX + iconSize;
-                    double iconMinY = rowY;
-                    double iconMaxY = iconMinY + iconSize;
-
-                    if (mouseX >= iconMinX && mouseX <= iconMaxX && mouseY >= iconMinY && mouseY <= iconMaxY)
-                    {
-                        groupPage = group;
-                        return true;
-                    }
-
-                    return false;
+                    groupPage = group;
+                    return true;
                 }
 
                 currentY += rowSpacing;
