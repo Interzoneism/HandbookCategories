@@ -103,6 +103,9 @@ namespace Enhanced_Handbook
                 typeof(Cairo.ImageSurface)
             }), prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.ComposeVerticalTabsPrefix)));
 
+            harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.OnMouseUpOnElement)),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnMouseUpOnElementPrefix)));
+
             harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.RenderInteractiveElements)),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.RenderFlatListPostfix)));
 
@@ -940,6 +943,27 @@ namespace Enhanced_Handbook
             }
 
             HandbookCategoryManager.RenderFlatListHighlights(__instance, ___api);
+        }
+
+        public static bool OnMouseUpOnElementPrefix(GuiElementFlatList __instance, ICoreClientAPI api, MouseEvent args)
+        {
+            if (!HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return true;
+            }
+
+            if (args == null)
+            {
+                return true;
+            }
+
+            if (HandbookPageDragManager.TryHandleMouseUpOnList(__instance))
+            {
+                args.Handled = true;
+                return false;
+            }
+
+            return true;
         }
 
         public static bool OnLeftClickListElementPrefix(GuiDialogHandbook __instance, int index)
