@@ -573,22 +573,6 @@ namespace Enhanced_Handbook
             internal float ScrollPosition { get; }
         }
 
-        private sealed class RowHighlight
-        {
-            internal RowHighlight(int color, long expiresAtMs, bool isPersistent)
-            {
-                Color = color;
-                ExpiresAtMs = expiresAtMs;
-                IsPersistent = isPersistent;
-            }
-
-            internal int Color { get; }
-
-            internal long ExpiresAtMs { get; }
-
-            internal bool IsPersistent { get; }
-        }
-
         private readonly struct SearchQuery
         {
             internal SearchQuery(SearchTerm[] includeTerms, SearchTerm[] excludeTerms, bool requiresAllMatches, string categoryName)
