@@ -7,6 +7,7 @@ using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
+using Vintagestory.API.MathTools;
 using Vintagestory.API.Util;
 using Vintagestory.GameContent;
 
@@ -31,6 +32,10 @@ namespace Enhanced_Handbook
         internal const int MaxCategoryNameLength = 20;
         private const double CreateButtonMinimumWidth = 60.0;
         private const double CreateButtonCloseSpacing = 10.0;
+        private const long RowHighlightDurationMs = 2000L;
+
+        private static readonly int CollapseHighlightColor = ColorUtil.ToRgba(160, 255, 230, 0);
+        private static readonly int RestoreHighlightColor = ColorUtil.ToRgba(160, 80, 140, 255);
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -39,6 +44,7 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<string, double[]> tabBackgroundByCategory = new();
         private static readonly Dictionary<GuiHandbookPage, string> englishNormalizedTitleByPage = new();
         private static readonly Dictionary<GuiHandbookPage, HiddenPageCache> hiddenPagesBySource = new();
+        private static readonly Dictionary<GuiHandbookPage, RowHighlight> rowHighlights = new();
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -488,6 +494,19 @@ namespace Enhanced_Handbook
             internal int Index { get; }
         }
 
+        private sealed class RowHighlight
+        {
+            internal RowHighlight(int color, long expiresAtMs)
+            {
+                Color = color;
+                ExpiresAtMs = expiresAtMs;
+            }
+
+            internal int Color { get; }
+
+            internal long ExpiresAtMs { get; }
+        }
+
         private readonly struct SearchQuery
         {
             internal SearchQuery(SearchTerm[] includeTerms, SearchTerm[] excludeTerms, bool requiresAllMatches, string categoryName)
@@ -703,6 +722,7 @@ namespace Enhanced_Handbook
 
             gridRecipePageCodes.Clear();
             vanillaSearchExtrasByPageCode.Clear();
+            rowHighlights.Clear();
 
 
             if (createButtonListenerId != 0)
@@ -1594,6 +1614,8 @@ namespace Enhanced_Handbook
             ApplyPageTitleOverride(selectedPage, overrideTitle);
 
             CenterSearchListOnPage(overviewGui, searchList, selectedPage);
+
+            AddRowHighlight(selectedPage, CollapseHighlightColor, RowHighlightDurationMs);
         }
 
         private static void RestoreHiddenPages(
@@ -1610,6 +1632,7 @@ namespace Enhanced_Handbook
             }
 
             bool reinsertedAny = false;
+            List<GuiHandbookPage> restoredPages = new();
 
             foreach (HiddenPageEntry entry in cachedHiddenPages.HiddenPages.OrderBy(entry => entry.Index))
             {
@@ -1618,7 +1641,10 @@ namespace Enhanced_Handbook
                     continue;
                 }
 
-                if (shownPages.Contains(entry.Page))
+                GuiHandbookPage page = entry.Page;
+                restoredPages.Add(page);
+
+                if (shownPages.Contains(page))
                 {
                     continue;
                 }
@@ -1633,7 +1659,7 @@ namespace Enhanced_Handbook
                     insertIndex = shownPages.Count;
                 }
 
-                shownPages.Insert(insertIndex, entry.Page);
+                shownPages.Insert(insertIndex, page);
                 reinsertedAny = true;
             }
 
@@ -1654,6 +1680,16 @@ namespace Enhanced_Handbook
             }
 
             CenterSearchListOnPage(overviewGui, searchList, selectedPage);
+
+            if (selectedPage != null)
+            {
+                AddRowHighlight(selectedPage, RestoreHighlightColor, RowHighlightDurationMs);
+            }
+
+            if (restoredPages.Count > 0)
+            {
+                AddRowHighlights(restoredPages, RestoreHighlightColor, RowHighlightDurationMs);
+            }
         }
 
         private static void CenterSearchListOnPage(GuiComposer overviewGui, GuiElementFlatList searchList, GuiHandbookPage selectedPage)
@@ -1718,6 +1754,127 @@ namespace Enhanced_Handbook
                 }
 
                 accumulatedHeight += rowHeight;
+            }
+        }
+
+        private static void AddRowHighlight(GuiHandbookPage page, int color, long durationMs)
+        {
+            if (page == null || durationMs <= 0)
+            {
+                return;
+            }
+
+            long now = GetCurrentMilliseconds();
+            rowHighlights[page] = new RowHighlight(color, now + durationMs);
+        }
+
+        private static void AddRowHighlights(IEnumerable<GuiHandbookPage> pages, int color, long durationMs)
+        {
+            if (pages == null)
+            {
+                return;
+            }
+
+            foreach (GuiHandbookPage page in pages)
+            {
+                AddRowHighlight(page, color, durationMs);
+            }
+        }
+
+        internal static void RenderFlatListHighlights(GuiElementFlatList list, ICoreClientAPI api)
+        {
+            if (list == null || api == null || rowHighlights.Count == 0)
+            {
+                return;
+            }
+
+            ElementBounds bounds = list.Bounds;
+            ElementBounds insideBounds = list.insideBounds;
+            List<IFlatListItem> elements = list.Elements;
+
+            if (bounds == null || insideBounds == null || elements == null || elements.Count == 0)
+            {
+                return;
+            }
+
+            double width = bounds.InnerWidth;
+            if (width <= 0.0)
+            {
+                return;
+            }
+
+            double baseX = bounds.absX;
+            double baseY = bounds.absY;
+            double rowOffset = insideBounds.absY;
+            double rowPadding = GuiElement.scaled(list.unscalledYPad);
+            double rowHeight = GuiElement.scaled(list.unscaledCellHeight);
+            double rowStep = GuiElement.scaled(list.unscaledCellHeight + list.unscaledCellSpacing);
+
+            long now = GetCurrentMilliseconds();
+
+            foreach (IFlatListItem element in elements)
+            {
+                if (!element.Visible)
+                {
+                    continue;
+                }
+
+                if (element is GuiHandbookPage page && TryGetHighlightColor(page, now, out int color))
+                {
+                    float rowCenter = (float)(5.0 + baseY + rowOffset);
+                    float top = rowCenter - (float)rowPadding;
+                    api.Render.RenderRectangle((float)baseX, top, 500f, (float)width, (float)rowHeight, color);
+                }
+
+                rowOffset += rowStep;
+            }
+
+            RemoveExpiredHighlights(now);
+        }
+
+        private static long GetCurrentMilliseconds()
+        {
+            return capi?.ElapsedMilliseconds ?? Environment.TickCount64;
+        }
+
+        private static bool TryGetHighlightColor(GuiHandbookPage page, long currentTime, out int color)
+        {
+            color = 0;
+
+            if (page == null)
+            {
+                return false;
+            }
+
+            if (!rowHighlights.TryGetValue(page, out RowHighlight highlight) || highlight == null)
+            {
+                return false;
+            }
+
+            if (highlight.ExpiresAtMs <= currentTime)
+            {
+                rowHighlights.Remove(page);
+                return false;
+            }
+
+            color = highlight.Color;
+            return true;
+        }
+
+        private static void RemoveExpiredHighlights(long currentTime)
+        {
+            if (rowHighlights.Count == 0)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<GuiHandbookPage, RowHighlight> entry in rowHighlights.ToList())
+            {
+                RowHighlight highlight = entry.Value;
+                if (highlight == null || highlight.ExpiresAtMs <= currentTime)
+                {
+                    rowHighlights.Remove(entry.Key);
+                }
             }
         }
 
