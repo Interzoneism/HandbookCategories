@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Config;
@@ -21,6 +22,9 @@ namespace Enhanced_Handbook
         private readonly string initialValue;
         private string lastValidInput = string.Empty;
         private bool isUpdatingTextInput;
+
+        private static readonly FieldInfo SelectedTextStartField = typeof(GuiElementEditableTextBase)
+            .GetField("selectedTextStart", BindingFlags.NonPublic | BindingFlags.Instance);
 
         public override double DrawOrder => 2.5;
 
@@ -102,6 +106,7 @@ namespace Enhanced_Handbook
                 if (!string.IsNullOrEmpty(initialValue))
                 {
                     input.SetValue(initialValue);
+                    SelectAllText(input);
                 }
 
                 input.OnTryTextChangeText = EnsureTextWithinLimit;
@@ -194,8 +199,26 @@ namespace Enhanced_Handbook
         private static string NormalizeInput(string value, out string trimmed, out string sanitized)
         {
             trimmed = value?.Trim();
-            sanitized = trimmed?.TrimStart('#').Trim();
-            return sanitized?.Trim('"');
+            sanitized = trimmed;
+            return sanitized;
+        }
+
+        private static void SelectAllText(GuiElementTextInput input)
+        {
+            if (input == null || SelectedTextStartField == null)
+            {
+                return;
+            }
+
+            try
+            {
+                SelectedTextStartField.SetValue(input, 0);
+                input.CaretPosWithoutLineBreaks = input.TextLengthWithoutLineBreaks;
+            }
+            catch
+            {
+                // Swallow reflection errors silently; selecting text is a convenience feature.
+            }
         }
 
         private bool EnsureTextWithinLimit(List<string> lines)
