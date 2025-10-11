@@ -402,9 +402,7 @@ namespace Enhanced_Handbook
             int width = Math.Max(1, (int)Math.Ceiling(GuiElement.scaled(bounds.fixedWidth + 1.0)));
             int baseHeight = Math.Max(1, (int)Math.Ceiling(GuiElement.scaled(bounds.fixedHeight + 1.0)));
 
-            double underlineOffset = GuiElement.scaled(2.0);
-            double underlineThickness = Math.Max(1.0, GuiElement.scaled(1.0));
-            int height = baseHeight + (int)Math.Ceiling(underlineOffset + underlineThickness);
+            int height = baseHeight;
 
             LoadedTexture texture = existing ?? new LoadedTexture(capi);
 
@@ -446,13 +444,6 @@ namespace Enhanced_Handbook
                         }
                     }
 
-                    TextExtents lineExtents = context.TextExtents(line);
-                    double underlineY = yOffset + underlineOffset;
-                    context.LineWidth = underlineThickness;
-                    SetSourceColor(context, font.Color);
-                    context.MoveTo(0.0, underlineY);
-                    context.LineTo(lineExtents.Width, underlineY);
-                    context.Stroke();
                 }
 
                 capi.Gui.LoadOrUpdateCairoTexture(surface, linearMag: false, ref texture);
