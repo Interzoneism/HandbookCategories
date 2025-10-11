@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Config;
 using Vintagestory.API.Common;
@@ -378,7 +379,103 @@ namespace Enhanced_Handbook
                 text = displayName ?? string.Empty;
             }
 
-            titleTexture = new TextTextureUtil(capi).GenTextTexture(text, CairoFont.WhiteSmallText());
+            titleTexture = GenerateLinkStyleTexture(capi, text, titleTexture);
+        }
+
+        private static LoadedTexture GenerateLinkStyleTexture(ICoreClientAPI capi, string text, LoadedTexture existing)
+        {
+            if (capi == null)
+            {
+                return existing;
+            }
+
+            CairoFont font = CairoFont.WhiteSmallText().Clone().WithColor(GuiStyle.ActiveButtonTextColor);
+
+            if (string.IsNullOrEmpty(text))
+            {
+                text = string.Empty;
+            }
+
+            ElementBounds bounds = new ElementBounds();
+            font.AutoBoxSize(text, bounds);
+
+            int width = Math.Max(1, (int)Math.Ceiling(GuiElement.scaled(bounds.fixedWidth + 1.0)));
+            int baseHeight = Math.Max(1, (int)Math.Ceiling(GuiElement.scaled(bounds.fixedHeight + 1.0)));
+
+            double underlineOffset = GuiElement.scaled(2.0);
+            double underlineThickness = Math.Max(1.0, GuiElement.scaled(1.0));
+            int height = baseHeight + (int)Math.Ceiling(underlineOffset + underlineThickness);
+
+            LoadedTexture texture = existing ?? new LoadedTexture(capi);
+
+            using (ImageSurface surface = new ImageSurface(Format.Argb32, width, height))
+            using (Context context = GuiElement.GenContext(surface))
+            {
+                font.SetupContext(context);
+
+                FontExtents extents = context.FontExtents;
+                double lineHeight = extents.Height * (font.LineHeightMultiplier <= 0.0 ? 1.0 : font.LineHeightMultiplier);
+                double baseline = extents.Ascent;
+
+                string[] lines = text.Split('\n');
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i];
+                    double yOffset = baseline + lineHeight * i;
+
+                    if (font.StrokeWidth > 0.0 && font.StrokeColor != null)
+                    {
+                        context.MoveTo(0.0, yOffset);
+                        context.TextPath(line);
+                        context.LineWidth = font.StrokeWidth;
+                        SetSourceColor(context, font.StrokeColor);
+                        context.StrokePreserve();
+                        SetSourceColor(context, font.Color);
+                        context.Fill();
+                    }
+                    else
+                    {
+                        SetSourceColor(context, font.Color);
+                        context.MoveTo(0.0, yOffset);
+                        context.ShowText(line);
+                        if (font.RenderTwice)
+                        {
+                            context.MoveTo(0.0, yOffset);
+                            context.ShowText(line);
+                        }
+                    }
+
+                    TextExtents lineExtents = context.TextExtents(line);
+                    double underlineY = yOffset + underlineOffset;
+                    context.LineWidth = underlineThickness;
+                    SetSourceColor(context, font.Color);
+                    context.MoveTo(0.0, underlineY);
+                    context.LineTo(lineExtents.Width, underlineY);
+                    context.Stroke();
+                }
+
+                capi.Gui.LoadOrUpdateCairoTexture(surface, linearMag: false, ref texture);
+            }
+
+            return texture;
+        }
+
+        private static void SetSourceColor(Context context, double[] color)
+        {
+            if (context == null || color == null)
+            {
+                return;
+            }
+
+            if (color.Length >= 4)
+            {
+                context.SetSourceRGBA(color[0], color[1], color[2], color[3]);
+            }
+            else if (color.Length >= 3)
+            {
+                context.SetSourceRGB(color[0], color[1], color[2]);
+            }
         }
     }
 }
