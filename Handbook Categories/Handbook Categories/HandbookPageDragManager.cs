@@ -227,6 +227,47 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        internal static bool TryHandleCtrlClick(GuiDialogHandbook dialog, int index)
+        {
+            if (!featureEnabled || dialog == null || index < 0)
+            {
+                return false;
+            }
+
+            if (capi?.Input == null || !IsCtrlKeyHeld())
+            {
+                return false;
+            }
+
+            if (!trackedDialogs.TryGetValue(dialog, out DragState state))
+            {
+                return false;
+            }
+
+            GuiComposer overview = state.Overview;
+            GuiElementFlatList searchList = state.SearchList ?? overview?.GetFlatList("stacklist");
+
+            if (overview == null || searchList == null)
+            {
+                return false;
+            }
+
+            List<IFlatListItem> elements = searchList.Elements;
+            if (elements == null || index < 0 || index >= elements.Count)
+            {
+                return false;
+            }
+
+            if (elements[index] is not GuiHandbookPage page)
+            {
+                return false;
+            }
+
+            state.SearchList = searchList;
+
+            return HandbookCategoryManager.TryHandleGroupCtrlClick(dialog, overview, searchList, page);
+        }
+
         internal static bool TryHandleShiftClick(GuiDialogHandbook dialog, int index)
         {
             if (!featureEnabled || dialog == null || index < 0)
@@ -1278,6 +1319,23 @@ namespace Enhanced_Handbook
 
             int leftIndex = (int)GlKeys.ShiftLeft;
             int rightIndex = (int)GlKeys.ShiftRight;
+
+            bool leftDown = leftIndex >= 0 && leftIndex < keys.Length && keys[leftIndex];
+            bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
+
+            return leftDown || rightDown;
+        }
+
+        private static bool IsCtrlKeyHeld()
+        {
+            bool[] keys = capi?.Input?.KeyboardKeyState;
+            if (keys == null)
+            {
+                return false;
+            }
+
+            int leftIndex = (int)GlKeys.ControlLeft;
+            int rightIndex = (int)GlKeys.ControlRight;
 
             bool leftDown = leftIndex >= 0 && leftIndex < keys.Length && keys[leftIndex];
             bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
