@@ -650,7 +650,11 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            HandbookCategoryManager.TryGetGroupByHiddenCode(draggingCategoryCode, out GroupHandbookPage sourceGroup);
+            HandbookCategoryManager.TryGetActiveGroupContext(
+                draggingState?.Dialog,
+                draggingCategoryCode,
+                out GroupHandbookPage sourceGroup,
+                out _);
 
             DebugLog($"Dropping page {pageCode} from {DescribeOrigin(draggingOrigin)} onto category {categoryCode}. Item={DescribeItemstack(draggingSlot)}");
 
@@ -1801,7 +1805,11 @@ namespace Enhanced_Handbook
             DragState state = draggingState;
             float? scrollToRestore = CaptureScrollPosition(state);
 
-            HandbookCategoryManager.TryGetGroupByHiddenCode(categoryCode, out GroupHandbookPage sourceGroup);
+            HandbookCategoryManager.TryGetActiveGroupContext(
+                dialog,
+                categoryCode,
+                out GroupHandbookPage sourceGroup,
+                out _);
 
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
