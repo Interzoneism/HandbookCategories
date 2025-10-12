@@ -1993,17 +1993,25 @@ namespace Enhanced_Handbook
                 }
             }
 
+            List<IFlatListItem> shownPages = null;
+            if (ShownPagesField?.GetValue(dialog) is List<IFlatListItem> currentPages && currentPages != null)
+            {
+                shownPages = currentPages;
+                RemovePageFromShownPages(currentPages, memberPage);
+            }
+
             if (remainingMembers.Count == 0)
             {
-                return TryRemoveGroupPage(dialog, overviewGui, searchList, groupPage);
+                if (TryRemoveGroupPage(dialog, overviewGui, searchList, groupPage))
+                {
+                    return true;
+                }
+
+                HandleEmptyGroupRemoval(dialog, overviewGui, searchList, groupPage, shownPages);
+                return true;
             }
 
             UpdateConfigEntryMembers(groupPage);
-
-            if (ShownPagesField?.GetValue(dialog) is List<IFlatListItem> shownPages && shownPages != null)
-            {
-                RemovePageFromShownPages(shownPages, memberPage);
-            }
 
             searchList ??= overviewGui?.GetFlatList("stacklist");
             searchList?.CalcTotalHeight();
@@ -2553,6 +2561,39 @@ namespace Enhanced_Handbook
             groupPage.DisposeTexture();
 
             return true;
+        }
+
+        private static void HandleEmptyGroupRemoval(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GroupHandbookPage groupPage,
+            List<IFlatListItem> shownPages)
+        {
+            if (groupPage == null)
+            {
+                return;
+            }
+
+            if (shownPages != null)
+            {
+                RemovePageFromShownPages(shownPages, groupPage);
+            }
+
+            RemoveNavigationStatesFor(dialog, groupPage.HiddenCategoryCode);
+            pendingGroupCreations.Remove(dialog);
+
+            UnregisterGroupPage(groupPage);
+            RemoveGroupFromConfig(groupPage);
+            groupPage.DisposeTexture();
+
+            searchList ??= overviewGui?.GetFlatList("stacklist");
+            searchList?.CalcTotalHeight();
+
+            if (overviewGui != null)
+            {
+                UpdateScrollArea(overviewGui, GetListHeight(dialog));
+            }
         }
 
         private static void RemovePageFromShownPages(List<IFlatListItem> shownPages, GuiHandbookPage memberPage)
