@@ -1714,7 +1714,8 @@ namespace Enhanced_Handbook
                 searchList,
                 selectedPage,
                 GetLocalizedPageTitle,
-                ExtractOrderedWordsPreservingCase);
+                ExtractOrderedWordsPreservingCase,
+                minimumWordCount: 2);
         }
 
         private static bool HasGroupInDisplayCategory(GuiHandbookPage page, string displayCategoryCode)
