@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -58,6 +59,7 @@ namespace Enhanced_Handbook
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo BrowseHistoryField = typeof(GuiDialogHandbook).GetField("browseHistory", BindingFlags.Instance | BindingFlags.NonPublic);
         private static int nextGroupId = 1;
         private static HandbookGroupConfig groupConfig = HandbookGroupConfig.CreateDefault();
         private static readonly Dictionary<string, HandbookGroupConfigEntry> groupConfigEntriesByHiddenCode = new(StringComparer.Ordinal);
@@ -2773,6 +2775,21 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        private static bool HasBrowseHistory(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return false;
+            }
+
+            if (BrowseHistoryField.GetValue(dialog) is ICollection history)
+            {
+                return history.Count > 0;
+            }
+
+            return false;
+        }
+
         internal static bool ShouldEnableBackButton(GuiDialogHandbook dialog, bool baseEnabled)
         {
             if (dialog == null)
@@ -2797,11 +2814,16 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            bool shouldEnable = ShouldEnableBackButton(dialog, backButton.Enabled);
+            bool hasHistory = HasBrowseHistory(dialog);
+            bool hasGroupBackNavigation = HasGroupBackNavigation(dialog);
+            bool shouldEnable = hasHistory || hasGroupBackNavigation;
             if (backButton.Enabled != shouldEnable)
             {
                 backButton.Enabled = shouldEnable;
             }
+
+            bool shouldAppearActive = hasGroupBackNavigation && !hasHistory;
+            backButton.SetActive(shouldAppearActive);
         }
 
         internal static bool TryHandleGroupPageMouseDown(GuiDialogHandbook dialog, GuiHandbookPage selectedPage)
