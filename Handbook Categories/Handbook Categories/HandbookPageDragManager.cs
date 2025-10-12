@@ -119,12 +119,14 @@ namespace Enhanced_Handbook
         private static int pendingStartY;
         private static string pendingCategoryCode;
         private static DragOrigin pendingOrigin;
+        private static GroupHandbookPage pendingGroupPage;
 
         private static DragState draggingState;
         private static GuiHandbookPage draggingPage;
         private static DummySlot draggingSlot;
         private static string draggingCategoryCode;
         private static DragOrigin draggingOrigin;
+        private static GroupHandbookPage draggingGroupPage;
         private static bool isDragging;
         private static bool wasLeftDown;
         private static bool suppressListClick;
@@ -504,6 +506,7 @@ namespace Enhanced_Handbook
             draggingSlot = pendingSlot;
             draggingCategoryCode = pendingCategoryCode;
             draggingOrigin = pendingOrigin;
+            draggingGroupPage = pendingGroupPage;
             isDragging = true;
             suppressListClick = true;
 
@@ -1545,6 +1548,39 @@ namespace Enhanced_Handbook
             pendingStartX = mouseX;
             pendingStartY = mouseY;
             pendingOrigin = origin;
+            pendingGroupPage = ResolveGroupContextForDrag(state, pendingCategoryCode, page);
+        }
+
+        private static GroupHandbookPage ResolveGroupContextForDrag(DragState state, string categoryCode, GuiHandbookPage page)
+        {
+            if (state?.Dialog is not GuiDialogSurvivalHandbook dialog || page == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrEmpty(categoryCode)
+                && HandbookCategoryManager.TryGetActiveGroupContext(dialog, categoryCode, out GroupHandbookPage contextualGroup, out _)
+                && IsPageInGroup(contextualGroup, page))
+            {
+                return contextualGroup;
+            }
+
+            string currentCategory = dialog.currentCatgoryCode;
+            if (!string.IsNullOrEmpty(currentCategory)
+                && !string.Equals(currentCategory, categoryCode, StringComparison.OrdinalIgnoreCase)
+                && HandbookCategoryManager.TryGetActiveGroupContext(dialog, currentCategory, out GroupHandbookPage activeGroup, out _)
+                && IsPageInGroup(activeGroup, page))
+            {
+                return activeGroup;
+            }
+
+            GuiHandbookPage detailPage = GetCurrentDetailPage(dialog);
+            if (detailPage is GroupHandbookPage detailGroup && IsPageInGroup(detailGroup, page))
+            {
+                return detailGroup;
+            }
+
+            return null;
         }
 
         private static bool IsFrontmostHandbookDialog(GuiDialogHandbook dialog)
@@ -1607,6 +1643,7 @@ namespace Enhanced_Handbook
             draggingSlot = null;
             draggingCategoryCode = null;
             draggingOrigin = DragOrigin.None;
+            draggingGroupPage = null;
             dropHandledByMouseUp = false;
             if (!preserveSuppression)
             {
@@ -1624,6 +1661,7 @@ namespace Enhanced_Handbook
             pendingSlot = null;
             pendingCategoryCode = null;
             pendingOrigin = DragOrigin.None;
+            pendingGroupPage = null;
         }
 
         private static void DebugLog(string message)
@@ -1775,25 +1813,66 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string categoryCode = draggingCategoryCode;
-            if (string.IsNullOrEmpty(categoryCode) || !HandbookCategoryManager.IsManagedCategory(categoryCode))
-            {
-                return;
-            }
-
-            if (!string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
             if (IsMouseInsideHandbookGui(draggingState, mouseX, mouseY))
             {
                 return;
             }
 
-            if (!IsPageInCategory(categoryCode, draggingPage))
+            string originalCategoryCode = draggingCategoryCode;
+            string dialogCategory = dialog.currentCatgoryCode;
+            GroupHandbookPage sourceGroup = draggingGroupPage;
+
+            if (sourceGroup == null && !string.IsNullOrEmpty(originalCategoryCode)
+                && HandbookCategoryManager.TryGetActiveGroupContext(dialog, originalCategoryCode, out GroupHandbookPage contextualGroup, out _)
+                && IsPageInGroup(contextualGroup, draggingPage))
             {
-                return;
+                sourceGroup = contextualGroup;
+            }
+
+            if (sourceGroup == null
+                && HandbookCategoryManager.TryGetActiveGroupContext(dialog, dialogCategory, out GroupHandbookPage activeGroup, out _)
+                && IsPageInGroup(activeGroup, draggingPage))
+            {
+                sourceGroup = activeGroup;
+            }
+
+            string categoryCode = sourceGroup?.HiddenCategoryCode ?? originalCategoryCode;
+            bool categoryManaged = HandbookCategoryManager.IsManagedCategory(categoryCode);
+
+            if (sourceGroup == null)
+            {
+                if (string.IsNullOrEmpty(categoryCode) || !categoryManaged)
+                {
+                    return;
+                }
+
+                if (!string.Equals(dialogCategory, categoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                if (!IsPageInCategory(categoryCode, draggingPage))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                if (!IsPageInGroup(sourceGroup, draggingPage))
+                {
+                    return;
+                }
+
+                string hiddenCode = sourceGroup.HiddenCategoryCode;
+                if (!string.IsNullOrEmpty(hiddenCode)
+                    && !string.Equals(dialogCategory, hiddenCode, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(dialogCategory, originalCategoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                categoryCode = hiddenCode ?? categoryCode;
+                categoryManaged = HandbookCategoryManager.IsManagedCategory(categoryCode);
             }
 
             string pageCode = GetEffectivePageCode(draggingPage, draggingSlot);
@@ -1803,29 +1882,27 @@ namespace Enhanced_Handbook
             }
 
             DragState state = draggingState;
+            GuiHandbookPage pageToRemove = draggingPage;
+            GroupHandbookPage groupToModify = sourceGroup;
             float? scrollToRestore = CaptureScrollPosition(state);
-
-            HandbookCategoryManager.TryGetActiveGroupContext(
-                dialog,
-                categoryCode,
-                out GroupHandbookPage sourceGroup,
-                out _);
+            string removalCategoryCode = groupToModify?.HiddenCategoryCode ?? categoryCode;
+            bool removalCategoryManaged = HandbookCategoryManager.IsManagedCategory(removalCategoryCode);
 
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
                 bool handledRemoval = false;
 
-                if (sourceGroup != null)
+                if (groupToModify != null)
                 {
                     GuiDialogHandbook removalDialog = state?.Dialog;
                     GuiComposer overview = state?.Overview;
                     GuiElementFlatList searchList = state?.SearchList ?? overview?.GetFlatList("stacklist");
 
-                    handledRemoval = HandbookCategoryManager.TryRemovePageFromGroup(removalDialog, overview, searchList, sourceGroup, draggingPage);
+                    handledRemoval = HandbookCategoryManager.TryRemovePageFromGroup(removalDialog, overview, searchList, groupToModify, pageToRemove);
                 }
-                else
+                else if (removalCategoryManaged)
                 {
-                    handledRemoval = HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(categoryCode, pageCode);
+                    handledRemoval = HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(removalCategoryCode, pageCode);
                 }
 
                 if (!handledRemoval)
@@ -1840,10 +1917,10 @@ namespace Enhanced_Handbook
 
                 HandbookCategoryPatches.RebuildTabs(dialog);
 
-                if (string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase)
-                    && HandbookCategoryManager.IsManagedCategory(categoryCode))
+                if (removalCategoryManaged
+                    && string.Equals(dialog.currentCatgoryCode, removalCategoryCode, StringComparison.OrdinalIgnoreCase))
                 {
-                    dialog.selectTab(categoryCode);
+                    dialog.selectTab(removalCategoryCode);
                 }
             }, $"handbookcategories-remove-{Guid.NewGuid():N}");
         }
@@ -1998,6 +2075,38 @@ namespace Enhanced_Handbook
             }
 
             return !evaluatedBounds;
+        }
+
+        private static bool IsPageInGroup(GroupHandbookPage group, GuiHandbookPage page)
+        {
+            if (group == null || page == null)
+            {
+                return false;
+            }
+
+            string targetCode = page.PageCode;
+
+            foreach (GuiHandbookPage member in group.Members)
+            {
+                if (member == null)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(member, page))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(targetCode)
+                    && !string.IsNullOrEmpty(member.PageCode)
+                    && string.Equals(member.PageCode, targetCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsPageInCategory(string categoryCode, GuiHandbookPage page)
