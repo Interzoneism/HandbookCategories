@@ -1537,7 +1537,7 @@ namespace Enhanced_Handbook
             pendingState = state;
             pendingPage = page;
             pendingSlot = slot;
-            pendingCategoryCode = (state.Dialog as GuiDialogSurvivalHandbook)?.currentCatgoryCode;
+            pendingCategoryCode = state?.Dialog?.currentCatgoryCode;
             pendingStartX = mouseX;
             pendingStartY = mouseY;
             pendingOrigin = origin;
