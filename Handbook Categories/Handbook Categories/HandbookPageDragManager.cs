@@ -650,6 +650,8 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            HandbookCategoryManager.TryGetGroupByHiddenCode(draggingCategoryCode, out GroupHandbookPage sourceGroup);
+
             DebugLog($"Dropping page {pageCode} from {DescribeOrigin(draggingOrigin)} onto category {categoryCode}. Item={DescribeItemstack(draggingSlot)}");
 
             DragState state = draggingState;
@@ -669,6 +671,18 @@ namespace Enhanced_Handbook
 
                 DebugLog($"Drop accepted: Added page {pageCode} to category {categoryCode}.");
 
+                if (sourceGroup != null && !string.Equals(categoryCode, draggingCategoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    GuiDialogHandbook removalDialog = state?.Dialog;
+                    GuiComposer overview = state?.Overview;
+                    GuiElementFlatList searchList = state?.SearchList ?? overview?.GetFlatList("stacklist");
+
+                    if (HandbookCategoryManager.TryRemovePageFromGroup(removalDialog, overview, searchList, sourceGroup, draggingPage))
+                    {
+                        DebugLog($"Removed page {pageCode} from group {DescribePage(sourceGroup, sourceGroup?.PageCode)} after category drop.");
+                    }
+                }
+
                 if (state != null)
                 {
                     state.PendingScrollPosition = scrollToRestore;
@@ -681,7 +695,7 @@ namespace Enhanced_Handbook
 
                 HandbookCategoryPatches.RebuildTabs(dialog);
 
-                if (shouldReselect)
+                if (shouldReselect && HandbookCategoryManager.IsManagedCategory(categoryCode))
                 {
                     dialog.selectTab(categoryCode);
                 }
@@ -1787,9 +1801,26 @@ namespace Enhanced_Handbook
             DragState state = draggingState;
             float? scrollToRestore = CaptureScrollPosition(state);
 
+            HandbookCategoryManager.TryGetGroupByHiddenCode(categoryCode, out GroupHandbookPage sourceGroup);
+
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
-                if (!HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(categoryCode, pageCode))
+                bool handledRemoval = false;
+
+                if (sourceGroup != null)
+                {
+                    GuiDialogHandbook removalDialog = state?.Dialog;
+                    GuiComposer overview = state?.Overview;
+                    GuiElementFlatList searchList = state?.SearchList ?? overview?.GetFlatList("stacklist");
+
+                    handledRemoval = HandbookCategoryManager.TryRemovePageFromGroup(removalDialog, overview, searchList, sourceGroup, draggingPage);
+                }
+                else
+                {
+                    handledRemoval = HandbookCategoryManager.TryAddForbiddenPageCodeToCategory(categoryCode, pageCode);
+                }
+
+                if (!handledRemoval)
                 {
                     return;
                 }
@@ -1801,7 +1832,8 @@ namespace Enhanced_Handbook
 
                 HandbookCategoryPatches.RebuildTabs(dialog);
 
-                if (string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(dialog.currentCatgoryCode, categoryCode, StringComparison.OrdinalIgnoreCase)
+                    && HandbookCategoryManager.IsManagedCategory(categoryCode))
                 {
                     dialog.selectTab(categoryCode);
                 }
