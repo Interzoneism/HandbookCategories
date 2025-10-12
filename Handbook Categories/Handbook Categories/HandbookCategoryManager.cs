@@ -3074,6 +3074,97 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        internal static bool TryGetActiveGroupContext(
+            GuiDialogHandbook dialog,
+            string hiddenCategoryCode,
+            out GroupHandbookPage groupPage,
+            out string displayCategoryCode)
+        {
+            groupPage = null;
+            displayCategoryCode = null;
+
+            if (string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return false;
+            }
+
+            string contextCategory = GetActiveGroupDisplayCategory(dialog, hiddenCategoryCode);
+            if (!string.IsNullOrEmpty(contextCategory)
+                && TryFindGroupForDisplayCategory(contextCategory, hiddenCategoryCode, out GroupHandbookPage contextualGroup))
+            {
+                groupPage = contextualGroup;
+                displayCategoryCode = contextCategory;
+                return true;
+            }
+
+            if (TryGetGroupByHiddenCode(hiddenCategoryCode, out GroupHandbookPage existingGroup))
+            {
+                groupPage = existingGroup;
+                displayCategoryCode = existingGroup?.DisplayCategoryCode;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryFindGroupForDisplayCategory(
+            string displayCategoryCode,
+            string hiddenCategoryCode,
+            out GroupHandbookPage groupPage)
+        {
+            groupPage = null;
+
+            string key = GetGroupDisplayKey(displayCategoryCode);
+            if (!groupPagesByDisplayCategory.TryGetValue(key, out List<GroupHandbookPage> groups) || groups == null)
+            {
+                return false;
+            }
+
+            foreach (GroupHandbookPage candidate in groups)
+            {
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(candidate.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal))
+                {
+                    groupPage = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string GetActiveGroupDisplayCategory(GuiDialogHandbook dialog, string hiddenCategoryCode)
+        {
+            if (dialog == null || string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return null;
+            }
+
+            if (!groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack) || stack == null || stack.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (GroupNavigationState state in stack)
+            {
+                if (state == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(state.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal))
+                {
+                    return state.PreviousCategoryCode;
+                }
+            }
+
+            return null;
+        }
+
         private static string GetGroupDisplayKey(string categoryCode)
         {
             return categoryCode ?? EverythingCategoryKey;
