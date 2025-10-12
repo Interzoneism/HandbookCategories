@@ -1956,6 +1956,66 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        internal static bool TryRemovePageFromGroup(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GroupHandbookPage groupPage,
+            GuiHandbookPage memberPage)
+        {
+            if (dialog == null || groupPage == null || memberPage == null)
+            {
+                return false;
+            }
+
+            bool removed = groupPage.RemoveMember(memberPage);
+            if (!removed)
+            {
+                return false;
+            }
+
+            groupByMemberPage.Remove(memberPage);
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            List<GuiHandbookPage> remainingMembers = groupPage.Members
+                .Where(page => page != null)
+                .ToList();
+
+            if (!string.IsNullOrEmpty(hiddenCode))
+            {
+                if (remainingMembers.Count > 0)
+                {
+                    pagesByCategory[hiddenCode] = remainingMembers;
+                }
+                else
+                {
+                    pagesByCategory.Remove(hiddenCode);
+                }
+            }
+
+            if (remainingMembers.Count == 0)
+            {
+                return TryRemoveGroupPage(dialog, overviewGui, searchList, groupPage);
+            }
+
+            UpdateConfigEntryMembers(groupPage);
+
+            if (ShownPagesField?.GetValue(dialog) is List<IFlatListItem> shownPages && shownPages != null)
+            {
+                RemovePageFromShownPages(shownPages, memberPage);
+            }
+
+            searchList ??= overviewGui?.GetFlatList("stacklist");
+            searchList?.CalcTotalHeight();
+
+            if (overviewGui != null)
+            {
+                UpdateScrollArea(overviewGui, GetListHeight(dialog));
+            }
+
+            return true;
+        }
+
         private static string GetGroupingKey(GuiHandbookPage page, System.Func<GuiHandbookPage, string> selector)
         {
             if (page == null)
@@ -2495,6 +2555,38 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        private static void RemovePageFromShownPages(List<IFlatListItem> shownPages, GuiHandbookPage memberPage)
+        {
+            if (shownPages == null || shownPages.Count == 0 || memberPage == null)
+            {
+                return;
+            }
+
+            string memberCode = memberPage.PageCode;
+
+            for (int i = shownPages.Count - 1; i >= 0; i--)
+            {
+                if (shownPages[i] is not GuiHandbookPage page)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(page, memberPage))
+                {
+                    shownPages.RemoveAt(i);
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(memberCode)
+                    && !string.IsNullOrEmpty(page.PageCode)
+                    && string.Equals(page.PageCode, memberCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    shownPages.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
         private static void UnregisterGroupPage(GroupHandbookPage groupPage)
         {
             if (groupPage == null)
@@ -2834,6 +2926,20 @@ namespace Enhanced_Handbook
 
             groups = existing.Where(group => group != null).ToList();
             return groups.Count > 0;
+        }
+
+        internal static bool TryGetGroupByHiddenCode(string hiddenCategoryCode, out GroupHandbookPage groupPage)
+        {
+            if (!string.IsNullOrEmpty(hiddenCategoryCode)
+                && groupByHiddenCategoryCode.TryGetValue(hiddenCategoryCode, out GroupHandbookPage existing)
+                && existing != null)
+            {
+                groupPage = existing;
+                return true;
+            }
+
+            groupPage = null;
+            return false;
         }
 
         private static string GetGroupDisplayKey(string categoryCode)

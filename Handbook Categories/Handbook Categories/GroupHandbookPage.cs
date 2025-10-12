@@ -115,6 +115,55 @@ namespace Enhanced_Handbook
             return added;
         }
 
+        internal bool RemoveMember(GuiHandbookPage member)
+        {
+            if (member == null)
+            {
+                return false;
+            }
+
+            bool removed = false;
+            string memberCode = member.PageCode;
+
+            for (int i = members.Count - 1; i >= 0; i--)
+            {
+                GuiHandbookPage existing = members[i];
+                if (existing == null)
+                {
+                    continue;
+                }
+
+                if (ReferenceEquals(existing, member))
+                {
+                    members.RemoveAt(i);
+                    removed = true;
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(memberCode)
+                    && !string.IsNullOrEmpty(existing.PageCode)
+                    && string.Equals(existing.PageCode, memberCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    members.RemoveAt(i);
+                    removed = true;
+                }
+            }
+
+            if (!removed)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(weightSourcePage, member))
+            {
+                weightSourcePage = members.FirstOrDefault(page => page != null);
+                iconSlot = CloneSlotFromPage(weightSourcePage);
+            }
+
+            UpdateDisplayName(displayName);
+            return true;
+        }
+
         private static string BuildListDisplayText(string name, int memberCount)
         {
             if (memberCount <= 0)
