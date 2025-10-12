@@ -2430,10 +2430,6 @@ namespace Enhanced_Handbook
             }
 
             AddGroupToDisplayCategory(groupPage.DisplayCategoryCode, groupPage);
-            if (groupPage.DisplayCategoryCode != null)
-            {
-                AddGroupToDisplayCategory(null, groupPage);
-            }
         }
 
         private static void AddGroupToDisplayCategory(string categoryCode, GroupHandbookPage groupPage)
@@ -2656,10 +2652,6 @@ namespace Enhanced_Handbook
             }
 
             RemoveGroupFromDisplayCategory(groupPage.DisplayCategoryCode, groupPage);
-            if (groupPage.DisplayCategoryCode != null)
-            {
-                RemoveGroupFromDisplayCategory(null, groupPage);
-            }
         }
 
         private static void PushGroupNavigation(GuiDialogHandbook dialog, string hiddenCategoryCode, string previousCategoryCode, float scrollPosition)
@@ -2915,12 +2907,22 @@ namespace Enhanced_Handbook
             }
 
             string hiddenCode = group.HiddenCategoryCode;
-            if (string.IsNullOrEmpty(hiddenCode))
+            if (!string.IsNullOrEmpty(hiddenCode)
+                && string.Equals(categoryCode, hiddenCode, StringComparison.Ordinal))
             {
                 return false;
             }
 
-            return !string.Equals(categoryCode, hiddenCode, StringComparison.Ordinal);
+            string displayCategory = group.DisplayCategoryCode;
+            if (displayCategory == null && string.IsNullOrEmpty(categoryCode))
+            {
+                return true;
+            }
+
+            return string.Equals(
+                GetGroupDisplayKey(categoryCode),
+                GetGroupDisplayKey(displayCategory),
+                StringComparison.Ordinal);
         }
 
         private static void AppendGroupPages(string categoryCode, SearchQuery searchQuery, List<WeightedHandbookPage> weightedPages)
@@ -3022,10 +3024,6 @@ namespace Enhanced_Handbook
                 groupByHiddenCategoryCode[hiddenCode] = group;
 
                 AddGroupToDisplayCategory(group.DisplayCategoryCode, group);
-                if (group.DisplayCategoryCode != null)
-                {
-                    AddGroupToDisplayCategory(null, group);
-                }
             }
         }
 
