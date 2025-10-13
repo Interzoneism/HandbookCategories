@@ -61,6 +61,7 @@ namespace Enhanced_Handbook
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo BrowseHistoryField = typeof(GuiDialogHandbook).GetField("browseHistory", BindingFlags.Instance | BindingFlags.NonPublic);
         private static int nextGroupId = 1;
+        private static string lastCreatedGroupName;
         private static HandbookGroupConfig groupConfig = HandbookGroupConfig.CreateDefault();
         private static readonly Dictionary<string, HandbookGroupConfigEntry> groupConfigEntriesByHiddenCode = new(StringComparer.Ordinal);
 
@@ -2174,7 +2175,18 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            string sanitizedInitial = string.IsNullOrWhiteSpace(initialName) ? DefaultGroupName : initialName.Trim();
+            string sanitizedInitial = GetSanitizedInitialGroupName(initialName);
+            string recentGroupName = GetSanitizedInitialGroupName(lastCreatedGroupName);
+            if (!string.IsNullOrWhiteSpace(recentGroupName))
+            {
+                sanitizedInitial = recentGroupName;
+            }
+
+            if (string.IsNullOrWhiteSpace(sanitizedInitial))
+            {
+                sanitizedInitial = DefaultGroupName;
+            }
+
             sanitizedInitial = TrimCategoryNameToMaximum(sanitizedInitial, out _);
             if (string.IsNullOrWhiteSpace(sanitizedInitial))
             {
@@ -2193,6 +2205,17 @@ namespace Enhanced_Handbook
                 sanitizedInitial);
 
             prompt.TryOpen();
+        }
+
+        private static string GetSanitizedInitialGroupName(string proposedName)
+        {
+            if (string.IsNullOrWhiteSpace(proposedName))
+            {
+                return null;
+            }
+
+            string trimmed = TrimCategoryNameToMaximum(proposedName, out _);
+            return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
         }
 
         private static void FinalizePendingGroupCreation(PendingGroupCreation pending, string chosenName)
@@ -2215,6 +2238,8 @@ namespace Enhanced_Handbook
             {
                 displayName = DefaultGroupName;
             }
+
+            lastCreatedGroupName = displayName;
 
             string normalizedName = NormalizeGroupName(displayName);
             if (string.IsNullOrEmpty(normalizedName))
