@@ -3882,7 +3882,9 @@ namespace Enhanced_Handbook
             GuiElementScrollbar scrollbar = overviewGui?.GetScrollbar("scrollbar");
             float scrollPosition = scrollbar?.CurrentYPosition ?? 0f;
 
-            PushGroupNavigation(dialog, groupPage.HiddenCategoryCode, dialog.currentCatgoryCode, scrollPosition);
+            string previousCategory = DetermineGroupReturnCategory(groupPage, dialog.currentCatgoryCode);
+
+            PushGroupNavigation(dialog, groupPage.HiddenCategoryCode, previousCategory, scrollPosition);
 
             dialog.currentCatgoryCode = groupPage.HiddenCategoryCode;
             dialog.FilterItems();
@@ -3892,6 +3894,18 @@ namespace Enhanced_Handbook
             UpdateBackButtonState(dialog);
 
             return true;
+        }
+
+        private static string DetermineGroupReturnCategory(GroupHandbookPage groupPage, string fallbackCategoryCode)
+        {
+            string displayCategory = groupPage?.DisplayCategoryCode;
+
+            if (!string.IsNullOrEmpty(displayCategory))
+            {
+                return displayCategory;
+            }
+
+            return fallbackCategoryCode;
         }
 
         internal static bool TryHandleGroupBackNavigation(GuiDialogHandbook dialog)
