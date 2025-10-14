@@ -102,6 +102,7 @@ namespace Enhanced_Handbook
         private const string WoodVariantReportFileName = "EnhancedHandbookWoodVariants.txt";
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<WoodVariantReportKey, WoodPageReportEntry> woodVariantPagesByKey = new();
         private static bool woodVariantsLoaded;
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
@@ -1545,9 +1546,72 @@ namespace Enhanced_Handbook
             internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue);
         }
 
+        private readonly struct WoodPageReportEntry
+        {
+            internal WoodPageReportEntry(string woodCode, string pageTitle, string itemCode, string pageCode)
+            {
+                WoodCode = woodCode;
+                PageTitle = pageTitle;
+                ItemCode = itemCode;
+                PageCode = pageCode;
+            }
+
+            internal string WoodCode { get; }
+
+            internal string PageTitle { get; }
+
+            internal string ItemCode { get; }
+
+            internal string PageCode { get; }
+        }
+
+        private readonly struct WoodVariantReportKey : IEquatable<WoodVariantReportKey>
+        {
+            internal WoodVariantReportKey(string woodCode, string pageCode, string itemCode)
+            {
+                WoodCode = Normalize(woodCode);
+                PageCode = Normalize(pageCode);
+                ItemCode = Normalize(itemCode);
+            }
+
+            internal string WoodCode { get; }
+
+            internal string PageCode { get; }
+
+            internal string ItemCode { get; }
+
+            public bool Equals(WoodVariantReportKey other)
+            {
+                return string.Equals(WoodCode, other.WoodCode, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(PageCode, other.PageCode, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(ItemCode, other.ItemCode, StringComparison.OrdinalIgnoreCase);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is WoodVariantReportKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                int hash = 17;
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(WoodCode);
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(PageCode);
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(ItemCode);
+                return hash;
+            }
+
+            private static string Normalize(string value)
+            {
+                return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            }
+        }
+
         private static void UpdateWoodVariantPageVisibility(IEnumerable<GuiHandbookPage> pages)
         {
             EnsureWoodVariantsLoaded();
+
+            woodVariantPagesByKey.Clear();
 
             if (pages != null)
             {
@@ -1567,6 +1631,13 @@ namespace Enhanced_Handbook
                     {
                         woodVariantDisplayNameByCode[info.NormalizedValue] = BuildWoodVariantDisplayName(info.VariantValue);
                     }
+
+                    string itemCode = GetItemCodeForStack(stackPage.Stack);
+                    string pageCode = GetEffectivePageCode(stackPage);
+                    string pageTitle = GetWoodVariantReportTitle(stackPage);
+
+                    WoodVariantReportKey key = new(info.NormalizedValue, pageCode, itemCode);
+                    woodVariantPagesByKey[key] = new WoodPageReportEntry(info.NormalizedValue, pageTitle, itemCode, pageCode);
                 }
             }
 
@@ -1821,6 +1892,7 @@ namespace Enhanced_Handbook
         {
             knownWoodVariantNames.Clear();
             woodVariantDisplayNameByCode.Clear();
+            woodVariantPagesByKey.Clear();
             woodVariantsLoaded = false;
         }
 
@@ -1851,32 +1923,105 @@ namespace Enhanced_Handbook
 
             try
             {
-                List<string> orderedCodes = knownWoodVariantNames
-                    .Where(code => !string.IsNullOrEmpty(code))
-                    .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
                 using StreamWriter writer = new(filePath, false, Encoding.UTF8);
 
-                foreach (string code in orderedCodes)
+                List<(string Title, string ItemCode, string PageCode)> orderedEntries = woodVariantPagesByKey.Values
+                    .Select(CreateWoodVariantReportLine)
+                    .OrderBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(entry => entry.ItemCode, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(entry => entry.PageCode, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach ((string Title, string ItemCode, string PageCode) entry in orderedEntries)
                 {
-                    if (!woodVariantDisplayNameByCode.TryGetValue(code, out string displayName) || string.IsNullOrWhiteSpace(displayName))
-                    {
-                        displayName = BuildWoodVariantDisplayName(code);
-                    }
-
-                    if (string.IsNullOrWhiteSpace(displayName))
-                    {
-                        displayName = code;
-                    }
-
-                    writer.WriteLine($"{displayName} {code}");
+                    writer.WriteLine($"{entry.Title} - {entry.ItemCode} - {entry.PageCode}");
                 }
             }
             catch (Exception ex)
             {
                 capi.Logger?.Warning("[Handbook Categories] Failed to write wood variant report to {0}: {1}", filePath, ex);
             }
+        }
+
+        private static (string Title, string ItemCode, string PageCode) CreateWoodVariantReportLine(WoodPageReportEntry entry)
+        {
+            string title = FormatWoodVariantReportTitle(entry.PageTitle, entry.PageCode);
+            string itemCode = FormatWoodVariantReportItemCode(entry.ItemCode);
+            string pageCode = FormatWoodVariantReportPageCode(entry.PageCode);
+
+            return (title, itemCode, pageCode);
+        }
+
+        private static string GetWoodVariantReportTitle(GuiHandbookPage page)
+        {
+            string title = GetLocalizedPageTitle(page);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return string.IsNullOrWhiteSpace(page?.PageCode) ? string.Empty : page.PageCode.Trim();
+        }
+
+        private static string GetItemCodeForStack(ItemStack stack)
+        {
+            AssetLocation code = stack?.Collectible?.Code;
+            if (code == null)
+            {
+                return string.Empty;
+            }
+
+            string shortCode = code.ToShortString();
+            if (!string.IsNullOrWhiteSpace(shortCode))
+            {
+                return shortCode.Trim();
+            }
+
+            string fullCode = code.ToString();
+            return string.IsNullOrWhiteSpace(fullCode) ? string.Empty : fullCode.Trim();
+        }
+
+        private static string GetEffectivePageCode(GuiHandbookItemStackPage page)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string code = page.PageCode;
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                return code.Trim();
+            }
+
+            ItemStack stack = page.Stack;
+            if (stack == null)
+            {
+                return string.Empty;
+            }
+
+            string generated = GuiHandbookItemStackPage.PageCodeForStack(stack);
+            return string.IsNullOrWhiteSpace(generated) ? string.Empty : generated.Trim();
+        }
+
+        private static string FormatWoodVariantReportTitle(string title, string pageCode)
+        {
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return string.IsNullOrWhiteSpace(pageCode) ? "<unnamed page>" : pageCode;
+        }
+
+        private static string FormatWoodVariantReportItemCode(string itemCode)
+        {
+            return string.IsNullOrWhiteSpace(itemCode) ? "<unknown item code>" : itemCode;
+        }
+
+        private static string FormatWoodVariantReportPageCode(string pageCode)
+        {
+            return string.IsNullOrWhiteSpace(pageCode) ? "<unknown page code>" : pageCode;
         }
 
         private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
