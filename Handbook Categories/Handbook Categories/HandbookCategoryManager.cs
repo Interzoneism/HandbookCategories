@@ -46,7 +46,7 @@ namespace Enhanced_Handbook
         private const string DefaultGroupName = "Group";
         private const string WoodGroupHiddenCodePrefix = GroupCategoryCodePrefix + "woodvariant-";
         private const string WoodGroupPageCodePrefix = GroupPageCodePrefix + "woodvariant-";
-        private const string WoodGroupDisplayCategoryName = "Everything (Grouped)";
+        private const string WoodGroupDisplayCategoryName = "Wood Variants";
         private static readonly string WoodGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(WoodGroupDisplayCategoryName));
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
