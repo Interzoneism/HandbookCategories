@@ -1332,6 +1332,11 @@ namespace Enhanced_Handbook
                 return fallback;
             }
 
+            if (string.IsNullOrEmpty(translationKey))
+            {
+                return fallback;
+            }
+
             string translated = Lang.GetMatchingIfExists(translationKey);
             return string.IsNullOrEmpty(translated) ? fallback : translated;
         }
