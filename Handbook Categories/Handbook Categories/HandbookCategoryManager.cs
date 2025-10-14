@@ -48,6 +48,10 @@ namespace Enhanced_Handbook
         private const string WoodGroupPageCodePrefix = GroupPageCodePrefix + "woodvariant-";
         private const string WoodGroupDisplayCategoryName = "Everything (Grouped)";
         private static readonly string WoodGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(WoodGroupDisplayCategoryName));
+        private const string StoneGroupHiddenCodePrefix = GroupCategoryCodePrefix + "stonevariant-";
+        private const string StoneGroupPageCodePrefix = GroupPageCodePrefix + "stonevariant-";
+        private const string StoneGroupDisplayCategoryName = "Stone Variants";
+        private static readonly string StoneGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(StoneGroupDisplayCategoryName));
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -64,6 +68,8 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly Dictionary<string, WoodVariantGroupBuilder> woodVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly string[] woodVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
+        private static readonly Dictionary<string, StoneVariantGroupBuilder> stoneVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly string[] stoneVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -110,6 +116,12 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<WoodVariantReportKey, WoodPageReportEntry> woodVariantPagesByKey = new();
         private static bool woodVariantsLoaded;
+        private static readonly AssetLocation StoneWorldPropertyCode = new("worldproperties/block/rock.json");
+        private const string StoneVariantReportFileName = "EnhancedHandbookStoneVariants.txt";
+        private static readonly HashSet<string> knownStoneVariantNames = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<StoneVariantReportKey, StonePageReportEntry> stoneVariantPagesByKey = new();
+        private static bool stoneVariantsLoaded;
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
@@ -680,6 +692,8 @@ namespace Enhanced_Handbook
             categoriesInitialized = false;
             categoriesDirty = true;
             ResetWoodVariantCache();
+            ResetStoneVariantCache();
+            ResetStoneVariantCache();
             ReloadConfiguration();
 
             if (capi?.Event != null)
@@ -1380,6 +1394,7 @@ namespace Enhanced_Handbook
             }
 
             UpdateWoodVariantPageVisibility(allPages);
+            UpdateStoneVariantPageVisibility(allPages);
 
             var itemPagesByCode = allPages
                 .OfType<GuiHandbookItemStackPage>()
@@ -1524,6 +1539,7 @@ namespace Enhanced_Handbook
             LoadGroupPagesFromConfig(allPages);
             RestoreGroupCategories();
             CreateWoodVariantGroups();
+            CreateStoneVariantGroups();
 
             categoriesInitialized = true;
             categoriesDirty = false;
@@ -1558,6 +1574,24 @@ namespace Enhanced_Handbook
             internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue);
         }
 
+        private readonly struct StoneVariantInfo
+        {
+            internal StoneVariantInfo(string variantKey, string variantValue, string normalizedValue)
+            {
+                VariantKey = variantKey;
+                VariantValue = variantValue;
+                NormalizedValue = normalizedValue;
+            }
+
+            internal string VariantKey { get; }
+
+            internal string VariantValue { get; }
+
+            internal string NormalizedValue { get; }
+
+            internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue);
+        }
+
         private readonly struct WoodPageReportEntry
         {
             internal WoodPageReportEntry(string woodCode, string pageTitle, string itemCode, string pageCode)
@@ -1569,6 +1603,25 @@ namespace Enhanced_Handbook
             }
 
             internal string WoodCode { get; }
+
+            internal string PageTitle { get; }
+
+            internal string ItemCode { get; }
+
+            internal string PageCode { get; }
+        }
+
+        private readonly struct StonePageReportEntry
+        {
+            internal StonePageReportEntry(string stoneCode, string pageTitle, string itemCode, string pageCode)
+            {
+                StoneCode = stoneCode;
+                PageTitle = pageTitle;
+                ItemCode = itemCode;
+                PageCode = pageCode;
+            }
+
+            internal string StoneCode { get; }
 
             internal string PageTitle { get; }
 
@@ -1619,11 +1672,113 @@ namespace Enhanced_Handbook
             }
         }
 
+        private readonly struct StoneVariantReportKey : IEquatable<StoneVariantReportKey>
+        {
+            internal StoneVariantReportKey(string stoneCode, string pageCode, string itemCode)
+            {
+                StoneCode = Normalize(stoneCode);
+                PageCode = Normalize(pageCode);
+                ItemCode = Normalize(itemCode);
+            }
+
+            internal string StoneCode { get; }
+
+            internal string PageCode { get; }
+
+            internal string ItemCode { get; }
+
+            public bool Equals(StoneVariantReportKey other)
+            {
+                return string.Equals(StoneCode, other.StoneCode, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(PageCode, other.PageCode, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(ItemCode, other.ItemCode, StringComparison.OrdinalIgnoreCase);
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is StoneVariantReportKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                int hash = 17;
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(StoneCode);
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(PageCode);
+                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(ItemCode);
+                return hash;
+            }
+
+            private static string Normalize(string value)
+            {
+                return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            }
+        }
+
         private sealed class WoodVariantGroupBuilder
         {
             private readonly HashSet<GuiHandbookPage> uniqueMembers = new();
 
             internal WoodVariantGroupBuilder(string displayName, string normalizedName, string sanitizedName)
+            {
+                DisplayName = displayName;
+                NormalizedName = normalizedName;
+                SanitizedName = sanitizedName;
+            }
+
+            internal string DisplayName { get; private set; }
+
+            internal string NormalizedName { get; }
+
+            internal string SanitizedName { get; private set; }
+
+            internal List<GuiHandbookItemStackPage> Members { get; } = new();
+
+            internal int SortHint { get; private set; } = int.MaxValue;
+
+            internal void UpdateDisplayName(string displayName)
+            {
+                if (!string.IsNullOrEmpty(displayName))
+                {
+                    DisplayName = displayName;
+                }
+            }
+
+            internal void UpdateSanitizedName(string sanitizedName)
+            {
+                if (!string.IsNullOrEmpty(sanitizedName))
+                {
+                    SanitizedName = sanitizedName;
+                }
+            }
+
+            internal bool TryAddMember(GuiHandbookItemStackPage page)
+            {
+                if (page == null)
+                {
+                    return false;
+                }
+
+                if (!uniqueMembers.Add(page))
+                {
+                    return false;
+                }
+
+                Members.Add(page);
+
+                if (page.PageNumber < SortHint)
+                {
+                    SortHint = page.PageNumber;
+                }
+
+                return true;
+            }
+        }
+
+        private sealed class StoneVariantGroupBuilder
+        {
+            private readonly HashSet<GuiHandbookPage> uniqueMembers = new();
+
+            internal StoneVariantGroupBuilder(string displayName, string normalizedName, string sanitizedName)
             {
                 DisplayName = displayName;
                 NormalizedName = normalizedName;
@@ -1724,6 +1879,51 @@ namespace Enhanced_Handbook
             SaveWoodVariantReport();
         }
 
+        private static void UpdateStoneVariantPageVisibility(IEnumerable<GuiHandbookPage> pages)
+        {
+            EnsureStoneVariantsLoaded();
+
+            stoneVariantPagesByKey.Clear();
+            stoneVariantGroupsByKey.Clear();
+
+            if (pages != null)
+            {
+                foreach (GuiHandbookPage page in pages)
+                {
+                    if (page is not GuiHandbookItemStackPage stackPage || page.IsDuplicate)
+                    {
+                        continue;
+                    }
+
+                    if (!TryGetStoneVariantInfo(stackPage.Stack, out StoneVariantInfo info) || !info.HasValue)
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(info.NormalizedValue) && !stoneVariantDisplayNameByCode.ContainsKey(info.NormalizedValue))
+                    {
+                        stoneVariantDisplayNameByCode[info.NormalizedValue] = BuildStoneVariantDisplayName(info.VariantValue);
+                    }
+
+                    string itemCode = GetItemCodeForStack(stackPage.Stack);
+                    string pageCode = GetEffectivePageCode(stackPage);
+                    if (ShouldIgnoreStoneVariantEntry(itemCode, pageCode))
+                    {
+                        continue;
+                    }
+
+                    string pageTitle = GetStoneVariantReportTitle(stackPage);
+
+                    RegisterStoneVariantGroupCandidate(stackPage, info, pageTitle);
+
+                    StoneVariantReportKey key = new(info.NormalizedValue, pageCode, itemCode);
+                    stoneVariantPagesByKey[key] = new StonePageReportEntry(info.NormalizedValue, pageTitle, itemCode, pageCode);
+                }
+            }
+
+            SaveStoneVariantReport();
+        }
+
         private static bool ShouldIgnoreWoodVariantEntry(string itemCode, string pageCode)
         {
             if (HasIgnoredWoodVariantPrefix(itemCode))
@@ -1749,6 +1949,31 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        private static bool ShouldIgnoreStoneVariantEntry(string itemCode, string pageCode)
+        {
+            if (HasIgnoredStoneVariantPrefix(itemCode))
+            {
+                return true;
+            }
+
+            if (HasIgnoredStoneVariantPrefix(pageCode))
+            {
+                return true;
+            }
+
+            string normalizedPageCode = NormalizePageCode(pageCode);
+            if (!string.IsNullOrEmpty(normalizedPageCode))
+            {
+                string codename = ExtractCodenameFromPageCode(normalizedPageCode);
+                if (HasIgnoredStoneVariantPrefix(codename))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool HasIgnoredWoodVariantPrefix(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -1758,7 +1983,7 @@ namespace Enhanced_Handbook
 
             string trimmed = value.Trim();
 
-            if (StartsWithIgnoredPrefix(trimmed))
+            if (StartsWithIgnoredPrefix(trimmed, woodVariantIgnoredPrefixes))
             {
                 return true;
             }
@@ -1767,7 +1992,7 @@ namespace Enhanced_Handbook
             if (colonIndex >= 0 && colonIndex < trimmed.Length - 1)
             {
                 string withoutDomain = trimmed.Substring(colonIndex + 1).TrimStart();
-                if (StartsWithIgnoredPrefix(withoutDomain))
+                if (StartsWithIgnoredPrefix(withoutDomain, woodVariantIgnoredPrefixes))
                 {
                     return true;
                 }
@@ -1776,9 +2001,41 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        private static bool StartsWithIgnoredPrefix(string value)
+        private static bool HasIgnoredStoneVariantPrefix(string value)
         {
-            foreach (string prefix in woodVariantIgnoredPrefixes)
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string trimmed = value.Trim();
+
+            if (StartsWithIgnoredPrefix(trimmed, stoneVariantIgnoredPrefixes))
+            {
+                return true;
+            }
+
+            int colonIndex = trimmed.IndexOf(':');
+            if (colonIndex >= 0 && colonIndex < trimmed.Length - 1)
+            {
+                string withoutDomain = trimmed.Substring(colonIndex + 1).TrimStart();
+                if (StartsWithIgnoredPrefix(withoutDomain, stoneVariantIgnoredPrefixes))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool StartsWithIgnoredPrefix(string value, string[] prefixes)
+        {
+            if (prefixes == null)
+            {
+                return false;
+            }
+
+            foreach (string prefix in prefixes)
             {
                 if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1850,6 +2107,67 @@ namespace Enhanced_Handbook
             builder.TryAddMember(page);
         }
 
+        private static void RegisterStoneVariantGroupCandidate(
+            GuiHandbookItemStackPage page,
+            StoneVariantInfo info,
+            string pageTitle)
+        {
+            if (page == null || !info.HasValue)
+            {
+                return;
+            }
+
+            string stoneDisplayName = null;
+            if (!string.IsNullOrEmpty(info.NormalizedValue))
+            {
+                stoneVariantDisplayNameByCode.TryGetValue(info.NormalizedValue, out stoneDisplayName);
+            }
+
+            stoneDisplayName ??= BuildStoneVariantDisplayName(info.VariantValue);
+
+            string baseTitle = ExtractStoneGroupBaseName(pageTitle, stoneDisplayName);
+            if (string.IsNullOrWhiteSpace(baseTitle))
+            {
+                return;
+            }
+
+            string normalizedName = NormalizeTitle(baseTitle);
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                return;
+            }
+
+            string displayName = FormatStoneGroupDisplayName(baseTitle);
+            if (string.IsNullOrEmpty(displayName))
+            {
+                return;
+            }
+
+            string sanitized = Sanitize(displayName);
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = Sanitize(baseTitle);
+            }
+
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "stonevariant";
+            }
+
+            if (!stoneVariantGroupsByKey.TryGetValue(normalizedName, out StoneVariantGroupBuilder builder))
+            {
+                builder = new StoneVariantGroupBuilder(displayName, normalizedName, sanitized);
+                stoneVariantGroupsByKey[normalizedName] = builder;
+            }
+            else
+            {
+                builder.UpdateDisplayName(displayName);
+                builder.UpdateSanitizedName(sanitized);
+            }
+
+            builder.TryAddMember(page);
+        }
+
         private static string ExtractWoodGroupBaseName(string pageTitle, string woodDisplayName)
         {
             string trimmedTitle = string.IsNullOrWhiteSpace(pageTitle) ? string.Empty : pageTitle.Trim();
@@ -1878,7 +2196,7 @@ namespace Enhanced_Handbook
                 bool leftSeparator = index == 0
                     || char.IsWhiteSpace(trimmedTitle[index - 1])
                     || trimmedTitle[index - 1] == '-'
-                    || trimmedTitle[index - 1] == '(' 
+                    || trimmedTitle[index - 1] == '('
                     || trimmedTitle[index - 1] == '['
                     || trimmedTitle[index - 1] == '{';
                 bool rightSeparator = endIndex >= trimmedTitle.Length
@@ -1891,6 +2209,55 @@ namespace Enhanced_Handbook
                 if (leftSeparator && rightSeparator)
                 {
                     string candidate = trimmedTitle.Remove(index, trimmedWood.Length);
+                    candidate = TrimTrailingSeparators(candidate);
+                    return candidate.Trim();
+                }
+            }
+
+            return trimmedTitle;
+        }
+
+        private static string ExtractStoneGroupBaseName(string pageTitle, string stoneDisplayName)
+        {
+            string trimmedTitle = string.IsNullOrWhiteSpace(pageTitle) ? string.Empty : pageTitle.Trim();
+            if (string.IsNullOrEmpty(trimmedTitle))
+            {
+                return string.Empty;
+            }
+
+            string trimmedStone = string.IsNullOrWhiteSpace(stoneDisplayName) ? string.Empty : stoneDisplayName.Trim();
+            if (string.IsNullOrEmpty(trimmedStone))
+            {
+                return trimmedTitle;
+            }
+
+            if (trimmedTitle.EndsWith(trimmedStone, StringComparison.OrdinalIgnoreCase))
+            {
+                string candidate = trimmedTitle.Substring(0, trimmedTitle.Length - trimmedStone.Length);
+                candidate = TrimTrailingSeparators(candidate);
+                return candidate.Trim();
+            }
+
+            int index = trimmedTitle.LastIndexOf(trimmedStone, StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                int endIndex = index + trimmedStone.Length;
+                bool leftSeparator = index == 0
+                    || char.IsWhiteSpace(trimmedTitle[index - 1])
+                    || trimmedTitle[index - 1] == '-'
+                    || trimmedTitle[index - 1] == '('
+                    || trimmedTitle[index - 1] == '['
+                    || trimmedTitle[index - 1] == '{';
+                bool rightSeparator = endIndex >= trimmedTitle.Length
+                    || char.IsWhiteSpace(trimmedTitle[endIndex])
+                    || trimmedTitle[endIndex] == ')'
+                    || trimmedTitle[endIndex] == ']'
+                    || trimmedTitle[endIndex] == '}'
+                    || trimmedTitle[endIndex] == '-';
+
+                if (leftSeparator && rightSeparator)
+                {
+                    string candidate = trimmedTitle.Remove(index, trimmedStone.Length);
                     candidate = TrimTrailingSeparators(candidate);
                     return candidate.Trim();
                 }
@@ -1952,6 +2319,28 @@ namespace Enhanced_Handbook
         }
 
         private static string FormatWoodGroupDisplayName(string baseName)
+        {
+            string collapsed = CollapseSpaces(baseName);
+            if (string.IsNullOrEmpty(collapsed))
+            {
+                return string.Empty;
+            }
+
+            if (char.IsLetter(collapsed[0]))
+            {
+                if (collapsed.Length == 1)
+                {
+                    return collapsed.ToUpperInvariant();
+                }
+
+                char first = char.ToUpper(collapsed[0], CultureInfo.InvariantCulture);
+                return first + collapsed.Substring(1);
+            }
+
+            return collapsed;
+        }
+
+        private static string FormatStoneGroupDisplayName(string baseName)
         {
             string collapsed = CollapseSpaces(baseName);
             if (string.IsNullOrEmpty(collapsed))
@@ -2047,6 +2436,98 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        private static bool TryGetStoneVariantInfo(ItemStack stack, out StoneVariantInfo info)
+        {
+            if (stack?.Collectible == null)
+            {
+                info = default;
+                return false;
+            }
+
+            EnsureStoneVariantsLoaded();
+
+            CollectibleObject collectible = stack.Collectible;
+            RelaxedReadOnlyDictionary<string, string> variants = collectible.Variant;
+
+            if (variants != null)
+            {
+                string explicitRock = variants["rock"];
+                if (!string.IsNullOrEmpty(explicitRock))
+                {
+                    RegisterKnownStoneName(explicitRock);
+                    info = new StoneVariantInfo("rock", explicitRock, NormalizeStoneName(explicitRock));
+                    return info.HasValue;
+                }
+
+                string explicitStone = variants["stone"];
+                if (!string.IsNullOrEmpty(explicitStone))
+                {
+                    RegisterKnownStoneName(explicitStone);
+                    info = new StoneVariantInfo("stone", explicitStone, NormalizeStoneName(explicitStone));
+                    return info.HasValue;
+                }
+
+                string typeVariant = variants["type"];
+                if (!string.IsNullOrEmpty(typeVariant) && IsStoneVariantValue(typeVariant))
+                {
+                    RegisterKnownStoneName(typeVariant);
+                    info = new StoneVariantInfo("type", typeVariant, NormalizeStoneName(typeVariant));
+                    return info.HasValue;
+                }
+
+                string materialVariant = variants["material"];
+                if (!string.IsNullOrEmpty(materialVariant) && IsStoneVariantValue(materialVariant))
+                {
+                    RegisterKnownStoneName(materialVariant);
+                    info = new StoneVariantInfo("material", materialVariant, NormalizeStoneName(materialVariant));
+                    return info.HasValue;
+                }
+
+                foreach (KeyValuePair<string, string> entry in variants)
+                {
+                    string key = entry.Key;
+                    string value = entry.Value;
+                    if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    string normalized = NormalizeStoneName(value);
+                    bool keyIndicatesStone = key.IndexOf("rock", StringComparison.OrdinalIgnoreCase) >= 0
+                        || key.IndexOf("stone", StringComparison.OrdinalIgnoreCase) >= 0
+                        || key.IndexOf("material", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                    if (keyIndicatesStone || IsStoneVariantValue(normalized))
+                    {
+                        RegisterKnownStoneName(value);
+                        info = new StoneVariantInfo(key, value, normalized);
+                        return info.HasValue;
+                    }
+                }
+            }
+
+            string codePath = collectible.Code?.Path;
+            string stoneFromCode = FindStoneNameInCode(codePath);
+            if (!string.IsNullOrEmpty(stoneFromCode))
+            {
+                RegisterKnownStoneName(stoneFromCode);
+                info = new StoneVariantInfo(null, stoneFromCode, NormalizeStoneName(stoneFromCode));
+                return info.HasValue;
+            }
+
+            string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
+            stoneFromCode = FindStoneNameInCode(pageCode);
+            if (!string.IsNullOrEmpty(stoneFromCode))
+            {
+                RegisterKnownStoneName(stoneFromCode);
+                info = new StoneVariantInfo(null, stoneFromCode, NormalizeStoneName(stoneFromCode));
+                return info.HasValue;
+            }
+
+            info = default;
+            return false;
+        }
+
         private static string FindWoodNameInCode(string code)
         {
             if (string.IsNullOrEmpty(code) || knownWoodVariantNames.Count == 0)
@@ -2056,7 +2537,7 @@ namespace Enhanced_Handbook
 
             foreach (string wood in knownWoodVariantNames)
             {
-                if (CodeContainsWoodToken(code, wood))
+                if (CodeContainsVariantToken(code, wood))
                 {
                     return wood;
                 }
@@ -2065,16 +2546,34 @@ namespace Enhanced_Handbook
             return null;
         }
 
-        private static bool CodeContainsWoodToken(string value, string wood)
+        private static string FindStoneNameInCode(string code)
         {
-            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(wood))
+            if (string.IsNullOrEmpty(code) || knownStoneVariantNames.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (string stone in knownStoneVariantNames)
+            {
+                if (CodeContainsVariantToken(code, stone))
+                {
+                    return stone;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool CodeContainsVariantToken(string value, string variant)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(variant))
             {
                 return false;
             }
 
             foreach (string token in EnumerateCodeTokens(value))
             {
-                if (token.Equals(wood, StringComparison.OrdinalIgnoreCase))
+                if (token.Equals(variant, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
@@ -2160,6 +2659,49 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static void EnsureStoneVariantsLoaded()
+        {
+            if (stoneVariantsLoaded)
+            {
+                return;
+            }
+
+            stoneVariantsLoaded = true;
+
+            if (capi?.Assets == null)
+            {
+                return;
+            }
+
+            try
+            {
+                IAsset asset = capi.Assets.TryGet(StoneWorldPropertyCode);
+                if (asset == null)
+                {
+                    return;
+                }
+
+                StandardWorldProperty property = asset.ToObject<StandardWorldProperty>();
+                if (property?.Variants == null)
+                {
+                    return;
+                }
+
+                foreach (WorldPropertyVariant variant in property.Variants)
+                {
+                    string name = variant?.Code?.Path;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        RegisterKnownStoneName(name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                capi?.Logger?.Warning("[Handbook Categories] Failed to load stone world property {0}: {1}", StoneWorldPropertyCode, ex);
+            }
+        }
+
         private static void RegisterKnownWoodName(string woodName)
         {
             string normalized = NormalizeWoodName(woodName);
@@ -2217,6 +2759,63 @@ namespace Enhanced_Handbook
             return knownWoodVariantNames.Contains(normalized);
         }
 
+        private static void RegisterKnownStoneName(string stoneName)
+        {
+            string normalized = NormalizeStoneName(stoneName);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return;
+            }
+
+            bool added = knownStoneVariantNames.Add(normalized);
+            string displayName = BuildStoneVariantDisplayName(stoneName);
+
+            if (!string.IsNullOrEmpty(displayName))
+            {
+                stoneVariantDisplayNameByCode[normalized] = displayName;
+            }
+            else if (added && !stoneVariantDisplayNameByCode.ContainsKey(normalized))
+            {
+                stoneVariantDisplayNameByCode[normalized] = BuildStoneVariantDisplayName(normalized);
+            }
+        }
+
+        private static string NormalizeStoneName(string stoneName)
+        {
+            return string.IsNullOrWhiteSpace(stoneName) ? null : stoneName.Trim().ToLowerInvariant();
+        }
+
+        private static string BuildStoneVariantDisplayName(string stoneName)
+        {
+            if (string.IsNullOrWhiteSpace(stoneName))
+            {
+                return null;
+            }
+
+            string trimmed = stoneName.Trim();
+            string spaced = trimmed.Replace('_', ' ').Replace('-', ' ');
+            string lower = spaced.ToLowerInvariant();
+            string titleCase = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(lower);
+
+            return string.IsNullOrWhiteSpace(titleCase) ? trimmed : titleCase;
+        }
+
+        private static bool IsStoneVariantValue(string value)
+        {
+            string normalized = NormalizeStoneName(value);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            if (knownStoneVariantNames.Count == 0)
+            {
+                return true;
+            }
+
+            return knownStoneVariantNames.Contains(normalized);
+        }
+
         private static void ResetWoodVariantCache()
         {
             knownWoodVariantNames.Clear();
@@ -2224,6 +2823,15 @@ namespace Enhanced_Handbook
             woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
             woodVariantsLoaded = false;
+        }
+
+        private static void ResetStoneVariantCache()
+        {
+            knownStoneVariantNames.Clear();
+            stoneVariantDisplayNameByCode.Clear();
+            stoneVariantPagesByKey.Clear();
+            stoneVariantGroupsByKey.Clear();
+            stoneVariantsLoaded = false;
         }
 
         private static void SaveWoodVariantReport()
@@ -2273,6 +2881,53 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static void SaveStoneVariantReport()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            string configDirectory;
+            try
+            {
+                configDirectory = capi.GetOrCreateDataPath("ModConfig");
+            }
+            catch (Exception ex)
+            {
+                capi.Logger?.Warning("[Handbook Categories] Failed to access ModConfig directory: {0}", ex);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(configDirectory))
+            {
+                return;
+            }
+
+            string filePath = System.IO.Path.Combine(configDirectory, StoneVariantReportFileName);
+
+            try
+            {
+                using StreamWriter writer = new(filePath, false, Encoding.UTF8);
+
+                List<(string Title, string ItemCode, string PageCode)> orderedEntries = stoneVariantPagesByKey.Values
+                    .Select(CreateStoneVariantReportLine)
+                    .OrderBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(entry => entry.ItemCode, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(entry => entry.PageCode, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach ((string Title, string ItemCode, string PageCode) entry in orderedEntries)
+                {
+                    writer.WriteLine($"{entry.Title} - {entry.ItemCode} - {entry.PageCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                capi.Logger?.Warning("[Handbook Categories] Failed to write stone variant report to {0}: {1}", filePath, ex);
+            }
+        }
+
         private static (string Title, string ItemCode, string PageCode) CreateWoodVariantReportLine(WoodPageReportEntry entry)
         {
             string title = FormatWoodVariantReportTitle(entry.PageTitle, entry.PageCode);
@@ -2283,6 +2938,26 @@ namespace Enhanced_Handbook
         }
 
         private static string GetWoodVariantReportTitle(GuiHandbookPage page)
+        {
+            string title = GetLocalizedPageTitle(page);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return string.IsNullOrWhiteSpace(page?.PageCode) ? string.Empty : page.PageCode.Trim();
+        }
+
+        private static (string Title, string ItemCode, string PageCode) CreateStoneVariantReportLine(StonePageReportEntry entry)
+        {
+            string title = FormatStoneVariantReportTitle(entry.PageTitle, entry.PageCode);
+            string itemCode = FormatStoneVariantReportItemCode(entry.ItemCode);
+            string pageCode = FormatStoneVariantReportPageCode(entry.PageCode);
+
+            return (title, itemCode, pageCode);
+        }
+
+        private static string GetStoneVariantReportTitle(GuiHandbookPage page)
         {
             string title = GetLocalizedPageTitle(page);
             if (!string.IsNullOrWhiteSpace(title))
@@ -2350,6 +3025,26 @@ namespace Enhanced_Handbook
         }
 
         private static string FormatWoodVariantReportPageCode(string pageCode)
+        {
+            return string.IsNullOrWhiteSpace(pageCode) ? "<unknown page code>" : pageCode;
+        }
+
+        private static string FormatStoneVariantReportTitle(string title, string pageCode)
+        {
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return string.IsNullOrWhiteSpace(pageCode) ? "<unnamed page>" : pageCode;
+        }
+
+        private static string FormatStoneVariantReportItemCode(string itemCode)
+        {
+            return string.IsNullOrWhiteSpace(itemCode) ? "<unknown item code>" : itemCode;
+        }
+
+        private static string FormatStoneVariantReportPageCode(string pageCode)
         {
             return string.IsNullOrWhiteSpace(pageCode) ? "<unknown page code>" : pageCode;
         }
@@ -2475,6 +3170,142 @@ namespace Enhanced_Handbook
                 string pageCode = BuildUniqueWoodGroupCode(WoodGroupPageCodePrefix, sanitized, usedPageCodes);
 
                 var groupPage = new GroupHandbookPage(pageCode, hiddenCode, WoodGroupDisplayCategoryCode, builder.DisplayName, members);
+                GuiHandbookPage iconSource = members.FirstOrDefault();
+                int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
+                groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
+                groupPage.SetSortOrderHint(sortHint);
+                groupPage.AdoptAppearanceFrom(iconSource);
+
+                RegisterGroupPage(groupPage);
+
+                if (!displayCategoryPages.Contains(groupPage))
+                {
+                    displayCategoryPages.Add(groupPage);
+                }
+            }
+        }
+
+        private static string BuildUniqueStoneGroupCode(string prefix, string sanitizedName, HashSet<string> usedCodes)
+        {
+            string baseCode = string.Concat(prefix, sanitizedName);
+            string candidate = baseCode;
+            int counter = 1;
+
+            while (!usedCodes.Add(candidate))
+            {
+                candidate = string.Concat(baseCode, "-", counter.ToString("D2", CultureInfo.InvariantCulture));
+                counter++;
+            }
+
+            return candidate;
+        }
+
+        private static List<GuiHandbookPage> EnsureStoneGroupCategoryExists()
+        {
+            if (!pagesByCategory.TryGetValue(StoneGroupDisplayCategoryCode, out List<GuiHandbookPage> list) || list == null)
+            {
+                list = new List<GuiHandbookPage>();
+                pagesByCategory[StoneGroupDisplayCategoryCode] = list;
+            }
+            else
+            {
+                list.Clear();
+            }
+
+            displayNameByCategory[StoneGroupDisplayCategoryCode] = StoneGroupDisplayCategoryName;
+            translationKeyByCategory[StoneGroupDisplayCategoryCode] = null;
+            tabBackgroundByCategory[StoneGroupDisplayCategoryCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
+
+            if (!orderedCategories.Contains(StoneGroupDisplayCategoryCode))
+            {
+                orderedCategories.Add(StoneGroupDisplayCategoryCode);
+            }
+
+            return list;
+        }
+
+        private static void RemoveStoneGroupCategory()
+        {
+            pagesByCategory.Remove(StoneGroupDisplayCategoryCode);
+            displayNameByCategory.Remove(StoneGroupDisplayCategoryCode);
+            translationKeyByCategory.Remove(StoneGroupDisplayCategoryCode);
+            tabBackgroundByCategory.Remove(StoneGroupDisplayCategoryCode);
+            orderedCategories.Remove(StoneGroupDisplayCategoryCode);
+
+            string displayKey = GetGroupDisplayKey(StoneGroupDisplayCategoryCode);
+            groupPagesByDisplayCategory.Remove(displayKey);
+        }
+
+        private static void CreateStoneVariantGroups()
+        {
+            RemoveStoneGroupCategory();
+
+            if (stoneVariantGroupsByKey.Count == 0)
+            {
+                return;
+            }
+
+            var groupsToCreate = new List<(StoneVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members)>();
+
+            foreach (StoneVariantGroupBuilder builder in stoneVariantGroupsByKey.Values)
+            {
+                if (builder == null)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = builder.Members
+                    .Where(member => member != null && !member.IsDuplicate)
+                    .Distinct()
+                    .ToList();
+
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
+
+                groupsToCreate.Add((builder, members));
+            }
+
+            if (groupsToCreate.Count == 0)
+            {
+                return;
+            }
+
+            List<GuiHandbookPage> displayCategoryPages = EnsureStoneGroupCategoryExists();
+
+            var usedHiddenCodes = new HashSet<string>(groupByHiddenCategoryCode.Keys, StringComparer.OrdinalIgnoreCase);
+            var usedPageCodes = new HashSet<string>(activeGroupPages
+                .Where(page => page != null && !string.IsNullOrWhiteSpace(page.PageCode))
+                .Select(page => page.PageCode),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach ((StoneVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members) group in groupsToCreate
+                .OrderBy(g => g.Builder.DisplayName, StringComparer.OrdinalIgnoreCase))
+            {
+                StoneVariantGroupBuilder builder = group.Builder;
+                List<GuiHandbookItemStackPage> members = group.Members;
+
+                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
+                    ? builder.SanitizedName
+                    : Sanitize(builder.DisplayName);
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(builder.NormalizedName);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "stonevariant";
+                }
+
+                string hiddenCode = BuildUniqueStoneGroupCode(StoneGroupHiddenCodePrefix, sanitized, usedHiddenCodes);
+                string pageCode = BuildUniqueStoneGroupCode(StoneGroupPageCodePrefix, sanitized, usedPageCodes);
+
+                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, StoneGroupDisplayCategoryCode, builder.DisplayName, members);
                 GuiHandbookPage iconSource = members.FirstOrDefault();
                 int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
                 groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
