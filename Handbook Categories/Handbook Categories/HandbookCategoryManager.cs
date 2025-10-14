@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -95,6 +97,12 @@ namespace Enhanced_Handbook
             "guide",
             "guides"
         };
+
+        private static readonly AssetLocation WoodWorldPropertyCode = new("worldproperties/block/wood.json");
+        private const string WoodVariantReportFileName = "EnhancedHandbookWoodVariants.txt";
+        private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static bool woodVariantsLoaded;
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
@@ -664,6 +672,7 @@ namespace Enhanced_Handbook
             capi = api;
             categoriesInitialized = false;
             categoriesDirty = true;
+            ResetWoodVariantCache();
             ReloadConfiguration();
 
             if (capi?.Event != null)
@@ -898,6 +907,7 @@ namespace Enhanced_Handbook
 
             gridRecipePageCodes.Clear();
             vanillaSearchExtrasByPageCode.Clear();
+            ResetWoodVariantCache();
             rowHighlights.Clear();
 
 
@@ -1357,6 +1367,8 @@ namespace Enhanced_Handbook
                 englishNormalizedTitleByPage.Clear();
             }
 
+            UpdateWoodVariantPageVisibility(allPages);
+
             var itemPagesByCode = allPages
                 .OfType<GuiHandbookItemStackPage>()
                 .Where(page => page?.Stack?.Collectible != null)
@@ -1513,6 +1525,358 @@ namespace Enhanced_Handbook
 
             words.Add(builder.ToString());
             builder.Clear();
+        }
+
+        private readonly struct WoodVariantInfo
+        {
+            internal WoodVariantInfo(string variantKey, string variantValue, string normalizedValue)
+            {
+                VariantKey = variantKey;
+                VariantValue = variantValue;
+                NormalizedValue = normalizedValue;
+            }
+
+            internal string VariantKey { get; }
+
+            internal string VariantValue { get; }
+
+            internal string NormalizedValue { get; }
+
+            internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue);
+        }
+
+        private static void UpdateWoodVariantPageVisibility(IEnumerable<GuiHandbookPage> pages)
+        {
+            EnsureWoodVariantsLoaded();
+
+            if (pages != null)
+            {
+                foreach (GuiHandbookPage page in pages)
+                {
+                    if (page is not GuiHandbookItemStackPage stackPage || page.IsDuplicate)
+                    {
+                        continue;
+                    }
+
+                    if (!TryGetWoodVariantInfo(stackPage.Stack, out WoodVariantInfo info) || !info.HasValue)
+                    {
+                        continue;
+                    }
+
+                    if (!string.IsNullOrEmpty(info.NormalizedValue) && !woodVariantDisplayNameByCode.ContainsKey(info.NormalizedValue))
+                    {
+                        woodVariantDisplayNameByCode[info.NormalizedValue] = BuildWoodVariantDisplayName(info.VariantValue);
+                    }
+                }
+            }
+
+            SaveWoodVariantReport();
+        }
+
+        private static bool TryGetWoodVariantInfo(ItemStack stack, out WoodVariantInfo info)
+        {
+            if (stack?.Collectible == null)
+            {
+                info = default;
+                return false;
+            }
+
+            EnsureWoodVariantsLoaded();
+
+            CollectibleObject collectible = stack.Collectible;
+            RelaxedReadOnlyDictionary<string, string> variants = collectible.Variant;
+
+            if (variants != null)
+            {
+                string explicitWood = variants["wood"];
+                if (!string.IsNullOrEmpty(explicitWood))
+                {
+                    RegisterKnownWoodName(explicitWood);
+                    info = new WoodVariantInfo("wood", explicitWood, NormalizeWoodName(explicitWood));
+                    return info.HasValue;
+                }
+
+                string typeVariant = variants["type"];
+                if (!string.IsNullOrEmpty(typeVariant) && IsWoodVariantValue(typeVariant))
+                {
+                    RegisterKnownWoodName(typeVariant);
+                    info = new WoodVariantInfo("type", typeVariant, NormalizeWoodName(typeVariant));
+                    return info.HasValue;
+                }
+
+                foreach (KeyValuePair<string, string> entry in variants)
+                {
+                    string key = entry.Key;
+                    string value = entry.Value;
+                    if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    string normalized = NormalizeWoodName(value);
+                    bool keyIndicatesWood = key.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                    if (keyIndicatesWood || IsWoodVariantValue(normalized))
+                    {
+                        RegisterKnownWoodName(value);
+                        info = new WoodVariantInfo(key, value, normalized);
+                        return info.HasValue;
+                    }
+                }
+            }
+
+            string codePath = collectible.Code?.Path;
+            string woodFromCode = FindWoodNameInCode(codePath);
+            if (!string.IsNullOrEmpty(woodFromCode))
+            {
+                RegisterKnownWoodName(woodFromCode);
+                info = new WoodVariantInfo(null, woodFromCode, NormalizeWoodName(woodFromCode));
+                return info.HasValue;
+            }
+
+            string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
+            woodFromCode = FindWoodNameInCode(pageCode);
+            if (!string.IsNullOrEmpty(woodFromCode))
+            {
+                RegisterKnownWoodName(woodFromCode);
+                info = new WoodVariantInfo(null, woodFromCode, NormalizeWoodName(woodFromCode));
+                return info.HasValue;
+            }
+
+            info = default;
+            return false;
+        }
+
+        private static string FindWoodNameInCode(string code)
+        {
+            if (string.IsNullOrEmpty(code) || knownWoodVariantNames.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (string wood in knownWoodVariantNames)
+            {
+                if (CodeContainsWoodToken(code, wood))
+                {
+                    return wood;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool CodeContainsWoodToken(string value, string wood)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(wood))
+            {
+                return false;
+            }
+
+            foreach (string token in EnumerateCodeTokens(value))
+            {
+                if (token.Equals(wood, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<string> EnumerateCodeTokens(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                yield break;
+            }
+
+            int start = -1;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (char.IsLetterOrDigit(c))
+                {
+                    if (start == -1)
+                    {
+                        start = i;
+                    }
+
+                    continue;
+                }
+
+                if (start != -1)
+                {
+                    yield return value.Substring(start, i - start);
+                    start = -1;
+                }
+            }
+
+            if (start != -1)
+            {
+                yield return value.Substring(start);
+            }
+        }
+
+        private static void EnsureWoodVariantsLoaded()
+        {
+            if (woodVariantsLoaded)
+            {
+                return;
+            }
+
+            woodVariantsLoaded = true;
+
+            if (capi?.Assets == null)
+            {
+                return;
+            }
+
+            try
+            {
+                IAsset asset = capi.Assets.TryGet(WoodWorldPropertyCode);
+                if (asset == null)
+                {
+                    return;
+                }
+
+                StandardWorldProperty property = asset.ToObject<StandardWorldProperty>();
+                if (property?.Variants == null)
+                {
+                    return;
+                }
+
+                foreach (WorldPropertyVariant variant in property.Variants)
+                {
+                    string name = variant?.Code?.Path;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        RegisterKnownWoodName(name);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                capi?.Logger?.Warning("[Handbook Categories] Failed to load wood world property {0}: {1}", WoodWorldPropertyCode, ex);
+            }
+        }
+
+        private static void RegisterKnownWoodName(string woodName)
+        {
+            string normalized = NormalizeWoodName(woodName);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return;
+            }
+
+            bool added = knownWoodVariantNames.Add(normalized);
+            string displayName = BuildWoodVariantDisplayName(woodName);
+
+            if (!string.IsNullOrEmpty(displayName))
+            {
+                woodVariantDisplayNameByCode[normalized] = displayName;
+            }
+            else if (added && !woodVariantDisplayNameByCode.ContainsKey(normalized))
+            {
+                woodVariantDisplayNameByCode[normalized] = BuildWoodVariantDisplayName(normalized);
+            }
+        }
+
+        private static string NormalizeWoodName(string woodName)
+        {
+            return string.IsNullOrWhiteSpace(woodName) ? null : woodName.Trim().ToLowerInvariant();
+        }
+
+        private static string BuildWoodVariantDisplayName(string woodName)
+        {
+            if (string.IsNullOrWhiteSpace(woodName))
+            {
+                return null;
+            }
+
+            string trimmed = woodName.Trim();
+            string spaced = trimmed.Replace('_', ' ').Replace('-', ' ');
+            string lower = spaced.ToLowerInvariant();
+            string titleCase = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(lower);
+
+            return string.IsNullOrWhiteSpace(titleCase) ? trimmed : titleCase;
+        }
+
+        private static bool IsWoodVariantValue(string value)
+        {
+            string normalized = NormalizeWoodName(value);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            if (knownWoodVariantNames.Count == 0)
+            {
+                return true;
+            }
+
+            return knownWoodVariantNames.Contains(normalized);
+        }
+
+        private static void ResetWoodVariantCache()
+        {
+            knownWoodVariantNames.Clear();
+            woodVariantDisplayNameByCode.Clear();
+            woodVariantsLoaded = false;
+        }
+
+        private static void SaveWoodVariantReport()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            string configDirectory;
+            try
+            {
+                configDirectory = capi.GetOrCreateDataPath("ModConfig");
+            }
+            catch (Exception ex)
+            {
+                capi.Logger?.Warning("[Handbook Categories] Failed to access ModConfig directory: {0}", ex);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(configDirectory))
+            {
+                return;
+            }
+
+            string filePath = System.IO.Path.Combine(configDirectory, WoodVariantReportFileName);
+
+            try
+            {
+                List<string> orderedCodes = knownWoodVariantNames
+                    .Where(code => !string.IsNullOrEmpty(code))
+                    .OrderBy(code => code, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                using StreamWriter writer = new(filePath, false, Encoding.UTF8);
+
+                foreach (string code in orderedCodes)
+                {
+                    if (!woodVariantDisplayNameByCode.TryGetValue(code, out string displayName) || string.IsNullOrWhiteSpace(displayName))
+                    {
+                        displayName = BuildWoodVariantDisplayName(code);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(displayName))
+                    {
+                        displayName = code;
+                    }
+
+                    writer.WriteLine($"{displayName} {code}");
+                }
+            }
+            catch (Exception ex)
+            {
+                capi.Logger?.Warning("[Handbook Categories] Failed to write wood variant report to {0}: {1}", filePath, ex);
+            }
         }
 
         private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
