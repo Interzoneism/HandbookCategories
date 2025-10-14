@@ -2241,7 +2241,14 @@ namespace Enhanced_Handbook
 
             EnsureStoneVariantsLoaded();
 
-            CollectibleObject collectible = stack.Collectible;
+            Block block = stack.Block;
+            if (block == null)
+            {
+                info = default;
+                return false;
+            }
+
+            CollectibleObject collectible = block;
             RelaxedReadOnlyDictionary<string, string> variants = collectible.Variant;
 
             if (variants != null)
@@ -2596,9 +2603,9 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (knownStoneVariantNames.Contains(normalized))
+            if (knownStoneVariantNames.Count > 0)
             {
-                return true;
+                return knownStoneVariantNames.Contains(normalized);
             }
 
             return LooksLikeStoneName(normalized);
