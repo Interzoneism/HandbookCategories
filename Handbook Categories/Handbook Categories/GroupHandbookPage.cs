@@ -76,10 +76,12 @@ namespace Enhanced_Handbook
         {
             weightSourcePage = sourcePage ?? members.FirstOrDefault();
             iconSlot = CloneSlotFromPage(weightSourcePage);
+            EnsureIconSlotInitialized();
         }
 
         internal DummySlot GetIconSlot()
         {
+            EnsureIconSlotInitialized();
             return iconSlot;
         }
 
@@ -216,6 +218,7 @@ namespace Enhanced_Handbook
 
             float iconSize = (float)GuiElement.scaled(25.0);
             float iconOffset = (float)GuiElement.scaled(10.0);
+            EnsureIconSlotInitialized();
             bool hasIcon = iconSlot?.Itemstack != null;
 
             if (hasIcon)
@@ -392,6 +395,50 @@ namespace Enhanced_Handbook
                 GuiHandbookMealRecipePage mealPage => CloneDummySlot(mealPage.dummySlot),
                 _ => null
             };
+        }
+
+        private void EnsureIconSlotInitialized()
+        {
+            if (iconSlot?.Itemstack != null)
+            {
+                return;
+            }
+
+            if (TryCloneIconFrom(weightSourcePage))
+            {
+                return;
+            }
+
+            if (members == null)
+            {
+                return;
+            }
+
+            foreach (GuiHandbookPage member in members)
+            {
+                if (TryCloneIconFrom(member))
+                {
+                    weightSourcePage = member;
+                    return;
+                }
+            }
+        }
+
+        private bool TryCloneIconFrom(GuiHandbookPage candidate)
+        {
+            if (candidate == null)
+            {
+                return false;
+            }
+
+            DummySlot clone = CloneSlotFromPage(candidate);
+            if (clone?.Itemstack == null)
+            {
+                return false;
+            }
+
+            iconSlot = clone;
+            return true;
         }
 
         private static DummySlot CloneDummySlot(DummySlot source)
