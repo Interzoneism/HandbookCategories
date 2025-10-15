@@ -1898,12 +1898,6 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            EnumTool? toolType = page.Stack.Collectible?.Tool;
-            if (toolType.HasValue)
-            {
-                return;
-            }
-
             if (!TryGetStoneVariantInfo(page.Stack, out StoneVariantInfo info) || !info.HasValue)
             {
                 return;
@@ -3229,8 +3223,6 @@ namespace Enhanced_Handbook
                     displayCategoryPages.Add(groupPage);
                 }
             }
-
-            SortGroupDisplayPages(displayCategoryPages);
         }
 
         private static List<GuiHandbookPage> EnsureStoneGroupCategoryExists()
@@ -3362,8 +3354,6 @@ namespace Enhanced_Handbook
                     displayCategoryPages.Add(groupPage);
                 }
             }
-
-            SortGroupDisplayPages(displayCategoryPages);
         }
 
         private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
@@ -4404,65 +4394,7 @@ namespace Enhanced_Handbook
             if (!list.Contains(groupPage))
             {
                 list.Add(groupPage);
-                SortGroupPagesIfNeeded(categoryCode, list);
             }
-        }
-
-        private static void SortGroupPagesIfNeeded(string categoryCode, List<GroupHandbookPage> list)
-        {
-            if (list == null || list.Count <= 1 || !IsVariantDisplayCategory(categoryCode))
-            {
-                return;
-            }
-
-            list.Sort(CompareGroupPages);
-        }
-
-        private static int CompareGroupPages(GroupHandbookPage left, GroupHandbookPage right)
-        {
-            if (ReferenceEquals(left, right))
-            {
-                return 0;
-            }
-
-            if (left == null)
-            {
-                return 1;
-            }
-
-            if (right == null)
-            {
-                return -1;
-            }
-
-            string leftName = left.DisplayName ?? string.Empty;
-            string rightName = right.DisplayName ?? string.Empty;
-
-            return string.Compare(leftName, rightName, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool IsVariantDisplayCategory(string categoryCode)
-        {
-            if (string.IsNullOrEmpty(categoryCode))
-            {
-                return false;
-            }
-
-            return string.Equals(categoryCode, WoodGroupDisplayCategoryCode, StringComparison.Ordinal)
-                || string.Equals(categoryCode, StoneGroupDisplayCategoryCode, StringComparison.Ordinal);
-        }
-
-        private static void SortGroupDisplayPages(List<GuiHandbookPage> pages)
-        {
-            if (pages == null || pages.Count <= 1)
-            {
-                return;
-            }
-
-            pages.Sort((left, right) => string.Compare(
-                GetLocalizedPageTitle(left),
-                GetLocalizedPageTitle(right),
-                StringComparison.OrdinalIgnoreCase));
         }
 
         private static void RemoveGroupFromDisplayCategory(string categoryCode, GroupHandbookPage groupPage)
