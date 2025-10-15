@@ -3605,7 +3605,7 @@ namespace Enhanced_Handbook
             return !string.IsNullOrEmpty(canonical);
         }
 
-        private static string FindStoneNameInCode(string code)
+        private static string FindStoneNameInCode(string code, string displayName = null)
         {
             if (string.IsNullOrEmpty(code) || knownStoneVariantNames.Count == 0)
             {
