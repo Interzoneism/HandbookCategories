@@ -1395,8 +1395,6 @@ namespace Enhanced_Handbook
                 englishNormalizedTitleByPage.Clear();
             }
 
-            UpdateWoodVariantPageVisibility(allPages);
-
             var itemPagesByCode = allPages
                 .OfType<GuiHandbookItemStackPage>()
                 .Where(page => page?.Stack?.Collectible != null)
@@ -1436,6 +1434,8 @@ namespace Enhanced_Handbook
                     }
                 }
             }
+
+            UpdateWoodVariantPageVisibility(allPages);
 
             void EnsureCategoryMetadata(WordCategoryDefinition definition)
             {
@@ -1850,6 +1850,11 @@ namespace Enhanced_Handbook
                 foreach (GuiHandbookPage page in pages)
                 {
                     if (page is not GuiHandbookItemStackPage stackPage || page.IsDuplicate)
+                    {
+                        continue;
+                    }
+
+                    if (!IsGridRecipePage(stackPage))
                     {
                         continue;
                     }
@@ -3115,6 +3120,16 @@ namespace Enhanced_Handbook
 
         private static void RemoveWoodGroupCategory()
         {
+            List<GroupHandbookPage> existingWoodGroups = activeGroupPages
+                .Where(group => group != null
+                    && string.Equals(group.DisplayCategoryCode, WoodGroupDisplayCategoryCode, StringComparison.Ordinal))
+                .ToList();
+
+            foreach (GroupHandbookPage group in existingWoodGroups)
+            {
+                UnregisterGroupPage(group);
+            }
+
             pagesByCategory.Remove(WoodGroupDisplayCategoryCode);
             displayNameByCategory.Remove(WoodGroupDisplayCategoryCode);
             translationKeyByCategory.Remove(WoodGroupDisplayCategoryCode);
@@ -3236,6 +3251,16 @@ namespace Enhanced_Handbook
 
         private static void RemoveStoneGroupCategory()
         {
+            List<GroupHandbookPage> existingStoneGroups = activeGroupPages
+                .Where(group => group != null
+                    && string.Equals(group.DisplayCategoryCode, StoneGroupDisplayCategoryCode, StringComparison.Ordinal))
+                .ToList();
+
+            foreach (GroupHandbookPage group in existingStoneGroups)
+            {
+                UnregisterGroupPage(group);
+            }
+
             pagesByCategory.Remove(StoneGroupDisplayCategoryCode);
             displayNameByCategory.Remove(StoneGroupDisplayCategoryCode);
             translationKeyByCategory.Remove(StoneGroupDisplayCategoryCode);
