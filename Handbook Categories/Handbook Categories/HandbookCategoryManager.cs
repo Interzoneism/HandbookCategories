@@ -2546,7 +2546,7 @@ namespace Enhanced_Handbook
 
         private static string NormalizeWoodName(string woodName)
         {
-            return string.IsNullOrWhiteSpace(woodName) ? null : woodName.Trim().ToLowerInvariant();
+            return NormalizeMaterialName(woodName);
         }
 
         private static string BuildWoodVariantDisplayName(string woodName)
@@ -2646,7 +2646,30 @@ namespace Enhanced_Handbook
 
         private static string NormalizeStoneName(string stoneName)
         {
-            return string.IsNullOrWhiteSpace(stoneName) ? null : stoneName.Trim().ToLowerInvariant();
+            return NormalizeMaterialName(stoneName);
+        }
+
+        private static string NormalizeMaterialName(string materialName)
+        {
+            if (string.IsNullOrWhiteSpace(materialName))
+            {
+                return null;
+            }
+
+            string trimmed = materialName.Trim().ToLowerInvariant();
+            StringBuilder builder = new(trimmed.Length);
+
+            foreach (char ch in trimmed)
+            {
+                if (char.IsWhiteSpace(ch) || ch == '-' || ch == '_')
+                {
+                    continue;
+                }
+
+                builder.Append(ch);
+            }
+
+            return builder.Length == 0 ? null : builder.ToString();
         }
 
         private static string BuildStoneVariantDisplayName(string stoneName)
