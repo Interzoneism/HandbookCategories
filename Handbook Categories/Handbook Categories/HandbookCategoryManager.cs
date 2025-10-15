@@ -2628,14 +2628,6 @@ namespace Enhanced_Handbook
                     return true;
                 }
             }
-            else if (collectible is Item item)
-            {
-                candidate = FindStoneNameInTextures(item.Textures);
-                if (TryCreateStoneVariantInfo(candidate, out info))
-                {
-                    return true;
-                }
-            }
 
             candidate = FindStoneNameInCode(collectible.Code?.Path);
             if (TryCreateStoneVariantInfo(candidate, out info))
@@ -2648,15 +2640,6 @@ namespace Enhanced_Handbook
             if (TryCreateStoneVariantInfo(candidate, out info))
             {
                 return true;
-            }
-
-            if (collectible is Block texturedBlock)
-            {
-                candidate = FindStoneNameInTextures(texturedBlock.Textures) ?? FindStoneNameInTextures(texturedBlock.TexturesInventory);
-                if (TryCreateStoneVariantInfo(candidate, out info))
-                {
-                    return true;
-                }
             }
 
             info = default;
@@ -2740,12 +2723,6 @@ namespace Enhanced_Handbook
                 return candidate;
             }
 
-            candidate = FindStoneNameInTextures(block.Textures) ?? FindStoneNameInTextures(block.TexturesInventory);
-            if (!string.IsNullOrEmpty(candidate))
-            {
-                return candidate;
-            }
-
             return null;
         }
 
@@ -2783,103 +2760,6 @@ namespace Enhanced_Handbook
             }
 
             return false;
-        }
-
-        private static string FindStoneNameInTextures(IDictionary<string, CompositeTexture> textures)
-        {
-            if (textures == null)
-            {
-                return null;
-            }
-
-            foreach (CompositeTexture texture in textures.Values)
-            {
-                string stone = GetStoneNameFromCompositeTexture(texture);
-                if (!string.IsNullOrEmpty(stone))
-                {
-                    return stone;
-                }
-            }
-
-            return null;
-        }
-
-        private static string GetStoneNameFromCompositeTexture(CompositeTexture texture)
-        {
-            if (texture == null)
-            {
-                return null;
-            }
-
-            string stone = FindStoneNameInAssetLocation(texture.Base);
-            if (!string.IsNullOrEmpty(stone))
-            {
-                return stone;
-            }
-
-            if (texture.BlendedOverlays != null)
-            {
-                foreach (BlendedOverlayTexture overlay in texture.BlendedOverlays)
-                {
-                    stone = FindStoneNameInAssetLocation(overlay?.Base);
-                    if (!string.IsNullOrEmpty(stone))
-                    {
-                        return stone;
-                    }
-                }
-            }
-
-            if (texture.Alternates != null)
-            {
-                foreach (CompositeTexture alternate in texture.Alternates)
-                {
-                    stone = GetStoneNameFromCompositeTexture(alternate);
-                    if (!string.IsNullOrEmpty(stone))
-                    {
-                        return stone;
-                    }
-                }
-            }
-
-            if (texture.Tiles != null)
-            {
-                foreach (CompositeTexture tile in texture.Tiles)
-                {
-                    stone = GetStoneNameFromCompositeTexture(tile);
-                    if (!string.IsNullOrEmpty(stone))
-                    {
-                        return stone;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private static string FindStoneNameInAssetLocation(AssetLocation location)
-        {
-            if (location == null)
-            {
-                return null;
-            }
-
-            string stone = FindStoneNameInCode(location.Path);
-            if (!string.IsNullOrEmpty(stone))
-            {
-                return stone;
-            }
-
-            string shortCode = location.ToShortString();
-            if (!string.IsNullOrEmpty(shortCode))
-            {
-                stone = FindStoneNameInCode(shortCode);
-                if (!string.IsNullOrEmpty(stone))
-                {
-                    return stone;
-                }
-            }
-
-            return null;
         }
 
         private static string GetVariantValue(RelaxedReadOnlyDictionary<string, string> variants, string key)
