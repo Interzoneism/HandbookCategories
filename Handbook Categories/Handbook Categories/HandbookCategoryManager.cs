@@ -114,6 +114,7 @@ namespace Enhanced_Handbook
         private const string WoodVariantReportFileName = "EnhancedHandbookWoodVariants.txt";
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> woodVariantFirstWordByNormalized = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<WoodVariantReportKey, WoodPageReportEntry> woodVariantPagesByKey = new();
         private static bool woodVariantsLoaded;
 
@@ -121,6 +122,7 @@ namespace Enhanced_Handbook
         private const string StoneVariantReportFileName = "EnhancedHandbookStoneVariants.txt";
         private static readonly HashSet<string> knownStoneVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> stoneVariantFirstWordByNormalized = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<StoneVariantReportKey, StonePageReportEntry> stoneVariantPagesByKey = new();
         private static bool stoneVariantsLoaded;
 
@@ -2386,6 +2388,7 @@ namespace Enhanced_Handbook
             EnsureWoodVariantsLoaded();
 
             CollectibleObject collectible = stack.Collectible;
+            string stackDisplayName = stack.GetName() ?? string.Empty;
             RelaxedReadOnlyDictionary<string, string> variants = collectible.Variant;
 
             if (variants != null)
@@ -2428,7 +2431,7 @@ namespace Enhanced_Handbook
             }
 
             string codePath = collectible.Code?.Path;
-            string woodFromCode = FindWoodNameInCode(codePath);
+            string woodFromCode = FindWoodNameInCode(codePath, stackDisplayName);
             if (!string.IsNullOrEmpty(woodFromCode))
             {
                 RegisterKnownWoodName(woodFromCode);
@@ -2437,7 +2440,7 @@ namespace Enhanced_Handbook
             }
 
             string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
-            woodFromCode = FindWoodNameInCode(pageCode);
+            woodFromCode = FindWoodNameInCode(pageCode, stackDisplayName);
             if (!string.IsNullOrEmpty(woodFromCode))
             {
                 RegisterKnownWoodName(woodFromCode);
@@ -2449,7 +2452,7 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        private static string FindWoodNameInCode(string code)
+        private static string FindWoodNameInCode(string code, string displayName = null)
         {
             if (string.IsNullOrEmpty(code) || knownWoodVariantNames.Count == 0)
             {
@@ -2458,7 +2461,8 @@ namespace Enhanced_Handbook
 
             foreach (string wood in knownWoodVariantNames)
             {
-                if (CodeContainsWoodToken(code, wood))
+                if (CodeContainsWoodToken(code, wood)
+                    || MatchesMaterialByFirstWord(code, displayName, wood, woodVariantFirstWordByNormalized, GetWoodVariantDisplayName))
                 {
                     return wood;
                 }
@@ -2517,6 +2521,100 @@ namespace Enhanced_Handbook
             {
                 yield return value.Substring(start);
             }
+        }
+
+        private static void UpdateMaterialFirstWord(Dictionary<string, string> firstWordByNormalized, string normalized, string displayName)
+        {
+            if (firstWordByNormalized == null || string.IsNullOrEmpty(normalized))
+            {
+                return;
+            }
+
+            string firstWord = ExtractMaterialFirstWord(displayName);
+            if (string.IsNullOrEmpty(firstWord))
+            {
+                firstWordByNormalized.Remove(normalized);
+                return;
+            }
+
+            firstWordByNormalized[normalized] = firstWord;
+        }
+
+        private static string ExtractMaterialFirstWord(string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return null;
+            }
+
+            using IEnumerator<string> enumerator = EnumerateCodeTokens(displayName).GetEnumerator();
+            if (!enumerator.MoveNext())
+            {
+                return null;
+            }
+
+            string first = enumerator.Current;
+            if (string.IsNullOrWhiteSpace(first))
+            {
+                return null;
+            }
+
+            if (!enumerator.MoveNext())
+            {
+                return null;
+            }
+
+            return first.ToLowerInvariant();
+        }
+
+        private static bool MatchesMaterialByFirstWord(
+            string code,
+            string displayName,
+            string normalizedMaterial,
+            Dictionary<string, string> firstWordByNormalized,
+            System.Func<string, string> getMaterialDisplayName)
+        {
+            if (string.IsNullOrEmpty(code)
+                || string.IsNullOrEmpty(displayName)
+                || firstWordByNormalized == null
+                || getMaterialDisplayName == null
+                || !firstWordByNormalized.TryGetValue(normalizedMaterial, out string firstWord)
+                || string.IsNullOrEmpty(firstWord))
+            {
+                return false;
+            }
+
+            foreach (string token in EnumerateCodeTokens(code))
+            {
+                if (string.IsNullOrEmpty(token)
+                    || !token.Equals(firstWord, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                string materialDisplayName = getMaterialDisplayName(normalizedMaterial);
+                if (string.IsNullOrEmpty(materialDisplayName))
+                {
+                    continue;
+                }
+
+                if (DisplayNameContainsMaterial(displayName, materialDisplayName))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool DisplayNameContainsMaterial(string displayName, string materialDisplayName)
+        {
+            if (string.IsNullOrEmpty(displayName) || string.IsNullOrEmpty(materialDisplayName))
+            {
+                return false;
+            }
+
+            return displayName.IndexOf(materialDisplayName, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static void EnsureWoodVariantsLoaded()
@@ -2581,6 +2679,8 @@ namespace Enhanced_Handbook
             {
                 woodVariantDisplayNameByCode[normalized] = BuildWoodVariantDisplayName(normalized);
             }
+
+            UpdateMaterialFirstWord(woodVariantFirstWordByNormalized, normalized, GetWoodVariantDisplayName(normalized));
         }
 
         private static string NormalizeWoodName(string woodName)
@@ -2601,6 +2701,22 @@ namespace Enhanced_Handbook
             string titleCase = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(lower);
 
             return string.IsNullOrWhiteSpace(titleCase) ? trimmed : titleCase;
+        }
+
+        private static string GetWoodVariantDisplayName(string normalized)
+        {
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return string.Empty;
+            }
+
+            if (woodVariantDisplayNameByCode.TryGetValue(normalized, out string display) && !string.IsNullOrEmpty(display))
+            {
+                return display;
+            }
+
+            string fallback = BuildWoodVariantDisplayName(normalized);
+            return string.IsNullOrEmpty(fallback) ? normalized : fallback;
         }
 
         private static bool IsWoodVariantValue(string value)
@@ -2681,6 +2797,8 @@ namespace Enhanced_Handbook
             {
                 stoneVariantDisplayNameByCode[normalized] = BuildStoneVariantDisplayName(normalized);
             }
+
+            UpdateMaterialFirstWord(stoneVariantFirstWordByNormalized, normalized, GetStoneVariantDisplayName(normalized));
         }
 
         private static string NormalizeStoneName(string stoneName)
@@ -2780,6 +2898,7 @@ namespace Enhanced_Handbook
         {
             knownWoodVariantNames.Clear();
             woodVariantDisplayNameByCode.Clear();
+            woodVariantFirstWordByNormalized.Clear();
             woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
             woodVariantsLoaded = false;
@@ -2789,6 +2908,7 @@ namespace Enhanced_Handbook
         {
             knownStoneVariantNames.Clear();
             stoneVariantDisplayNameByCode.Clear();
+            stoneVariantFirstWordByNormalized.Clear();
             stoneVariantPagesByKey.Clear();
             stoneVariantsLoaded = false;
         }
@@ -2921,6 +3041,7 @@ namespace Enhanced_Handbook
             EnsureStoneVariantsLoaded();
 
             CollectibleObject collectible = stack.Collectible;
+            string stackDisplayName = stack.GetName() ?? string.Empty;
 
             string candidate = TryGetStoneVariantFromVariants(collectible.Variant);
             if (TryCreateStoneVariantInfo(candidate, out info))
@@ -2937,14 +3058,14 @@ namespace Enhanced_Handbook
                 }
             }
 
-            candidate = FindStoneNameInCode(collectible.Code?.Path);
+            candidate = FindStoneNameInCode(collectible.Code?.Path, stackDisplayName);
             if (TryCreateStoneVariantInfo(candidate, out info))
             {
                 return true;
             }
 
             string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
-            candidate = FindStoneNameInCode(pageCode);
+            candidate = FindStoneNameInCode(pageCode, stackDisplayName);
             if (TryCreateStoneVariantInfo(candidate, out info))
             {
                 return true;
@@ -3034,7 +3155,7 @@ namespace Enhanced_Handbook
             return null;
         }
 
-        private static string FindStoneNameInCode(string code)
+        private static string FindStoneNameInCode(string code, string displayName = null)
         {
             if (string.IsNullOrEmpty(code) || knownStoneVariantNames.Count == 0)
             {
@@ -3043,7 +3164,8 @@ namespace Enhanced_Handbook
 
             foreach (string stone in knownStoneVariantNames)
             {
-                if (CodeContainsStoneToken(code, stone))
+                if (CodeContainsStoneToken(code, stone)
+                    || MatchesMaterialByFirstWord(code, displayName, stone, stoneVariantFirstWordByNormalized, GetStoneVariantDisplayName))
                 {
                     return stone;
                 }
