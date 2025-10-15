@@ -1898,6 +1898,11 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            if (IsToolCollectible(page.Stack))
+            {
+                return;
+            }
+
             if (!TryGetStoneVariantInfo(page.Stack, out StoneVariantInfo info) || !info.HasValue)
             {
                 return;
@@ -1997,6 +2002,18 @@ namespace Enhanced_Handbook
         private static bool HasIgnoredStoneVariantPrefix(string value)
         {
             return HasIgnoredVariantPrefix(value, stoneVariantIgnoredPrefixes);
+        }
+
+        private static bool IsToolCollectible(ItemStack stack)
+        {
+            CollectibleObject collectible = stack?.Collectible;
+            if (collectible == null)
+            {
+                return false;
+            }
+
+            EnumTool? tool = collectible.Tool;
+            return tool.HasValue;
         }
 
         private static bool HasIgnoredVariantPrefix(string value, string[] prefixes)
