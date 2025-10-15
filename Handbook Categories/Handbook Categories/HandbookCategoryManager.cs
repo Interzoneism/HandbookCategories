@@ -52,6 +52,10 @@ namespace Enhanced_Handbook
         private const string StoneGroupPageCodePrefix = GroupPageCodePrefix + "stonevariant-";
         private const string StoneGroupDisplayCategoryName = "Stone Variants";
         private static readonly string StoneGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(StoneGroupDisplayCategoryName));
+        private const string CeramicGroupHiddenCodePrefix = GroupCategoryCodePrefix + "ceramicvariant-";
+        private const string CeramicGroupPageCodePrefix = GroupPageCodePrefix + "ceramicvariant-";
+        private const string CeramicGroupDisplayCategoryName = "Ceramic Variants";
+        private static readonly string CeramicGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(CeramicGroupDisplayCategoryName));
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -68,8 +72,10 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly Dictionary<string, WoodVariantGroupBuilder> woodVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, StoneVariantGroupBuilder> stoneVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, CeramicVariantGroupBuilder> ceramicVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly string[] woodVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly string[] stoneVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
+        private static readonly string[] ceramicVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -123,6 +129,21 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<StoneVariantReportKey, StonePageReportEntry> stoneVariantPagesByKey = new();
         private static bool stoneVariantsLoaded;
+        private static readonly Dictionary<string, string> ceramicVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
+        private static bool ceramicVariantsLoaded;
+        private static readonly Dictionary<string, string> ceramicVariantColorMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["black"] = "black",
+            ["brown"] = "brown",
+            ["cream"] = "cream",
+            ["fire"] = "fireclay",
+            ["fireclay"] = "fireclay",
+            ["gray"] = "gray",
+            ["grey"] = "gray",
+            ["orange"] = "orange",
+            ["red"] = "red",
+            ["tan"] = "tan",
+        };
 
         internal static bool RecipesOnlyEnabled => onlyGridPages;
 
@@ -694,6 +715,7 @@ namespace Enhanced_Handbook
             categoriesDirty = true;
             ResetWoodVariantCache();
             ResetStoneVariantCache();
+            ResetCeramicVariantCache();
             ReloadConfiguration();
 
             if (capi?.Event != null)
@@ -714,6 +736,7 @@ namespace Enhanced_Handbook
             categoriesInitialized = false;
             englishNormalizedTitleByPage.Clear();
             ResetStoneVariantCache();
+            ResetCeramicVariantCache();
 
             if (capi == null)
             {
@@ -931,6 +954,7 @@ namespace Enhanced_Handbook
             vanillaSearchExtrasByPageCode.Clear();
             ResetWoodVariantCache();
             ResetStoneVariantCache();
+            ResetCeramicVariantCache();
             rowHighlights.Clear();
 
 
@@ -1541,6 +1565,7 @@ namespace Enhanced_Handbook
             RestoreGroupCategories();
             CreateWoodVariantGroups();
             CreateStoneVariantGroups();
+            CreateCeramicVariantGroups();
 
             categoriesInitialized = true;
             categoriesDirty = false;
@@ -1570,6 +1595,27 @@ namespace Enhanced_Handbook
             internal string NormalizedValue { get; }
 
             internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue) || !string.IsNullOrEmpty(Value);
+        }
+
+        private readonly struct CeramicVariantInfo
+        {
+            internal CeramicVariantInfo(string rawValue, string canonicalValue, string normalizedValue, string displayName)
+            {
+                RawValue = rawValue;
+                CanonicalValue = canonicalValue;
+                NormalizedValue = normalizedValue;
+                DisplayName = displayName;
+            }
+
+            internal string RawValue { get; }
+
+            internal string CanonicalValue { get; }
+
+            internal string NormalizedValue { get; }
+
+            internal string DisplayName { get; }
+
+            internal bool HasValue => !string.IsNullOrEmpty(NormalizedValue);
         }
 
         private readonly struct StonePageReportEntry
@@ -1835,15 +1881,77 @@ namespace Enhanced_Handbook
             }
         }
 
+        private sealed class CeramicVariantGroupBuilder
+        {
+            private readonly HashSet<GuiHandbookPage> uniqueMembers = new();
+
+            internal CeramicVariantGroupBuilder(string displayName, string normalizedName, string sanitizedName)
+            {
+                DisplayName = displayName;
+                NormalizedName = normalizedName;
+                SanitizedName = sanitizedName;
+            }
+
+            internal string DisplayName { get; private set; }
+
+            internal string NormalizedName { get; }
+
+            internal string SanitizedName { get; private set; }
+
+            internal List<GuiHandbookItemStackPage> Members { get; } = new();
+
+            internal int SortHint { get; private set; } = int.MaxValue;
+
+            internal void UpdateDisplayName(string displayName)
+            {
+                if (!string.IsNullOrEmpty(displayName))
+                {
+                    DisplayName = displayName;
+                }
+            }
+
+            internal void UpdateSanitizedName(string sanitizedName)
+            {
+                if (!string.IsNullOrEmpty(sanitizedName))
+                {
+                    SanitizedName = sanitizedName;
+                }
+            }
+
+            internal bool TryAddMember(GuiHandbookItemStackPage page)
+            {
+                if (page == null)
+                {
+                    return false;
+                }
+
+                if (!uniqueMembers.Add(page))
+                {
+                    return false;
+                }
+
+                Members.Add(page);
+
+                if (page.PageNumber < SortHint)
+                {
+                    SortHint = page.PageNumber;
+                }
+
+                return true;
+            }
+        }
+
         private static void UpdateWoodVariantPageVisibility(IEnumerable<GuiHandbookPage> pages)
         {
             EnsureWoodVariantsLoaded();
             EnsureStoneVariantsLoaded();
+            EnsureCeramicVariantsLoaded();
 
             woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
             stoneVariantPagesByKey.Clear();
             stoneVariantGroupsByKey.Clear();
+            ceramicVariantGroupsByKey.Clear();
 
             if (pages != null)
             {
@@ -1860,6 +1968,7 @@ namespace Enhanced_Handbook
                     }
 
                     CollectStoneVariantEntry(stackPage);
+                    CollectCeramicVariantEntry(stackPage);
 
                     if (!TryGetWoodVariantInfo(stackPage.Stack, out WoodVariantInfo info) || !info.HasValue)
                     {
@@ -1944,6 +2053,29 @@ namespace Enhanced_Handbook
             stoneVariantPagesByKey[key] = new StonePageReportEntry(normalized, display, pageTitle, itemCode, pageCode);
         }
 
+        private static void CollectCeramicVariantEntry(GuiHandbookItemStackPage page)
+        {
+            if (page?.Stack == null)
+            {
+                return;
+            }
+
+            if (!TryGetCeramicVariantInfo(page.Stack, out CeramicVariantInfo info) || !info.HasValue)
+            {
+                return;
+            }
+
+            string itemCode = GetItemCodeForStack(page.Stack);
+            string pageCode = GetEffectivePageCode(page);
+            if (ShouldIgnoreCeramicVariantEntry(itemCode, pageCode))
+            {
+                return;
+            }
+
+            string pageTitle = GetWoodVariantReportTitle(page);
+            RegisterCeramicVariantGroupCandidate(page, info, pageTitle);
+        }
+
         private static bool ShouldIgnoreWoodVariantEntry(string itemCode, string pageCode)
         {
             if (HasIgnoredWoodVariantPrefix(itemCode))
@@ -2002,6 +2134,36 @@ namespace Enhanced_Handbook
         private static bool HasIgnoredStoneVariantPrefix(string value)
         {
             return HasIgnoredVariantPrefix(value, stoneVariantIgnoredPrefixes);
+        }
+
+        private static bool ShouldIgnoreCeramicVariantEntry(string itemCode, string pageCode)
+        {
+            if (HasIgnoredCeramicVariantPrefix(itemCode))
+            {
+                return true;
+            }
+
+            if (HasIgnoredCeramicVariantPrefix(pageCode))
+            {
+                return true;
+            }
+
+            string normalizedPageCode = NormalizePageCode(pageCode);
+            if (!string.IsNullOrEmpty(normalizedPageCode))
+            {
+                string codename = ExtractCodenameFromPageCode(normalizedPageCode);
+                if (HasIgnoredCeramicVariantPrefix(codename))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasIgnoredCeramicVariantPrefix(string value)
+        {
+            return HasIgnoredVariantPrefix(value, ceramicVariantIgnoredPrefixes);
         }
 
         private static bool IsToolCollectible(ItemStack stack)
@@ -2179,6 +2341,68 @@ namespace Enhanced_Handbook
             {
                 builder = new StoneVariantGroupBuilder(formattedDisplayName, normalizedName, sanitized);
                 stoneVariantGroupsByKey[normalizedName] = builder;
+            }
+            else
+            {
+                builder.UpdateDisplayName(formattedDisplayName);
+                builder.UpdateSanitizedName(sanitized);
+            }
+
+            builder.TryAddMember(page);
+        }
+
+        private static void RegisterCeramicVariantGroupCandidate(
+            GuiHandbookItemStackPage page,
+            CeramicVariantInfo info,
+            string pageTitle)
+        {
+            if (page == null || !info.HasValue)
+            {
+                return;
+            }
+
+            string variantDisplayName = string.IsNullOrWhiteSpace(info.DisplayName)
+                ? GetCeramicVariantDisplayName(info.NormalizedValue)
+                : info.DisplayName;
+
+            string baseTitle = ExtractVariantGroupBaseName(pageTitle, variantDisplayName);
+            if (string.IsNullOrWhiteSpace(baseTitle))
+            {
+                baseTitle = pageTitle;
+            }
+
+            if (string.IsNullOrWhiteSpace(baseTitle))
+            {
+                return;
+            }
+
+            string normalizedName = NormalizeTitle(baseTitle);
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                return;
+            }
+
+            string formattedDisplayName = FormatCeramicGroupDisplayName(baseTitle);
+            if (string.IsNullOrEmpty(formattedDisplayName))
+            {
+                return;
+            }
+
+            string sanitized = Sanitize(formattedDisplayName);
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = Sanitize(baseTitle);
+            }
+
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "ceramicvariant";
+            }
+
+            if (!ceramicVariantGroupsByKey.TryGetValue(normalizedName, out CeramicVariantGroupBuilder builder))
+            {
+                builder = new CeramicVariantGroupBuilder(formattedDisplayName, normalizedName, sanitized);
+                ceramicVariantGroupsByKey[normalizedName] = builder;
             }
             else
             {
@@ -2373,6 +2597,49 @@ namespace Enhanced_Handbook
             char first = trimmed[0];
             char upper = char.ToUpper(first, CultureInfo.InvariantCulture);
             return upper + trimmed.Substring(1);
+        }
+
+        private static string FormatCeramicGroupDisplayName(string baseName)
+        {
+            string collapsed = CollapseSpaces(baseName);
+            if (string.IsNullOrEmpty(collapsed))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = collapsed.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return string.Empty;
+            }
+
+            string replaced;
+            if (trimmed.StartsWith("Ceramic", StringComparison.OrdinalIgnoreCase))
+            {
+                replaced = trimmed;
+            }
+            else if (trimmed.StartsWith("Clay", StringComparison.OrdinalIgnoreCase))
+            {
+                replaced = string.Concat("Ceramic", trimmed.AsSpan(4));
+            }
+            else
+            {
+                replaced = string.Concat("Ceramic ", trimmed);
+            }
+
+            string lower = replaced.ToLowerInvariant();
+            if (lower.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            if (lower.Length == 1)
+            {
+                return lower.ToUpperInvariant();
+            }
+
+            char first = char.ToUpper(lower[0], CultureInfo.InvariantCulture);
+            return first + lower[1..];
         }
 
         private static bool TryGetWoodVariantInfo(ItemStack stack, out WoodVariantInfo info)
@@ -2683,9 +2950,38 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static void EnsureCeramicVariantsLoaded()
+        {
+            if (ceramicVariantsLoaded)
+            {
+                return;
+            }
+
+            ceramicVariantsLoaded = true;
+
+            foreach (string value in ceramicVariantColorMap.Values.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                string normalized = NormalizeCeramicName(value);
+                if (string.IsNullOrEmpty(normalized))
+                {
+                    continue;
+                }
+
+                if (!ceramicVariantDisplayNameByCode.ContainsKey(normalized))
+                {
+                    ceramicVariantDisplayNameByCode[normalized] = BuildCeramicVariantDisplayName(value);
+                }
+            }
+        }
+
         private static string NormalizeStoneName(string stoneName)
         {
             return NormalizeMaterialName(stoneName);
+        }
+
+        private static string NormalizeCeramicName(string ceramicName)
+        {
+            return NormalizeMaterialName(ceramicName);
         }
 
         private static string NormalizeMaterialName(string materialName)
@@ -2744,6 +3040,21 @@ namespace Enhanced_Handbook
             return string.IsNullOrWhiteSpace(titleCase) ? trimmed : titleCase;
         }
 
+        private static string BuildCeramicVariantDisplayName(string ceramicName)
+        {
+            if (string.IsNullOrWhiteSpace(ceramicName))
+            {
+                return null;
+            }
+
+            string trimmed = ceramicName.Trim();
+            string spaced = trimmed.Replace('_', ' ').Replace('-', ' ');
+            string lower = spaced.ToLowerInvariant();
+            string titleCase = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(lower);
+
+            return string.IsNullOrWhiteSpace(titleCase) ? trimmed : titleCase;
+        }
+
         private static string GetStoneVariantDisplayName(string normalized)
         {
             if (string.IsNullOrEmpty(normalized))
@@ -2758,6 +3069,28 @@ namespace Enhanced_Handbook
 
             string fallback = BuildStoneVariantDisplayName(normalized);
             return string.IsNullOrEmpty(fallback) ? normalized : fallback;
+        }
+
+        private static string GetCeramicVariantDisplayName(string normalized)
+        {
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return string.Empty;
+            }
+
+            if (ceramicVariantDisplayNameByCode.TryGetValue(normalized, out string display) && !string.IsNullOrEmpty(display))
+            {
+                return display;
+            }
+
+            string fallback = BuildCeramicVariantDisplayName(normalized);
+            if (!string.IsNullOrEmpty(fallback))
+            {
+                ceramicVariantDisplayNameByCode[normalized] = fallback;
+                return fallback;
+            }
+
+            return normalized;
         }
 
         private static bool IsStoneVariantValue(string value)
@@ -2791,6 +3124,13 @@ namespace Enhanced_Handbook
             stoneVariantDisplayNameByCode.Clear();
             stoneVariantPagesByKey.Clear();
             stoneVariantsLoaded = false;
+        }
+
+        private static void ResetCeramicVariantCache()
+        {
+            ceramicVariantDisplayNameByCode.Clear();
+            ceramicVariantGroupsByKey.Clear();
+            ceramicVariantsLoaded = false;
         }
 
         private static void SaveWoodVariantReport()
@@ -2954,6 +3294,42 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        private static bool TryGetCeramicVariantInfo(ItemStack stack, out CeramicVariantInfo info)
+        {
+            info = default;
+
+            if (stack?.Collectible is not Block block)
+            {
+                return false;
+            }
+
+            if (block.BlockMaterial != EnumBlockMaterial.Ceramic)
+            {
+                return false;
+            }
+
+            string candidate = TryGetCeramicVariantFromVariants(block.Variant);
+            if (TryCreateCeramicVariantInfo(candidate, out info))
+            {
+                return true;
+            }
+
+            candidate = FindCeramicVariantInCode(block.Code?.Path);
+            if (TryCreateCeramicVariantInfo(candidate, out info))
+            {
+                return true;
+            }
+
+            string pageCode = GuiHandbookItemStackPage.PageCodeForStack(stack);
+            candidate = FindCeramicVariantInCode(pageCode);
+            if (TryCreateCeramicVariantInfo(candidate, out info))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         private static bool TryCreateStoneVariantInfo(string value, out StoneVariantInfo info)
         {
             if (string.IsNullOrEmpty(value))
@@ -3006,6 +3382,25 @@ namespace Enhanced_Handbook
             return null;
         }
 
+        private static string TryGetCeramicVariantFromVariants(RelaxedReadOnlyDictionary<string, string> variants)
+        {
+            if (variants == null)
+            {
+                return null;
+            }
+
+            foreach (KeyValuePair<string, string> entry in variants)
+            {
+                string variantValue = entry.Value;
+                if (TryMapCeramicColor(variantValue, out string canonical))
+                {
+                    return canonical;
+                }
+            }
+
+            return null;
+        }
+
         private static string TryGetStoneVariantFromBlock(Block block, HashSet<int> visited)
         {
             if (block == null)
@@ -3032,6 +3427,61 @@ namespace Enhanced_Handbook
             }
 
             return null;
+        }
+
+        private static string FindCeramicVariantInCode(string code)
+        {
+            if (string.IsNullOrEmpty(code))
+            {
+                return null;
+            }
+
+            foreach (string token in EnumerateCodeTokens(code))
+            {
+                if (TryMapCeramicColor(token, out string canonical))
+                {
+                    return canonical;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryCreateCeramicVariantInfo(string value, out CeramicVariantInfo info)
+        {
+            if (!TryMapCeramicColor(value, out string canonical))
+            {
+                info = default;
+                return false;
+            }
+
+            string normalized = NormalizeCeramicName(canonical);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                info = default;
+                return false;
+            }
+
+            string displayName = GetCeramicVariantDisplayName(normalized);
+            info = new CeramicVariantInfo(value, canonical, normalized, displayName);
+            return info.HasValue;
+        }
+
+        private static bool TryMapCeramicColor(string value, out string canonical)
+        {
+            canonical = null;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string trimmed = value.Trim();
+            if (!ceramicVariantColorMap.TryGetValue(trimmed, out canonical))
+            {
+                return false;
+            }
+
+            return !string.IsNullOrEmpty(canonical);
         }
 
         private static string FindStoneNameInCode(string code)
@@ -3346,6 +3796,30 @@ namespace Enhanced_Handbook
             return list;
         }
 
+        private static List<GuiHandbookPage> EnsureCeramicGroupCategoryExists()
+        {
+            if (!pagesByCategory.TryGetValue(CeramicGroupDisplayCategoryCode, out List<GuiHandbookPage> list) || list == null)
+            {
+                list = new List<GuiHandbookPage>();
+                pagesByCategory[CeramicGroupDisplayCategoryCode] = list;
+            }
+            else
+            {
+                list.Clear();
+            }
+
+            displayNameByCategory[CeramicGroupDisplayCategoryCode] = CeramicGroupDisplayCategoryName;
+            translationKeyByCategory[CeramicGroupDisplayCategoryCode] = null;
+            tabBackgroundByCategory[CeramicGroupDisplayCategoryCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
+
+            if (!orderedCategories.Contains(CeramicGroupDisplayCategoryCode))
+            {
+                orderedCategories.Add(CeramicGroupDisplayCategoryCode);
+            }
+
+            return list;
+        }
+
         private static void RemoveStoneGroupCategory()
         {
             List<GroupHandbookPage> existingStoneGroups = activeGroupPages
@@ -3365,6 +3839,28 @@ namespace Enhanced_Handbook
             orderedCategories.Remove(StoneGroupDisplayCategoryCode);
 
             string displayKey = GetGroupDisplayKey(StoneGroupDisplayCategoryCode);
+            groupPagesByDisplayCategory.Remove(displayKey);
+        }
+
+        private static void RemoveCeramicGroupCategory()
+        {
+            List<GroupHandbookPage> existingCeramicGroups = activeGroupPages
+                .Where(group => group != null
+                    && string.Equals(group.DisplayCategoryCode, CeramicGroupDisplayCategoryCode, StringComparison.Ordinal))
+                .ToList();
+
+            foreach (GroupHandbookPage group in existingCeramicGroups)
+            {
+                UnregisterGroupPage(group);
+            }
+
+            pagesByCategory.Remove(CeramicGroupDisplayCategoryCode);
+            displayNameByCategory.Remove(CeramicGroupDisplayCategoryCode);
+            translationKeyByCategory.Remove(CeramicGroupDisplayCategoryCode);
+            tabBackgroundByCategory.Remove(CeramicGroupDisplayCategoryCode);
+            orderedCategories.Remove(CeramicGroupDisplayCategoryCode);
+
+            string displayKey = GetGroupDisplayKey(CeramicGroupDisplayCategoryCode);
             groupPagesByDisplayCategory.Remove(displayKey);
         }
 
@@ -3438,6 +3934,91 @@ namespace Enhanced_Handbook
                 string pageCode = BuildUniqueGroupCode(StoneGroupPageCodePrefix, sanitized, usedPageCodes);
 
                 var groupPage = new GroupHandbookPage(pageCode, hiddenCode, StoneGroupDisplayCategoryCode, builder.DisplayName, members);
+                GuiHandbookPage iconSource = members.FirstOrDefault();
+                int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
+                groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
+                groupPage.SetSortOrderHint(sortHint);
+                groupPage.AdoptAppearanceFrom(iconSource);
+
+                RegisterGroupPage(groupPage);
+
+                if (!displayCategoryPages.Contains(groupPage))
+                {
+                    displayCategoryPages.Add(groupPage);
+                }
+            }
+        }
+
+        private static void CreateCeramicVariantGroups()
+        {
+            RemoveCeramicGroupCategory();
+
+            if (ceramicVariantGroupsByKey.Count == 0)
+            {
+                return;
+            }
+
+            var groupsToCreate = new List<(CeramicVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members)>();
+
+            foreach (CeramicVariantGroupBuilder builder in ceramicVariantGroupsByKey.Values)
+            {
+                if (builder == null)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = builder.Members
+                    .Where(member => member != null && !member.IsDuplicate)
+                    .Distinct()
+                    .ToList();
+
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
+
+                groupsToCreate.Add((builder, members));
+            }
+
+            if (groupsToCreate.Count == 0)
+            {
+                return;
+            }
+
+            List<GuiHandbookPage> displayCategoryPages = EnsureCeramicGroupCategoryExists();
+
+            var usedHiddenCodes = new HashSet<string>(groupByHiddenCategoryCode.Keys, StringComparer.OrdinalIgnoreCase);
+            var usedPageCodes = new HashSet<string>(activeGroupPages
+                .Where(page => page != null && !string.IsNullOrWhiteSpace(page.PageCode))
+                .Select(page => page.PageCode),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach ((CeramicVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members) group in groupsToCreate
+                .OrderBy(g => g.Builder.DisplayName, StringComparer.OrdinalIgnoreCase))
+            {
+                CeramicVariantGroupBuilder builder = group.Builder;
+                List<GuiHandbookItemStackPage> members = group.Members;
+
+                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
+                    ? builder.SanitizedName
+                    : Sanitize(builder.DisplayName);
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(builder.NormalizedName);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "ceramicvariant";
+                }
+
+                string hiddenCode = BuildUniqueGroupCode(CeramicGroupHiddenCodePrefix, sanitized, usedHiddenCodes);
+                string pageCode = BuildUniqueGroupCode(CeramicGroupPageCodePrefix, sanitized, usedPageCodes);
+
+                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, CeramicGroupDisplayCategoryCode, builder.DisplayName, members);
                 GuiHandbookPage iconSource = members.FirstOrDefault();
                 int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
                 groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
