@@ -2207,7 +2207,11 @@ namespace Enhanced_Handbook
             {
                 string candidate = trimmedTitle.Substring(0, trimmedTitle.Length - trimmedVariant.Length);
                 candidate = TrimTrailingSeparators(candidate);
-                return candidate.Trim();
+                string trimmedCandidate = candidate.Trim();
+                if (!string.IsNullOrEmpty(trimmedCandidate))
+                {
+                    return trimmedCandidate;
+                }
             }
 
             int index = trimmedTitle.LastIndexOf(trimmedVariant, StringComparison.OrdinalIgnoreCase);
@@ -2231,7 +2235,42 @@ namespace Enhanced_Handbook
                 {
                     string candidate = trimmedTitle.Remove(index, trimmedVariant.Length);
                     candidate = TrimTrailingSeparators(candidate);
-                    return candidate.Trim();
+                    string trimmedCandidate = candidate.Trim();
+                    if (!string.IsNullOrEmpty(trimmedCandidate))
+                    {
+                        return trimmedCandidate;
+                    }
+                }
+            }
+
+            string normalizedVariant = NormalizeMaterialName(trimmedVariant);
+            if (!string.IsNullOrEmpty(normalizedVariant))
+            {
+                string normalizedTitle = NormalizeMaterialNameWithIndexMap(trimmedTitle, out List<int> normalizedIndexMap);
+                if (!string.IsNullOrEmpty(normalizedTitle)
+                    && normalizedIndexMap != null
+                    && normalizedIndexMap.Count >= normalizedTitle.Length + 1)
+                {
+                    int normalizedIndex = normalizedTitle.LastIndexOf(normalizedVariant, StringComparison.OrdinalIgnoreCase);
+                    if (normalizedIndex >= 0 && normalizedIndex < normalizedIndexMap.Count - 1)
+                    {
+                        int normalizedEnd = normalizedIndex + normalizedVariant.Length;
+                        if (normalizedEnd <= normalizedTitle.Length && normalizedEnd < normalizedIndexMap.Count)
+                        {
+                            int startIndex = normalizedIndexMap[normalizedIndex];
+                            int endIndex = normalizedIndexMap[normalizedEnd];
+                            if (startIndex >= 0 && endIndex >= startIndex && endIndex <= trimmedTitle.Length)
+                            {
+                                string candidate = trimmedTitle.Remove(startIndex, endIndex - startIndex);
+                                candidate = TrimTrailingSeparators(candidate);
+                                string trimmedCandidate = candidate.Trim();
+                                if (!string.IsNullOrEmpty(trimmedCandidate))
+                                {
+                                    return trimmedCandidate;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -2651,23 +2690,41 @@ namespace Enhanced_Handbook
 
         private static string NormalizeMaterialName(string materialName)
         {
+            return NormalizeMaterialNameWithIndexMap(materialName, out _);
+        }
+
+        private static string NormalizeMaterialNameWithIndexMap(string materialName, out List<int> normalizedIndexMap)
+        {
+            normalizedIndexMap = null;
             if (string.IsNullOrWhiteSpace(materialName))
             {
                 return null;
             }
 
-            string trimmed = materialName.Trim().ToLowerInvariant();
-            StringBuilder builder = new(trimmed.Length);
-
-            foreach (char ch in trimmed)
+            string trimmed = materialName.Trim();
+            if (trimmed.Length == 0)
             {
+                normalizedIndexMap = new List<int> { 0 };
+                return null;
+            }
+
+            string lower = trimmed.ToLowerInvariant();
+            StringBuilder builder = new(lower.Length);
+            normalizedIndexMap = new List<int>(lower.Length + 1);
+
+            for (int i = 0; i < lower.Length; i++)
+            {
+                char ch = lower[i];
                 if (char.IsWhiteSpace(ch) || ch == '-' || ch == '_')
                 {
                     continue;
                 }
 
                 builder.Append(ch);
+                normalizedIndexMap.Add(i);
             }
+
+            normalizedIndexMap.Add(lower.Length);
 
             return builder.Length == 0 ? null : builder.ToString();
         }
