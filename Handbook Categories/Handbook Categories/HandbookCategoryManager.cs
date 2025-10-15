@@ -1874,6 +1874,7 @@ namespace Enhanced_Handbook
         private static void UpdateStoneVariantReport(IEnumerable<GuiHandbookPage> pages)
         {
             EnsureStoneVariantsLoaded();
+            EnsureWoodVariantsLoaded();
 
             stoneVariantPagesByKey.Clear();
 
@@ -1899,6 +1900,15 @@ namespace Enhanced_Handbook
                     }
 
                     string pageTitle = GetVariantReportTitle(stackPage);
+
+                    if (!string.IsNullOrEmpty(info.NormalizedValue))
+                    {
+                        WoodVariantReportKey woodKey = new(info.NormalizedValue, pageCode, itemCode);
+                        if (woodVariantPagesByKey.ContainsKey(woodKey) || IsWoodVariantValue(info.NormalizedValue))
+                        {
+                            continue;
+                        }
+                    }
 
                     StoneVariantReportKey key = new(info.NormalizedValue, pageCode, itemCode);
                     stoneVariantPagesByKey[key] = new StonePageReportEntry(info.NormalizedValue, pageTitle, itemCode, pageCode);
