@@ -2426,7 +2426,7 @@ namespace Enhanced_Handbook
             string trimmedVariant = string.IsNullOrWhiteSpace(variantDisplayName) ? string.Empty : variantDisplayName.Trim();
             if (string.IsNullOrEmpty(trimmedVariant))
             {
-                return trimmedTitle;
+                return CollapseSpaces(trimmedTitle);
             }
 
             if (trimmedTitle.EndsWith(trimmedVariant, StringComparison.OrdinalIgnoreCase))
@@ -2436,7 +2436,7 @@ namespace Enhanced_Handbook
                 string trimmedCandidate = candidate.Trim();
                 if (!string.IsNullOrEmpty(trimmedCandidate))
                 {
-                    return trimmedCandidate;
+                    return CollapseSpaces(trimmedCandidate);
                 }
             }
 
@@ -2464,7 +2464,7 @@ namespace Enhanced_Handbook
                     string trimmedCandidate = candidate.Trim();
                     if (!string.IsNullOrEmpty(trimmedCandidate))
                     {
-                        return trimmedCandidate;
+                        return CollapseSpaces(trimmedCandidate);
                     }
                 }
             }
@@ -2492,7 +2492,7 @@ namespace Enhanced_Handbook
                                 string trimmedCandidate = candidate.Trim();
                                 if (!string.IsNullOrEmpty(trimmedCandidate))
                                 {
-                                    return trimmedCandidate;
+                                    return CollapseSpaces(trimmedCandidate);
                                 }
                             }
                         }
@@ -2500,7 +2500,7 @@ namespace Enhanced_Handbook
                 }
             }
 
-            return trimmedTitle;
+            return CollapseSpaces(trimmedTitle);
         }
 
         private static string TrimTrailingSeparators(string value)
