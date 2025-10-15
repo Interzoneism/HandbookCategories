@@ -3059,11 +3059,51 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            foreach (string token in EnumerateCodeTokens(value))
+            List<string> tokens = EnumerateCodeTokens(value)
+                .Where(token => !string.IsNullOrEmpty(token))
+                .Select(token => token.ToLowerInvariant())
+                .ToList();
+
+            if (tokens.Count == 0)
             {
-                if (token.Equals(stone, StringComparison.OrdinalIgnoreCase))
+                return false;
+            }
+
+            string stoneLower = stone.ToLowerInvariant();
+
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                string token = tokens[i];
+                if (token.Equals(stoneLower, StringComparison.Ordinal))
                 {
                     return true;
+                }
+
+                if (token.Length >= stoneLower.Length)
+                {
+                    continue;
+                }
+
+                StringBuilder combined = new(token);
+                for (int j = i + 1; j < tokens.Count && combined.Length < stoneLower.Length; j++)
+                {
+                    combined.Append(tokens[j]);
+                    int length = combined.Length;
+
+                    if (length == stoneLower.Length)
+                    {
+                        if (string.Equals(combined.ToString(), stoneLower, StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+
+                        break;
+                    }
+
+                    if (length > stoneLower.Length)
+                    {
+                        break;
+                    }
                 }
             }
 
