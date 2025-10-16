@@ -57,6 +57,8 @@ namespace Enhanced_Handbook
         private const string CeramicGroupPageCodePrefix = GroupPageCodePrefix + "ceramicvariant-";
         private const string CeramicGroupDisplayCategoryName = "Ceramic Variants";
         private static readonly string CeramicGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(CeramicGroupDisplayCategoryName));
+        private const string EverythingGroupsDisplayCategoryName = "Everything (Groups)";
+        private static readonly string EverythingGroupsDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(EverythingGroupsDisplayCategoryName));
 
         private static readonly Dictionary<string, List<GuiHandbookPage>> pagesByCategory = new();
         private static readonly Dictionary<string, string> displayNameByCategory = new();
@@ -109,6 +111,8 @@ namespace Enhanced_Handbook
         private static bool showGuidesTab = true;
         private static bool enableDragAndDrop = true;
         private static bool enableGroupCreationHotkeys = false;
+        private static bool createVariantCategories = false;
+        private static bool createEverythingGrouped = false;
 
         private static readonly FieldInfo composerInteractiveElementsField = typeof(GuiComposer).GetField("interactiveElements", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -761,6 +765,8 @@ namespace Enhanced_Handbook
                 showGuidesTab = true;
                 enableDragAndDrop = false;
                 enableGroupCreationHotkeys = false;
+                createVariantCategories = false;
+                createEverythingGrouped = false;
                 usingDefaultEnglishWordCategories = false;
                 HandbookPageDragManager.SetEnabled(null, false);
                 groupConfig = HandbookGroupConfig.CreateDefault();
@@ -810,6 +816,8 @@ namespace Enhanced_Handbook
             showOriginalSearchToggle = !(config?.DisableOriginalSearchButton ?? false);
             enableDragAndDrop = !(config?.DisableDragAndDrop ?? false);
             enableGroupCreationHotkeys = config?.EnableGroupCreationHotkeys ?? false;
+            createVariantCategories = config?.CreateVariantCategories ?? false;
+            createEverythingGrouped = config?.CreateEverythingGrouped ?? false;
 
             if (!showOriginalSearchToggle)
             {
@@ -970,6 +978,8 @@ namespace Enhanced_Handbook
             ResetStoneVariantCache();
             ResetCeramicVariantCache();
             rowHighlights.Clear();
+            createVariantCategories = false;
+            createEverythingGrouped = false;
 
 
             if (createButtonListenerId != 0)
@@ -1577,9 +1587,27 @@ namespace Enhanced_Handbook
 
             LoadGroupPagesFromConfig(allPages);
             RestoreGroupCategories();
-            CreateWoodVariantGroups();
-            CreateStoneVariantGroups();
-            CreateCeramicVariantGroups();
+            RemoveEverythingGroupCategory();
+
+            if (createEverythingGrouped)
+            {
+                RemoveWoodGroupCategory();
+                RemoveStoneGroupCategory();
+                RemoveCeramicGroupCategory();
+                CreateEverythingGroupsCategory(allPages);
+            }
+            else if (createVariantCategories)
+            {
+                CreateWoodVariantGroups();
+                CreateStoneVariantGroups();
+                CreateCeramicVariantGroups();
+            }
+            else
+            {
+                RemoveWoodGroupCategory();
+                RemoveStoneGroupCategory();
+                RemoveCeramicGroupCategory();
+            }
 
             categoriesInitialized = true;
             categoriesDirty = false;
@@ -1953,6 +1981,37 @@ namespace Enhanced_Handbook
 
                 return true;
             }
+        }
+
+        private sealed class VariantGroupCreationInfo
+        {
+            internal VariantGroupCreationInfo(
+                string displayName,
+                string sanitizedName,
+                List<GuiHandbookItemStackPage> members,
+                int sortHint,
+                string hiddenCodePrefix,
+                string pageCodePrefix)
+            {
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? DefaultGroupName : displayName;
+                SanitizedName = string.IsNullOrWhiteSpace(sanitizedName) ? DefaultGroupName.ToLowerInvariant() : sanitizedName;
+                Members = members ?? new List<GuiHandbookItemStackPage>();
+                SortHint = sortHint;
+                HiddenCodePrefix = hiddenCodePrefix;
+                PageCodePrefix = pageCodePrefix;
+            }
+
+            internal string DisplayName { get; }
+
+            internal string SanitizedName { get; }
+
+            internal List<GuiHandbookItemStackPage> Members { get; }
+
+            internal int SortHint { get; }
+
+            internal string HiddenCodePrefix { get; }
+
+            internal string PageCodePrefix { get; }
         }
 
         private static void UpdateWoodVariantPageVisibility(IEnumerable<GuiHandbookPage> pages)
@@ -4253,6 +4312,135 @@ namespace Enhanced_Handbook
             return candidate;
         }
 
+        private static List<VariantGroupCreationInfo> CollectWoodVariantGroupInfos()
+        {
+            var groups = new List<VariantGroupCreationInfo>();
+
+            foreach (WoodVariantGroupBuilder builder in woodVariantGroupsByKey.Values)
+            {
+                if (builder == null)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = builder.Members
+                    .Where(member => member != null && !member.IsDuplicate)
+                    .Distinct()
+                    .ToList();
+
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
+
+                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
+                    ? builder.SanitizedName
+                    : Sanitize(builder.DisplayName);
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(builder.NormalizedName);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "woodvariant";
+                }
+
+                groups.Add(new VariantGroupCreationInfo(builder.DisplayName, sanitized, members, builder.SortHint, WoodGroupHiddenCodePrefix, WoodGroupPageCodePrefix));
+            }
+
+            return groups;
+        }
+
+        private static List<VariantGroupCreationInfo> CollectStoneVariantGroupInfos()
+        {
+            var groups = new List<VariantGroupCreationInfo>();
+
+            foreach (StoneVariantGroupBuilder builder in stoneVariantGroupsByKey.Values)
+            {
+                if (builder == null)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = builder.Members
+                    .Where(member => member != null && !member.IsDuplicate)
+                    .Distinct()
+                    .ToList();
+
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
+
+                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
+                    ? builder.SanitizedName
+                    : Sanitize(builder.DisplayName);
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(builder.NormalizedName);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "stonevariant";
+                }
+
+                groups.Add(new VariantGroupCreationInfo(builder.DisplayName, sanitized, members, builder.SortHint, StoneGroupHiddenCodePrefix, StoneGroupPageCodePrefix));
+            }
+
+            return groups;
+        }
+
+        private static List<VariantGroupCreationInfo> CollectCeramicVariantGroupInfos()
+        {
+            var groups = new List<VariantGroupCreationInfo>();
+
+            foreach (CeramicVariantGroupBuilder builder in ceramicVariantGroupsByKey.Values)
+            {
+                if (builder == null)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = builder.Members
+                    .Where(member => member != null && !member.IsDuplicate)
+                    .Distinct()
+                    .ToList();
+
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
+
+                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
+                    ? builder.SanitizedName
+                    : Sanitize(builder.DisplayName);
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(builder.NormalizedName);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "ceramicvariant";
+                }
+
+                groups.Add(new VariantGroupCreationInfo(builder.DisplayName, sanitized, members, builder.SortHint, CeramicGroupHiddenCodePrefix, CeramicGroupPageCodePrefix));
+            }
+
+            return groups;
+        }
+
         private static List<GuiHandbookPage> EnsureWoodGroupCategoryExists()
         {
             if (!pagesByCategory.TryGetValue(WoodGroupDisplayCategoryCode, out List<GuiHandbookPage> list) || list == null)
@@ -4303,85 +4491,14 @@ namespace Enhanced_Handbook
         {
             RemoveWoodGroupCategory();
 
-            if (woodVariantGroupsByKey.Count == 0)
-            {
-                return;
-            }
-
-            var groupsToCreate = new List<(WoodVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members)>();
-
-            foreach (WoodVariantGroupBuilder builder in woodVariantGroupsByKey.Values)
-            {
-                if (builder == null)
-                {
-                    continue;
-                }
-
-                List<GuiHandbookItemStackPage> members = builder.Members
-                    .Where(member => member != null && !member.IsDuplicate)
-                    .Distinct()
-                    .ToList();
-
-                if (members.Count <= 1)
-                {
-                    continue;
-                }
-
-                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
-
-                groupsToCreate.Add((builder, members));
-            }
-
-            if (groupsToCreate.Count == 0)
+            List<VariantGroupCreationInfo> groups = CollectWoodVariantGroupInfos();
+            if (groups.Count == 0)
             {
                 return;
             }
 
             List<GuiHandbookPage> displayCategoryPages = EnsureWoodGroupCategoryExists();
-
-            var usedHiddenCodes = new HashSet<string>(groupByHiddenCategoryCode.Keys, StringComparer.OrdinalIgnoreCase);
-            var usedPageCodes = new HashSet<string>(activeGroupPages
-                .Where(page => page != null && !string.IsNullOrWhiteSpace(page.PageCode))
-                .Select(page => page.PageCode),
-                StringComparer.OrdinalIgnoreCase);
-
-            foreach ((WoodVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members) group in groupsToCreate
-                .OrderBy(g => g.Builder.DisplayName, StringComparer.OrdinalIgnoreCase))
-            {
-                WoodVariantGroupBuilder builder = group.Builder;
-                List<GuiHandbookItemStackPage> members = group.Members;
-
-                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
-                    ? builder.SanitizedName
-                    : Sanitize(builder.DisplayName);
-
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = Sanitize(builder.NormalizedName);
-                }
-
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = "woodvariant";
-                }
-
-                string hiddenCode = BuildUniqueGroupCode(WoodGroupHiddenCodePrefix, sanitized, usedHiddenCodes);
-                string pageCode = BuildUniqueGroupCode(WoodGroupPageCodePrefix, sanitized, usedPageCodes);
-
-                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, WoodGroupDisplayCategoryCode, builder.DisplayName, members);
-                GuiHandbookPage iconSource = members.FirstOrDefault();
-                int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
-                groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
-                groupPage.SetSortOrderHint(sortHint);
-                groupPage.AdoptAppearanceFrom(iconSource);
-
-                RegisterGroupPage(groupPage);
-
-                if (!displayCategoryPages.Contains(groupPage))
-                {
-                    displayCategoryPages.Add(groupPage);
-                }
-            }
+            RegisterVariantGroups(groups, WoodGroupDisplayCategoryCode, displayCategoryPages);
         }
 
         private static List<GuiHandbookPage> EnsureStoneGroupCategoryExists()
@@ -4476,45 +4593,17 @@ namespace Enhanced_Handbook
             groupPagesByDisplayCategory.Remove(displayKey);
         }
 
-        private static void CreateStoneVariantGroups()
+        private static List<GroupHandbookPage> RegisterVariantGroups(
+            IEnumerable<VariantGroupCreationInfo> groupInfos,
+            string displayCategoryCode,
+            List<GuiHandbookPage> displayCategoryPages)
         {
-            RemoveStoneGroupCategory();
+            var created = new List<GroupHandbookPage>();
 
-            if (stoneVariantGroupsByKey.Count == 0)
+            if (groupInfos == null)
             {
-                return;
+                return created;
             }
-
-            var groupsToCreate = new List<(StoneVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members)>();
-
-            foreach (StoneVariantGroupBuilder builder in stoneVariantGroupsByKey.Values)
-            {
-                if (builder == null)
-                {
-                    continue;
-                }
-
-                List<GuiHandbookItemStackPage> members = builder.Members
-                    .Where(member => member != null && !member.IsDuplicate)
-                    .Distinct()
-                    .ToList();
-
-                if (members.Count <= 1)
-                {
-                    continue;
-                }
-
-                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
-
-                groupsToCreate.Add((builder, members));
-            }
-
-            if (groupsToCreate.Count == 0)
-            {
-                return;
-            }
-
-            List<GuiHandbookPage> displayCategoryPages = EnsureStoneGroupCategoryExists();
 
             var usedHiddenCodes = new HashSet<string>(groupByHiddenCategoryCode.Keys, StringComparer.OrdinalIgnoreCase);
             var usedPageCodes = new HashSet<string>(activeGroupPages
@@ -4522,129 +4611,198 @@ namespace Enhanced_Handbook
                 .Select(page => page.PageCode),
                 StringComparer.OrdinalIgnoreCase);
 
-            foreach ((StoneVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members) group in groupsToCreate
-                .OrderBy(g => g.Builder.DisplayName, StringComparer.OrdinalIgnoreCase))
+            foreach (VariantGroupCreationInfo info in groupInfos
+                .Where(info => info != null && info.Members != null && info.Members.Count > 0)
+                .OrderBy(info => info.DisplayName, StringComparer.OrdinalIgnoreCase))
             {
-                StoneVariantGroupBuilder builder = group.Builder;
-                List<GuiHandbookItemStackPage> members = group.Members;
+                string sanitized = string.IsNullOrEmpty(info.SanitizedName)
+                    ? DefaultGroupName.ToLowerInvariant()
+                    : info.SanitizedName;
 
-                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
-                    ? builder.SanitizedName
-                    : Sanitize(builder.DisplayName);
+                string hiddenCode = BuildUniqueGroupCode(info.HiddenCodePrefix, sanitized, usedHiddenCodes);
+                string pageCode = BuildUniqueGroupCode(info.PageCodePrefix, sanitized, usedPageCodes);
 
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = Sanitize(builder.NormalizedName);
-                }
-
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = "stonevariant";
-                }
-
-                string hiddenCode = BuildUniqueGroupCode(StoneGroupHiddenCodePrefix, sanitized, usedHiddenCodes);
-                string pageCode = BuildUniqueGroupCode(StoneGroupPageCodePrefix, sanitized, usedPageCodes);
-
-                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, StoneGroupDisplayCategoryCode, builder.DisplayName, members);
-                GuiHandbookPage iconSource = members.FirstOrDefault();
-                int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
-                groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
+                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, displayCategoryCode, info.DisplayName, info.Members);
+                GuiHandbookPage iconSource = info.Members.FirstOrDefault();
+                int sortHint = info.SortHint < int.MaxValue ? info.SortHint : iconSource?.PageNumber ?? int.MaxValue;
+                groupPage.PageNumber = info.SortHint < int.MaxValue ? info.SortHint : iconSource?.PageNumber ?? 0;
                 groupPage.SetSortOrderHint(sortHint);
                 groupPage.AdoptAppearanceFrom(iconSource);
 
                 RegisterGroupPage(groupPage);
 
-                if (!displayCategoryPages.Contains(groupPage))
+                if (displayCategoryPages != null && !displayCategoryPages.Contains(groupPage))
                 {
                     displayCategoryPages.Add(groupPage);
                 }
+
+                created.Add(groupPage);
             }
+
+            return created;
+        }
+        private static void RemoveEverythingGroupCategory()
+        {
+            List<GroupHandbookPage> existingGroups = activeGroupPages
+                .Where(group => group != null
+                    && string.Equals(group.DisplayCategoryCode, EverythingGroupsDisplayCategoryCode, StringComparison.Ordinal))
+                .ToList();
+
+            foreach (GroupHandbookPage group in existingGroups)
+            {
+                UnregisterGroupPage(group);
+            }
+
+            pagesByCategory.Remove(EverythingGroupsDisplayCategoryCode);
+            displayNameByCategory.Remove(EverythingGroupsDisplayCategoryCode);
+            translationKeyByCategory.Remove(EverythingGroupsDisplayCategoryCode);
+            tabBackgroundByCategory.Remove(EverythingGroupsDisplayCategoryCode);
+            orderedCategories.Remove(EverythingGroupsDisplayCategoryCode);
+
+            string displayKey = GetGroupDisplayKey(EverythingGroupsDisplayCategoryCode);
+            groupPagesByDisplayCategory.Remove(displayKey);
+        }
+
+
+        private static void CreateStoneVariantGroups()
+        {
+            RemoveStoneGroupCategory();
+
+            List<VariantGroupCreationInfo> groups = CollectStoneVariantGroupInfos();
+            if (groups.Count == 0)
+            {
+                return;
+            }
+
+            List<GuiHandbookPage> displayCategoryPages = EnsureStoneGroupCategoryExists();
+            RegisterVariantGroups(groups, StoneGroupDisplayCategoryCode, displayCategoryPages);
         }
 
         private static void CreateCeramicVariantGroups()
         {
             RemoveCeramicGroupCategory();
 
-            if (ceramicVariantGroupsByKey.Count == 0)
-            {
-                return;
-            }
-
-            var groupsToCreate = new List<(CeramicVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members)>();
-
-            foreach (CeramicVariantGroupBuilder builder in ceramicVariantGroupsByKey.Values)
-            {
-                if (builder == null)
-                {
-                    continue;
-                }
-
-                List<GuiHandbookItemStackPage> members = builder.Members
-                    .Where(member => member != null && !member.IsDuplicate)
-                    .Distinct()
-                    .ToList();
-
-                if (members.Count <= 1)
-                {
-                    continue;
-                }
-
-                members.Sort((a, b) => string.Compare(GetLocalizedPageTitle(a), GetLocalizedPageTitle(b), StringComparison.OrdinalIgnoreCase));
-
-                groupsToCreate.Add((builder, members));
-            }
-
-            if (groupsToCreate.Count == 0)
+            List<VariantGroupCreationInfo> groups = CollectCeramicVariantGroupInfos();
+            if (groups.Count == 0)
             {
                 return;
             }
 
             List<GuiHandbookPage> displayCategoryPages = EnsureCeramicGroupCategoryExists();
-
-            var usedHiddenCodes = new HashSet<string>(groupByHiddenCategoryCode.Keys, StringComparer.OrdinalIgnoreCase);
-            var usedPageCodes = new HashSet<string>(activeGroupPages
-                .Where(page => page != null && !string.IsNullOrWhiteSpace(page.PageCode))
-                .Select(page => page.PageCode),
-                StringComparer.OrdinalIgnoreCase);
-
-            foreach ((CeramicVariantGroupBuilder Builder, List<GuiHandbookItemStackPage> Members) group in groupsToCreate
-                .OrderBy(g => g.Builder.DisplayName, StringComparer.OrdinalIgnoreCase))
+            RegisterVariantGroups(groups, CeramicGroupDisplayCategoryCode, displayCategoryPages);
+        }
+        private static void CreateEverythingGroupsCategory(List<GuiHandbookPage> allPages)
+        {
+            if (allPages == null || allPages.Count == 0)
             {
-                CeramicVariantGroupBuilder builder = group.Builder;
-                List<GuiHandbookItemStackPage> members = group.Members;
+                return;
+            }
 
-                string sanitized = !string.IsNullOrEmpty(builder.SanitizedName)
-                    ? builder.SanitizedName
-                    : Sanitize(builder.DisplayName);
+            var createdGroups = new List<GroupHandbookPage>();
 
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = Sanitize(builder.NormalizedName);
-                }
+            createdGroups.AddRange(RegisterVariantGroups(CollectWoodVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
+            createdGroups.AddRange(RegisterVariantGroups(CollectStoneVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
+            createdGroups.AddRange(RegisterVariantGroups(CollectCeramicVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
 
-                if (string.IsNullOrEmpty(sanitized))
-                {
-                    sanitized = "ceramicvariant";
-                }
+            PopulateEverythingGroupsCategory(allPages, createdGroups);
+        }
 
-                string hiddenCode = BuildUniqueGroupCode(CeramicGroupHiddenCodePrefix, sanitized, usedHiddenCodes);
-                string pageCode = BuildUniqueGroupCode(CeramicGroupPageCodePrefix, sanitized, usedPageCodes);
+        private static void PopulateEverythingGroupsCategory(List<GuiHandbookPage> allPages, List<GroupHandbookPage> createdGroups)
+        {
+            if (createdGroups == null || createdGroups.Count == 0)
+            {
+                return;
+            }
 
-                var groupPage = new GroupHandbookPage(pageCode, hiddenCode, CeramicGroupDisplayCategoryCode, builder.DisplayName, members);
-                GuiHandbookPage iconSource = members.FirstOrDefault();
-                int sortHint = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? int.MaxValue;
-                groupPage.PageNumber = builder.SortHint < int.MaxValue ? builder.SortHint : iconSource?.PageNumber ?? 0;
-                groupPage.SetSortOrderHint(sortHint);
-                groupPage.AdoptAppearanceFrom(iconSource);
+            List<GuiHandbookPage> categoryPages = BuildEverythingGroupsCategoryPages(allPages, createdGroups);
+            if (categoryPages == null || categoryPages.Count == 0)
+            {
+                return;
+            }
 
-                RegisterGroupPage(groupPage);
+            pagesByCategory[EverythingGroupsDisplayCategoryCode] = categoryPages;
+            displayNameByCategory[EverythingGroupsDisplayCategoryCode] = EverythingGroupsDisplayCategoryName;
+            translationKeyByCategory[EverythingGroupsDisplayCategoryCode] = null;
+            tabBackgroundByCategory[EverythingGroupsDisplayCategoryCode] = HandbookCategoryColors.GetDefaultBackgroundColor();
 
-                if (!displayCategoryPages.Contains(groupPage))
-                {
-                    displayCategoryPages.Add(groupPage);
-                }
+            if (!orderedCategories.Contains(EverythingGroupsDisplayCategoryCode))
+            {
+                orderedCategories.Add(EverythingGroupsDisplayCategoryCode);
             }
         }
+
+        private static List<GuiHandbookPage> BuildEverythingGroupsCategoryPages(List<GuiHandbookPage> allPages, List<GroupHandbookPage> groups)
+        {
+            var result = new List<GuiHandbookPage>();
+
+            if (allPages == null || allPages.Count == 0)
+            {
+                return result;
+            }
+
+            if (groups == null || groups.Count == 0)
+            {
+                result.AddRange(allPages.Where(page => page != null));
+                return result;
+            }
+
+            var groupLookup = new Dictionary<GuiHandbookPage, GroupHandbookPage>();
+            foreach (GroupHandbookPage group in groups)
+            {
+                if (group?.Members == null)
+                {
+                    continue;
+                }
+
+                foreach (GuiHandbookPage member in group.Members)
+                {
+                    if (member == null)
+                    {
+                        continue;
+                    }
+
+                    if (!groupLookup.ContainsKey(member))
+                    {
+                        groupLookup[member] = group;
+                    }
+                }
+            }
+
+            var insertedGroups = new HashSet<GroupHandbookPage>();
+
+            foreach (GuiHandbookPage page in allPages)
+            {
+                if (page == null)
+                {
+                    continue;
+                }
+
+                if (groupLookup.TryGetValue(page, out GroupHandbookPage group) && group != null)
+                {
+                    if (insertedGroups.Add(group))
+                    {
+                        result.Add(group);
+                    }
+
+                    continue;
+                }
+
+                result.Add(page);
+            }
+
+            foreach (GroupHandbookPage group in groups)
+            {
+                if (group == null || insertedGroups.Contains(group))
+                {
+                    continue;
+                }
+
+                result.Add(group);
+            }
+
+            return result;
+        }
+
 
         private static void ApplyWordBasedCategories(IEnumerable<GuiHandbookPage> pages, ISet<string> gridRecipeCodes, Action<WordCategoryDefinition, GuiHandbookPage> addPageAction)
         {
@@ -7465,7 +7623,9 @@ namespace Enhanced_Handbook
                 || config.DisableGuidesTab != defaultConfig.DisableGuidesTab
                 || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton
                 || config.DisableDragAndDrop != defaultConfig.DisableDragAndDrop
-                || config.EnableGroupCreationHotkeys != defaultConfig.EnableGroupCreationHotkeys)
+                || config.EnableGroupCreationHotkeys != defaultConfig.EnableGroupCreationHotkeys
+                || config.CreateVariantCategories != defaultConfig.CreateVariantCategories
+                || config.CreateEverythingGrouped != defaultConfig.CreateEverythingGrouped)
             {
                 return false;
             }
