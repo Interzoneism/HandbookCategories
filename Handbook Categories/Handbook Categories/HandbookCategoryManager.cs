@@ -2253,7 +2253,7 @@ namespace Enhanced_Handbook
 
             woodDisplayName ??= BuildWoodVariantDisplayName(info.VariantValue);
 
-            string baseTitle = ExtractVariantGroupBaseName(pageTitle, woodDisplayName, woodVariantTrailingDescriptors);
+            string baseTitle = ExtractVariantGroupBaseName(pageTitle, woodDisplayName, woodVariantTrailingDescriptors, IsWoodVariantValue);
             if (string.IsNullOrWhiteSpace(baseTitle))
             {
                 return;
@@ -2339,7 +2339,7 @@ namespace Enhanced_Handbook
                 }
             }
 
-            string baseTitle = ExtractVariantGroupBaseName(pageTitle, displayName, stoneVariantTrailingDescriptors);
+            string baseTitle = ExtractVariantGroupBaseName(pageTitle, displayName, stoneVariantTrailingDescriptors, IsStoneVariantValue);
             if (string.IsNullOrWhiteSpace(baseTitle))
             {
                 return;
@@ -2415,7 +2415,7 @@ namespace Enhanced_Handbook
                 ? GetCeramicVariantDisplayName(info.NormalizedValue)
                 : info.DisplayName;
 
-            string baseTitle = ExtractVariantGroupBaseName(pageTitle, variantDisplayName, ceramicVariantTrailingDescriptors);
+            string baseTitle = ExtractVariantGroupBaseName(pageTitle, variantDisplayName, ceramicVariantTrailingDescriptors, IsCeramicVariantValue);
             if (string.IsNullOrWhiteSpace(baseTitle))
             {
                 baseTitle = pageTitle;
@@ -2618,7 +2618,11 @@ namespace Enhanced_Handbook
             return trimmed;
         }
 
-        private static string ExtractVariantGroupBaseName(string pageTitle, string variantDisplayName, string[] trailingDescriptors = null)
+        private static string ExtractVariantGroupBaseName(
+            string pageTitle,
+            string variantDisplayName,
+            string[] trailingDescriptors = null,
+            System.Func<string, bool> isVariantValue = null)
         {
             string trimmedTitle = string.IsNullOrWhiteSpace(pageTitle) ? string.Empty : pageTitle.Trim();
             if (string.IsNullOrEmpty(trimmedTitle))
@@ -2629,14 +2633,14 @@ namespace Enhanced_Handbook
             string trimmedVariant = string.IsNullOrWhiteSpace(variantDisplayName) ? string.Empty : variantDisplayName.Trim();
             if (string.IsNullOrEmpty(trimmedVariant))
             {
-                return FinalizeVariantGroupBaseName(trimmedTitle, trailingDescriptors);
+                return FinalizeVariantGroupBaseName(trimmedTitle, trailingDescriptors, false, isVariantValue);
             }
 
             if (trimmedTitle.EndsWith(trimmedVariant, StringComparison.OrdinalIgnoreCase))
             {
                 int removalStartIndex = trimmedTitle.Length - trimmedVariant.Length;
                 string candidate = RemoveVariantAndConnectedWord(trimmedTitle, removalStartIndex, trimmedVariant.Length);
-                string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors);
+                string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors, true, isVariantValue);
                 if (!string.IsNullOrEmpty(finalized))
                 {
                     return finalized;
@@ -2663,7 +2667,7 @@ namespace Enhanced_Handbook
                 if (leftSeparator && rightSeparator)
                 {
                     string candidate = RemoveVariantAndConnectedWord(trimmedTitle, index, trimmedVariant.Length);
-                    string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors);
+                    string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors, true, isVariantValue);
                     if (!string.IsNullOrEmpty(finalized))
                     {
                         return finalized;
@@ -2690,7 +2694,7 @@ namespace Enhanced_Handbook
                             if (startIndex >= 0 && endIndex >= startIndex && endIndex <= trimmedTitle.Length)
                             {
                                 string candidate = RemoveVariantAndConnectedWord(trimmedTitle, startIndex, endIndex - startIndex);
-                                string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors);
+                                string finalized = FinalizeVariantGroupBaseName(candidate, trailingDescriptors, true, isVariantValue);
                                 if (!string.IsNullOrEmpty(finalized))
                                 {
                                     return finalized;
@@ -2701,10 +2705,14 @@ namespace Enhanced_Handbook
                 }
             }
 
-            return FinalizeVariantGroupBaseName(trimmedTitle, trailingDescriptors);
+            return FinalizeVariantGroupBaseName(trimmedTitle, trailingDescriptors, false, isVariantValue);
         }
 
-        private static string FinalizeVariantGroupBaseName(string baseName, string[] trailingDescriptors)
+        private static string FinalizeVariantGroupBaseName(
+            string baseName,
+            string[] trailingDescriptors,
+            bool variantRemoved,
+            System.Func<string, bool> isVariantValue)
         {
             string trimmed = string.IsNullOrWhiteSpace(baseName) ? string.Empty : TrimTrailingSeparators(baseName).Trim();
             if (string.IsNullOrEmpty(trimmed))
@@ -2712,7 +2720,7 @@ namespace Enhanced_Handbook
                 return string.Empty;
             }
 
-            string withoutTrailing = RemoveTrailingVariantDescriptors(trimmed, trailingDescriptors);
+            string withoutTrailing = RemoveTrailingVariantDescriptors(trimmed, trailingDescriptors, variantRemoved, isVariantValue);
             if (string.IsNullOrWhiteSpace(withoutTrailing))
             {
                 withoutTrailing = trimmed;
@@ -2721,7 +2729,11 @@ namespace Enhanced_Handbook
             return CollapseSpaces(withoutTrailing);
         }
 
-        private static string RemoveTrailingVariantDescriptors(string value, string[] descriptors)
+        private static string RemoveTrailingVariantDescriptors(
+            string value,
+            string[] descriptors,
+            bool variantRemoved,
+            System.Func<string, bool> isVariantValue)
         {
             if (string.IsNullOrWhiteSpace(value) || descriptors == null || descriptors.Length == 0)
             {
@@ -2766,6 +2778,19 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
+                    if (!variantRemoved && isVariantValue != null)
+                    {
+                        string precedingWord = ExtractTrailingWord(trimmedWorking, descriptorStart);
+                        if (string.IsNullOrEmpty(precedingWord) || !isVariantValue(precedingWord))
+                        {
+                            continue;
+                        }
+                    }
+                    else if (!variantRemoved && isVariantValue == null)
+                    {
+                        continue;
+                    }
+
                     int removalStart = descriptorStart;
                     while (removalStart > 0 && char.IsWhiteSpace(trimmedWorking[removalStart - 1]))
                     {
@@ -2800,6 +2825,47 @@ namespace Enhanced_Handbook
             while (removed);
 
             return working;
+        }
+
+        private static string ExtractTrailingWord(string value, int endIndex)
+        {
+            if (string.IsNullOrEmpty(value) || endIndex <= 0)
+            {
+                return string.Empty;
+            }
+
+            int index = endIndex - 1;
+            while (index >= 0 && (char.IsWhiteSpace(value[index]) || IsClosingBracket(value[index]) || value[index] == ','))
+            {
+                index--;
+            }
+
+            if (index < 0)
+            {
+                return string.Empty;
+            }
+
+            int wordEnd = index + 1;
+
+            while (index >= 0)
+            {
+                char ch = value[index];
+                if (char.IsWhiteSpace(ch) || IsHyphen(ch) || IsOpeningBracket(ch) || IsClosingBracket(ch) || ch == ',')
+                {
+                    break;
+                }
+
+                index--;
+            }
+
+            int wordStart = index + 1;
+            if (wordStart >= wordEnd)
+            {
+                return string.Empty;
+            }
+
+            string word = value.Substring(wordStart, wordEnd - wordStart);
+            return string.IsNullOrWhiteSpace(word) ? string.Empty : word.Trim();
         }
 
         private static string TrimTrailingSeparators(string value)
@@ -3562,6 +3628,32 @@ namespace Enhanced_Handbook
             }
 
             return normalized;
+        }
+
+        private static bool IsCeramicVariantValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            if (TryMapCeramicColor(value, out _))
+            {
+                return true;
+            }
+
+            string normalized = NormalizeCeramicName(value);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            if (ceramicVariantDisplayNameByCode.Count == 0)
+            {
+                return true;
+            }
+
+            return ceramicVariantDisplayNameByCode.ContainsKey(normalized);
         }
 
         private static bool IsStoneVariantValue(string value)
