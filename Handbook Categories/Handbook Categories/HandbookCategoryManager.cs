@@ -10,6 +10,7 @@ using Cairo;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Config;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Util;
 using Vintagestory.GameContent;
@@ -2653,6 +2654,7 @@ namespace Enhanced_Handbook
             EnsureWoodVariantsLoaded();
 
             CollectibleObject collectible = stack.Collectible;
+            HashSet<string> attributeWoodVariants = LoadWoodVariantGroupNames(collectible);
             RelaxedReadOnlyDictionary<string, string> variants = collectible.Variant;
 
             if (variants != null)
@@ -2666,11 +2668,17 @@ namespace Enhanced_Handbook
                 }
 
                 string typeVariant = variants["type"];
-                if (!string.IsNullOrEmpty(typeVariant) && IsWoodVariantValue(typeVariant))
+                if (!string.IsNullOrEmpty(typeVariant))
                 {
-                    RegisterKnownWoodName(typeVariant);
-                    info = new WoodVariantInfo("type", typeVariant, NormalizeWoodName(typeVariant));
-                    return info.HasValue;
+                    string normalizedType = NormalizeWoodName(typeVariant);
+                    bool matchesWoodGroup = ContainsWoodVariant(attributeWoodVariants, normalizedType);
+
+                    if (IsWoodVariantValue(typeVariant) || matchesWoodGroup)
+                    {
+                        RegisterKnownWoodName(typeVariant);
+                        info = new WoodVariantInfo("type", typeVariant, normalizedType);
+                        return info.HasValue;
+                    }
                 }
 
                 foreach (KeyValuePair<string, string> entry in variants)
@@ -2685,7 +2693,7 @@ namespace Enhanced_Handbook
                     string normalized = NormalizeWoodName(value);
                     bool keyIndicatesWood = key.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0;
 
-                    if (keyIndicatesWood || IsWoodVariantValue(normalized))
+                    if (keyIndicatesWood || ContainsWoodVariant(attributeWoodVariants, normalized) || IsWoodVariantValue(value))
                     {
                         RegisterKnownWoodName(value);
                         info = new WoodVariantInfo(key, value, normalized);
@@ -2714,6 +2722,99 @@ namespace Enhanced_Handbook
 
             info = default;
             return false;
+        }
+
+        private static HashSet<string> LoadWoodVariantGroupNames(CollectibleObject collectible)
+        {
+            JsonObject attributes = collectible?.Attributes;
+            if (attributes == null)
+            {
+                return null;
+            }
+
+            JsonObject variantGroupsObject;
+            try
+            {
+                variantGroupsObject = attributes["variantGroups"];
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (variantGroupsObject == null || variantGroupsObject.Token == null || !variantGroupsObject.Token.HasValues)
+            {
+                return null;
+            }
+
+            Dictionary<string, string[]> variantGroups;
+            try
+            {
+                variantGroups = variantGroupsObject.AsObject<Dictionary<string, string[]>>();
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (variantGroups == null || variantGroups.Count == 0)
+            {
+                return null;
+            }
+
+            HashSet<string> woodVariants = null;
+
+            foreach (KeyValuePair<string, string[]> group in variantGroups)
+            {
+                if (!IsWoodVariantGroupKey(group.Key))
+                {
+                    continue;
+                }
+
+                string[] values = group.Value;
+                if (values == null || values.Length == 0)
+                {
+                    continue;
+                }
+
+                woodVariants ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (string value in values)
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    RegisterKnownWoodName(value);
+
+                    string normalized = NormalizeWoodName(value);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        woodVariants.Add(normalized);
+                    }
+                }
+            }
+
+            return woodVariants;
+        }
+
+        private static bool ContainsWoodVariant(HashSet<string> attributeWoodVariants, string normalizedVariant)
+        {
+            return attributeWoodVariants != null
+                && !string.IsNullOrEmpty(normalizedVariant)
+                && attributeWoodVariants.Contains(normalizedVariant);
+        }
+
+        private static bool IsWoodVariantGroupKey(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            return key.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0
+                || key.IndexOf("timber", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string FindWoodNameInCode(string code)
