@@ -28,6 +28,12 @@ namespace Enhanced_Handbook
         [JsonProperty("enableGroupCreationHotkeys")]
         public bool EnableGroupCreationHotkeys { get; set; }
 
+        [JsonProperty("createVariantCategories")]
+        public bool CreateVariantCategories { get; set; }
+
+        [JsonProperty("createEverythingGrouped")]
+        public bool CreateEverythingGrouped { get; set; }
+
         [JsonProperty("usesEnglishDefaults")]
         public bool UsesEnglishDefaults { get; set; }
 
@@ -45,6 +51,8 @@ namespace Enhanced_Handbook
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
                 EnableGroupCreationHotkeys = false,
+                CreateVariantCategories = false,
+                CreateEverythingGrouped = false,
                 UsesEnglishDefaults = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
