@@ -108,6 +108,7 @@ namespace Enhanced_Handbook
         private static bool showBlocksAndItemsTab = true;
         private static bool showGuidesTab = true;
         private static bool enableDragAndDrop = true;
+        private static bool enableGroupCreationHotkeys = false;
 
         private static readonly FieldInfo composerInteractiveElementsField = typeof(GuiComposer).GetField("interactiveElements", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -161,6 +162,8 @@ namespace Enhanced_Handbook
         internal static bool ShouldShowOriginalSearchToggle => showOriginalSearchToggle;
 
         internal static bool DragAndDropEnabled => enableDragAndDrop;
+
+        internal static bool GroupCreationHotkeysEnabled => enableGroupCreationHotkeys;
 
         internal static string GetCreateCategoryButtonText()
         {
@@ -757,6 +760,7 @@ namespace Enhanced_Handbook
                 showBlocksAndItemsTab = true;
                 showGuidesTab = true;
                 enableDragAndDrop = false;
+                enableGroupCreationHotkeys = false;
                 usingDefaultEnglishWordCategories = false;
                 HandbookPageDragManager.SetEnabled(null, false);
                 groupConfig = HandbookGroupConfig.CreateDefault();
@@ -805,6 +809,7 @@ namespace Enhanced_Handbook
             showGuidesTab = !(config?.DisableGuidesTab ?? false);
             showOriginalSearchToggle = !(config?.DisableOriginalSearchButton ?? false);
             enableDragAndDrop = !(config?.DisableDragAndDrop ?? false);
+            enableGroupCreationHotkeys = config?.EnableGroupCreationHotkeys ?? false;
 
             if (!showOriginalSearchToggle)
             {
@@ -4821,6 +4826,11 @@ namespace Enhanced_Handbook
             GuiElementFlatList searchList,
             GuiHandbookPage selectedPage)
         {
+            if (!enableGroupCreationHotkeys)
+            {
+                return false;
+            }
+
             return TryHandleGroupClick(
                 dialog,
                 overviewGui,
@@ -4837,6 +4847,11 @@ namespace Enhanced_Handbook
             GuiElementFlatList searchList,
             GuiHandbookPage selectedPage)
         {
+            if (!enableGroupCreationHotkeys)
+            {
+                return false;
+            }
+
             return TryHandleGroupClick(
                 dialog,
                 overviewGui,
@@ -7449,7 +7464,8 @@ namespace Enhanced_Handbook
                 || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
                 || config.DisableGuidesTab != defaultConfig.DisableGuidesTab
                 || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton
-                || config.DisableDragAndDrop != defaultConfig.DisableDragAndDrop)
+                || config.DisableDragAndDrop != defaultConfig.DisableDragAndDrop
+                || config.EnableGroupCreationHotkeys != defaultConfig.EnableGroupCreationHotkeys)
             {
                 return false;
             }

@@ -264,6 +264,11 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            if (!HandbookCategoryManager.GroupCreationHotkeysEnabled)
+            {
+                return false;
+            }
+
             if (capi?.Input == null || !IsCtrlKeyHeld())
             {
                 return false;
@@ -301,6 +306,11 @@ namespace Enhanced_Handbook
         internal static bool TryHandleShiftClick(GuiDialogHandbook dialog, int index)
         {
             if (!featureEnabled || dialog == null || index < 0)
+            {
+                return false;
+            }
+
+            if (!HandbookCategoryManager.GroupCreationHotkeysEnabled)
             {
                 return false;
             }
