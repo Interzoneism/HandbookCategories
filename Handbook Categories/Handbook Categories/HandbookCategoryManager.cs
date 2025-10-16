@@ -2576,7 +2576,8 @@ namespace Enhanced_Handbook
 
             if (trimmedTitle.EndsWith(trimmedVariant, StringComparison.OrdinalIgnoreCase))
             {
-                string candidate = trimmedTitle.Substring(0, trimmedTitle.Length - trimmedVariant.Length);
+                int removalStartIndex = trimmedTitle.Length - trimmedVariant.Length;
+                string candidate = RemoveVariantAndConnectedWord(trimmedTitle, removalStartIndex, trimmedVariant.Length);
                 candidate = TrimTrailingSeparators(candidate);
                 string trimmedCandidate = candidate.Trim();
                 if (!string.IsNullOrEmpty(trimmedCandidate))
@@ -2604,7 +2605,7 @@ namespace Enhanced_Handbook
 
                 if (leftSeparator && rightSeparator)
                 {
-                    string candidate = trimmedTitle.Remove(index, trimmedVariant.Length);
+                    string candidate = RemoveVariantAndConnectedWord(trimmedTitle, index, trimmedVariant.Length);
                     candidate = TrimTrailingSeparators(candidate);
                     string trimmedCandidate = candidate.Trim();
                     if (!string.IsNullOrEmpty(trimmedCandidate))
@@ -2632,7 +2633,7 @@ namespace Enhanced_Handbook
                             int endIndex = normalizedIndexMap[normalizedEnd];
                             if (startIndex >= 0 && endIndex >= startIndex && endIndex <= trimmedTitle.Length)
                             {
-                                string candidate = trimmedTitle.Remove(startIndex, endIndex - startIndex);
+                                string candidate = RemoveVariantAndConnectedWord(trimmedTitle, startIndex, endIndex - startIndex);
                                 candidate = TrimTrailingSeparators(candidate);
                                 string trimmedCandidate = candidate.Trim();
                                 if (!string.IsNullOrEmpty(trimmedCandidate))
@@ -2668,6 +2669,76 @@ namespace Enhanced_Handbook
             }
 
             return end <= 0 ? string.Empty : value.Substring(0, end);
+        }
+
+        private static string RemoveVariantAndConnectedWord(string source, int startIndex, int length)
+        {
+            if (string.IsNullOrEmpty(source) || length <= 0)
+            {
+                return source;
+            }
+
+            int originalStart = Math.Max(0, Math.Min(startIndex, source.Length));
+            int originalEnd = Math.Max(originalStart, Math.Min(source.Length, startIndex + length));
+
+            int adjustedStart = originalStart;
+            int adjustedEnd = originalEnd;
+
+            if (adjustedStart > 0 && IsHyphen(source[adjustedStart - 1]))
+            {
+                int wordStart = adjustedStart - 1;
+                while (wordStart > 0)
+                {
+                    char preceding = source[wordStart - 1];
+                    if (char.IsWhiteSpace(preceding) || IsOpeningBracket(preceding) || IsHyphen(preceding))
+                    {
+                        break;
+                    }
+
+                    wordStart--;
+                }
+
+                adjustedStart = wordStart;
+            }
+
+            if (adjustedEnd < source.Length && IsHyphen(source[adjustedEnd]))
+            {
+                int wordEnd = adjustedEnd + 1;
+                while (wordEnd < source.Length)
+                {
+                    char following = source[wordEnd];
+                    if (char.IsWhiteSpace(following) || IsClosingBracket(following) || IsHyphen(following))
+                    {
+                        break;
+                    }
+
+                    wordEnd++;
+                }
+
+                adjustedEnd = wordEnd;
+            }
+
+            if (adjustedEnd <= adjustedStart)
+            {
+                return source;
+            }
+
+            return source.Remove(adjustedStart, adjustedEnd - adjustedStart);
+        }
+
+        private static bool IsHyphen(char ch)
+        {
+            return ch == '-' || ch == '–' || ch == '—';
+        }
+
+        private static bool IsOpeningBracket(char ch)
+        {
+            return ch == '(' || ch == '[' || ch == '{';
+        }
+
+        private static bool IsClosingBracket(char ch)
+        {
+            return ch == ')' || ch == ']' || ch == '}';
         }
 
         private static string CollapseSpaces(string value)
