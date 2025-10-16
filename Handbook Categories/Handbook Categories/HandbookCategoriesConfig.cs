@@ -25,6 +25,9 @@ namespace Enhanced_Handbook
         [JsonProperty("disableDragAndDrop")]
         public bool DisableDragAndDrop { get; set; }
 
+        [JsonProperty("enableGroupCreationHotkeys")]
+        public bool EnableGroupCreationHotkeys { get; set; }
+
         [JsonProperty("usesEnglishDefaults")]
         public bool UsesEnglishDefaults { get; set; }
 
@@ -41,6 +44,7 @@ namespace Enhanced_Handbook
                 DisableGuidesTab = false,
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
+                EnableGroupCreationHotkeys = false,
                 UsesEnglishDefaults = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
