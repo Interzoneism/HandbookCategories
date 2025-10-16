@@ -5791,7 +5791,7 @@ namespace Enhanced_Handbook
                 backButton.Enabled = shouldEnable;
             }
 
-            backButton.SetActive(shouldEnable);
+            backButton.SetActive(false);
         }
 
         internal static bool TryHandleGroupPageMouseDown(GuiDialogHandbook dialog, GuiHandbookPage selectedPage)
@@ -5866,7 +5866,7 @@ namespace Enhanced_Handbook
 
         private static string DetermineGroupReturnCategory(GroupHandbookPage groupPage, string fallbackCategoryCode)
         {
-            string displayCategory = groupPage?.DisplayCategoryCode;
+            string displayCategory = ResolveGroupDisplayCategoryCode(groupPage);
 
             if (!string.IsNullOrEmpty(displayCategory))
             {
@@ -5874,6 +5874,63 @@ namespace Enhanced_Handbook
             }
 
             return fallbackCategoryCode;
+        }
+
+        private static string ResolveGroupDisplayCategoryCode(GroupHandbookPage groupPage)
+        {
+            if (groupPage == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrEmpty(groupPage.DisplayCategoryCode))
+            {
+                return groupPage.DisplayCategoryCode;
+            }
+
+            string hiddenCode = groupPage.HiddenCategoryCode;
+            if (!string.IsNullOrEmpty(hiddenCode)
+                && groupByHiddenCategoryCode.TryGetValue(hiddenCode, out GroupHandbookPage registered)
+                && registered != null
+                && !string.IsNullOrEmpty(registered.DisplayCategoryCode))
+            {
+                return registered.DisplayCategoryCode;
+            }
+
+            foreach (KeyValuePair<string, List<GroupHandbookPage>> entry in groupPagesByDisplayCategory)
+            {
+                List<GroupHandbookPage> groups = entry.Value;
+                if (groups == null)
+                {
+                    continue;
+                }
+
+                foreach (GroupHandbookPage candidate in groups)
+                {
+                    if (!ReferenceEquals(candidate, groupPage))
+                    {
+                        continue;
+                    }
+
+                    string categoryCode = ResolveDisplayCategoryFromKey(entry.Key);
+                    if (!string.IsNullOrEmpty(categoryCode))
+                    {
+                        return categoryCode;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string ResolveDisplayCategoryFromKey(string key)
+        {
+            if (string.IsNullOrEmpty(key) || string.Equals(key, EverythingCategoryKey, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return key;
         }
 
         internal static bool TryHandleGroupBackNavigation(GuiDialogHandbook dialog)
