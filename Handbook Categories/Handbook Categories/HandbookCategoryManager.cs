@@ -84,6 +84,7 @@ namespace Enhanced_Handbook
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo BrowseHistoryField = typeof(GuiDialogHandbook).GetField("browseHistory", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo VerticalTabsField = typeof(GuiElementVerticalTabs).GetField("tabs", BindingFlags.Instance | BindingFlags.NonPublic);
         private static int nextGroupId = 1;
         private static string lastCreatedGroupName;
         private static HandbookGroupConfig groupConfig = HandbookGroupConfig.CreateDefault();
@@ -5582,6 +5583,13 @@ namespace Enhanced_Handbook
 
         internal static bool HasGroupBackNavigation(GuiDialogHandbook dialog)
         {
+            return TryGetActiveGroupNavigationState(dialog, out _);
+        }
+
+        private static bool TryGetActiveGroupNavigationState(GuiDialogHandbook dialog, out GroupNavigationState state)
+        {
+            state = null;
+
             if (dialog == null)
             {
                 return false;
@@ -5598,10 +5606,11 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            foreach (GroupNavigationState state in stack)
+            foreach (GroupNavigationState candidate in stack)
             {
-                if (state != null && string.Equals(state.HiddenCategoryCode, currentCode, StringComparison.Ordinal))
+                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, currentCode, StringComparison.Ordinal))
                 {
+                    state = candidate;
                     return true;
                 }
             }
@@ -5631,7 +5640,7 @@ namespace Enhanced_Handbook
                 return baseEnabled;
             }
 
-            return baseEnabled || HasGroupBackNavigation(dialog);
+            return baseEnabled || TryGetActiveGroupNavigationState(dialog, out _);
         }
 
         internal static void UpdateBackButtonState(GuiDialogHandbook dialog)
@@ -5649,15 +5658,14 @@ namespace Enhanced_Handbook
             }
 
             bool hasHistory = HasBrowseHistory(dialog);
-            bool hasGroupBackNavigation = HasGroupBackNavigation(dialog);
-            bool shouldEnable = hasHistory || hasGroupBackNavigation;
+            bool isViewingGroupPage = TryGetActiveGroupNavigationState(dialog, out _);
+            bool shouldEnable = hasHistory || isViewingGroupPage;
             if (backButton.Enabled != shouldEnable)
             {
                 backButton.Enabled = shouldEnable;
             }
 
-            bool shouldAppearActive = hasGroupBackNavigation && !hasHistory;
-            backButton.SetActive(shouldAppearActive);
+            backButton.SetActive(shouldEnable);
         }
 
         internal static bool TryHandleGroupPageMouseDown(GuiDialogHandbook dialog, GuiHandbookPage selectedPage)
@@ -5784,10 +5792,23 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            dialog.currentCatgoryCode = target.PreviousCategoryCode;
-            dialog.FilterItems();
+            string previousCategory = target.PreviousCategoryCode;
+            if (!string.IsNullOrEmpty(previousCategory))
+            {
+                dialog.selectTab(previousCategory);
+            }
+            else
+            {
+                dialog.currentCatgoryCode = previousCategory;
+                dialog.FilterItems();
+            }
 
             RestoreOverviewScroll(dialog, target.ScrollPosition);
+
+            if (!string.IsNullOrEmpty(previousCategory))
+            {
+                EnsureActiveTabMatchesCategory(dialog, previousCategory);
+            }
 
             UpdateBackButtonState(dialog);
 
@@ -5836,6 +5857,34 @@ namespace Enhanced_Handbook
 
             scrollbar.CurrentYPosition = clamped;
             scrollbar.TriggerChanged();
+        }
+
+        private static void EnsureActiveTabMatchesCategory(GuiDialogHandbook dialog, string categoryCode)
+        {
+            if (dialog == null || string.IsNullOrEmpty(categoryCode))
+            {
+                return;
+            }
+
+            GuiComposer overviewGui = OverviewGuiField?.GetValue(dialog) as GuiComposer;
+            if (overviewGui?.GetVerticalTab("verticalTabs") is not GuiElementVerticalTabs tabsElement)
+            {
+                return;
+            }
+
+            if (VerticalTabsField?.GetValue(tabsElement) is not GuiTab[] tabs || tabs.Length == 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                if (tabs[i] is HandbookTab tab && string.Equals(tab.CategoryCode, categoryCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    tabsElement.SetValue(i, triggerHandler: false);
+                    return;
+                }
+            }
         }
 
         private static bool ShouldHidePageForCategory(GuiHandbookPage page, string categoryCode)
