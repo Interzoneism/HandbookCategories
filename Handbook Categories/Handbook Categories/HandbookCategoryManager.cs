@@ -6226,6 +6226,10 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            var existingPages = new HashSet<GuiHandbookPage>(weightedPages
+                .Where(weighted => weighted.Page != null)
+                .Select(weighted => weighted.Page));
+
             foreach (GroupHandbookPage group in groups)
             {
                 if (group == null)
@@ -6234,6 +6238,11 @@ namespace Enhanced_Handbook
                 }
 
                 if (!MatchesSearchQuery(group, searchQuery, out float weight))
+                {
+                    continue;
+                }
+
+                if (!existingPages.Add(group))
                 {
                     continue;
                 }
