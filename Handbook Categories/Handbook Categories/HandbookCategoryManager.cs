@@ -77,6 +77,7 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<string, string> stoneVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, CeramicVariantGroupBuilder> ceramicVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> ceramicVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly string[] variantAliasPrefixesToStrip = { "block-", "item-" };
         private static readonly string[] woodVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly string[] stoneVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly string[] ceramicVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
@@ -2495,6 +2496,12 @@ namespace Enhanced_Handbook
             string normalizedPageCode = NormalizePageCode(effectivePageCode);
             if (!string.IsNullOrEmpty(normalizedPageCode))
             {
+                alias = GetVariantGroupAliasFromCode(normalizedPageCode);
+                if (!string.IsNullOrEmpty(alias))
+                {
+                    return alias;
+                }
+
                 string codename = ExtractCodenameFromPageCode(normalizedPageCode);
                 alias = GetVariantGroupAliasFromCode(codename);
                 if (!string.IsNullOrEmpty(alias))
@@ -2518,7 +2525,11 @@ namespace Enhanced_Handbook
             string path = code.Path;
             if (!string.IsNullOrWhiteSpace(path))
             {
-                return path.Trim().ToLowerInvariant();
+                string alias = NormalizeVariantAlias(path);
+                if (!string.IsNullOrEmpty(alias))
+                {
+                    return alias;
+                }
             }
 
             return GetVariantGroupAliasFromCode(code.ToString());
@@ -2527,7 +2538,7 @@ namespace Enhanced_Handbook
         private static string GetVariantGroupAliasFromCode(string code)
         {
             string path = ExtractVariantPathComponent(code);
-            return string.IsNullOrEmpty(path) ? string.Empty : path.ToLowerInvariant();
+            return NormalizeVariantAlias(path);
         }
 
         private static string ExtractVariantPathComponent(string value)
@@ -2558,6 +2569,50 @@ namespace Enhanced_Handbook
             }
 
             return trimmed.Trim();
+        }
+
+        private static string NormalizeVariantAlias(string alias)
+        {
+            if (string.IsNullOrWhiteSpace(alias))
+            {
+                return string.Empty;
+            }
+
+            string prepared = ExtractVariantPathComponent(alias);
+            string valueToUse = string.IsNullOrEmpty(prepared) ? alias : prepared;
+
+            string trimmed = valueToUse.Trim().ToLowerInvariant();
+            if (trimmed.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            bool removed;
+            do
+            {
+                removed = false;
+
+                foreach (string prefix in variantAliasPrefixesToStrip)
+                {
+                    if (string.IsNullOrEmpty(prefix))
+                    {
+                        continue;
+                    }
+
+                    if (trimmed.StartsWith(prefix, StringComparison.Ordinal))
+                    {
+                        string candidate = trimmed.Substring(prefix.Length).Trim();
+                        if (!string.IsNullOrWhiteSpace(candidate))
+                        {
+                            trimmed = candidate;
+                            removed = true;
+                        }
+                    }
+                }
+            }
+            while (removed);
+
+            return trimmed;
         }
 
         private static string ExtractVariantGroupBaseName(string pageTitle, string variantDisplayName)
