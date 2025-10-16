@@ -72,8 +72,11 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<GuiDialogHandbook, PendingGroupCreation> pendingGroupCreations = new();
         private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly Dictionary<string, WoodVariantGroupBuilder> woodVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> woodVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, StoneVariantGroupBuilder> stoneVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> stoneVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, CeramicVariantGroupBuilder> ceramicVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> ceramicVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly string[] woodVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly string[] stoneVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
         private static readonly string[] ceramicVariantIgnoredPrefixes = { "clutter-", "block-clutter-" };
@@ -1950,9 +1953,12 @@ namespace Enhanced_Handbook
 
             woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
+            woodVariantGroupAliases.Clear();
             stoneVariantPagesByKey.Clear();
             stoneVariantGroupsByKey.Clear();
+            stoneVariantGroupAliases.Clear();
             ceramicVariantGroupsByKey.Clear();
+            ceramicVariantGroupAliases.Clear();
 
             if (pages != null)
             {
@@ -2248,7 +2254,21 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            string aliasKey = GetVariantGroupAlias(page);
             string normalizedName = NormalizeTitle(baseTitle);
+
+            if (!string.IsNullOrEmpty(aliasKey)
+                && woodVariantGroupAliases.TryGetValue(aliasKey, out string existingGroupKey)
+                && !string.IsNullOrEmpty(existingGroupKey))
+            {
+                normalizedName = existingGroupKey;
+            }
+
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                normalizedName = aliasKey;
+            }
+
             if (string.IsNullOrEmpty(normalizedName))
             {
                 return;
@@ -2283,6 +2303,11 @@ namespace Enhanced_Handbook
             }
 
             builder.TryAddMember(page);
+
+            if (!string.IsNullOrEmpty(aliasKey))
+            {
+                woodVariantGroupAliases[aliasKey] = builder.NormalizedName;
+            }
         }
 
         private static void RegisterStoneVariantGroupCandidate(
@@ -2315,7 +2340,21 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            string aliasKey = GetVariantGroupAlias(page);
             string normalizedName = NormalizeTitle(baseTitle);
+
+            if (!string.IsNullOrEmpty(aliasKey)
+                && stoneVariantGroupAliases.TryGetValue(aliasKey, out string existingGroupKey)
+                && !string.IsNullOrEmpty(existingGroupKey))
+            {
+                normalizedName = existingGroupKey;
+            }
+
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                normalizedName = aliasKey;
+            }
+
             if (string.IsNullOrEmpty(normalizedName))
             {
                 return;
@@ -2350,6 +2389,11 @@ namespace Enhanced_Handbook
             }
 
             builder.TryAddMember(page);
+
+            if (!string.IsNullOrEmpty(aliasKey))
+            {
+                stoneVariantGroupAliases[aliasKey] = builder.NormalizedName;
+            }
         }
 
         private static void RegisterCeramicVariantGroupCandidate(
@@ -2377,7 +2421,21 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            string aliasKey = GetVariantGroupAlias(page);
             string normalizedName = NormalizeTitle(baseTitle);
+
+            if (!string.IsNullOrEmpty(aliasKey)
+                && ceramicVariantGroupAliases.TryGetValue(aliasKey, out string existingGroupKey)
+                && !string.IsNullOrEmpty(existingGroupKey))
+            {
+                normalizedName = existingGroupKey;
+            }
+
+            if (string.IsNullOrEmpty(normalizedName))
+            {
+                normalizedName = aliasKey;
+            }
+
             if (string.IsNullOrEmpty(normalizedName))
             {
                 return;
@@ -2412,6 +2470,93 @@ namespace Enhanced_Handbook
             }
 
             builder.TryAddMember(page);
+
+            if (!string.IsNullOrEmpty(aliasKey))
+            {
+                ceramicVariantGroupAliases[aliasKey] = builder.NormalizedName;
+            }
+        }
+
+        private static string GetVariantGroupAlias(GuiHandbookItemStackPage page)
+        {
+            if (page == null)
+            {
+                return string.Empty;
+            }
+
+            string alias = GetVariantGroupAlias(page.Stack);
+            if (!string.IsNullOrEmpty(alias))
+            {
+                return alias;
+            }
+
+            string effectivePageCode = GetEffectivePageCode(page);
+            string normalizedPageCode = NormalizePageCode(effectivePageCode);
+            if (!string.IsNullOrEmpty(normalizedPageCode))
+            {
+                string codename = ExtractCodenameFromPageCode(normalizedPageCode);
+                alias = GetVariantGroupAliasFromCode(codename);
+                if (!string.IsNullOrEmpty(alias))
+                {
+                    return alias;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string GetVariantGroupAlias(ItemStack stack)
+        {
+            CollectibleObject collectible = stack?.Collectible;
+            AssetLocation code = collectible?.Code;
+            if (code == null)
+            {
+                return string.Empty;
+            }
+
+            string path = code.Path;
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                return path.Trim().ToLowerInvariant();
+            }
+
+            return GetVariantGroupAliasFromCode(code.ToString());
+        }
+
+        private static string GetVariantGroupAliasFromCode(string code)
+        {
+            string path = ExtractVariantPathComponent(code);
+            return string.IsNullOrEmpty(path) ? string.Empty : path.ToLowerInvariant();
+        }
+
+        private static string ExtractVariantPathComponent(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = value.Trim();
+            int colonIndex = trimmed.IndexOf(':');
+            if (colonIndex >= 0)
+            {
+                trimmed = colonIndex < trimmed.Length - 1
+                    ? trimmed[(colonIndex + 1)..]
+                    : string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return string.Empty;
+            }
+
+            int attributeIndex = trimmed.IndexOf("-{", StringComparison.Ordinal);
+            if (attributeIndex > 0)
+            {
+                trimmed = trimmed.Substring(0, attributeIndex);
+            }
+
+            return trimmed.Trim();
         }
 
         private static string ExtractVariantGroupBaseName(string pageTitle, string variantDisplayName)
@@ -3216,6 +3361,7 @@ namespace Enhanced_Handbook
             woodVariantDisplayNameByCode.Clear();
             woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
+            woodVariantGroupAliases.Clear();
             woodVariantsLoaded = false;
         }
 
@@ -3224,6 +3370,8 @@ namespace Enhanced_Handbook
             knownStoneVariantNames.Clear();
             stoneVariantDisplayNameByCode.Clear();
             stoneVariantPagesByKey.Clear();
+            stoneVariantGroupsByKey.Clear();
+            stoneVariantGroupAliases.Clear();
             stoneVariantsLoaded = false;
         }
 
@@ -3231,6 +3379,7 @@ namespace Enhanced_Handbook
         {
             ceramicVariantDisplayNameByCode.Clear();
             ceramicVariantGroupsByKey.Clear();
+            ceramicVariantGroupAliases.Clear();
             ceramicVariantsLoaded = false;
         }
 
