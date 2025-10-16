@@ -5931,15 +5931,14 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            string currentCode = dialog.currentCatgoryCode;
-            if (string.IsNullOrEmpty(currentCode))
+            if (!TryGetActiveGroupHiddenCategoryCode(dialog, stack, out string hiddenCategoryCode))
             {
                 return false;
             }
 
             foreach (GroupNavigationState candidate in stack)
             {
-                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, currentCode, StringComparison.Ordinal))
+                if (candidate != null && string.Equals(candidate.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal))
                 {
                     state = candidate;
                     return true;
@@ -6153,10 +6152,15 @@ namespace Enhanced_Handbook
             Stack<GroupNavigationState> retained = new();
             GroupNavigationState target = null;
 
+            if (!TryGetActiveGroupHiddenCategoryCode(dialog, stack, out string hiddenCategoryCode))
+            {
+                return false;
+            }
+
             while (stack.Count > 0)
             {
                 GroupNavigationState state = stack.Pop();
-                if (target == null && string.Equals(dialog.currentCatgoryCode, state.HiddenCategoryCode, StringComparison.Ordinal))
+                if (target == null && string.Equals(hiddenCategoryCode, state.HiddenCategoryCode, StringComparison.Ordinal))
                 {
                     target = state;
                     break;
@@ -6201,6 +6205,69 @@ namespace Enhanced_Handbook
             UpdateBackButtonState(dialog);
 
             return true;
+        }
+
+        private static bool TryGetActiveGroupHiddenCategoryCode(
+            GuiDialogHandbook dialog,
+            Stack<GroupNavigationState> stack,
+            out string hiddenCategoryCode)
+        {
+            hiddenCategoryCode = null;
+
+            if (dialog == null || stack == null || stack.Count == 0)
+            {
+                return false;
+            }
+
+            string currentCode = dialog.currentCatgoryCode;
+            if (!string.IsNullOrEmpty(currentCode)
+                && stack.Any(state => state != null
+                    && string.Equals(state.HiddenCategoryCode, currentCode, StringComparison.Ordinal)))
+            {
+                hiddenCategoryCode = currentCode;
+                return true;
+            }
+
+            if (TryGetGroupHiddenCategoryFromBrowseHistory(dialog, out string historyHiddenCode)
+                && stack.Any(state => state != null
+                    && string.Equals(state.HiddenCategoryCode, historyHiddenCode, StringComparison.Ordinal)))
+            {
+                hiddenCategoryCode = historyHiddenCode;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetGroupHiddenCategoryFromBrowseHistory(
+            GuiDialogHandbook dialog,
+            out string hiddenCategoryCode)
+        {
+            hiddenCategoryCode = null;
+
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(dialog) is Stack<BrowseHistoryElement> history && history.Count > 0)
+                {
+                    BrowseHistoryElement top = history.Peek();
+                    if (top?.Page is GroupHandbookPage groupPage)
+                    {
+                        hiddenCategoryCode = groupPage.HiddenCategoryCode;
+                        return !string.IsNullOrEmpty(hiddenCategoryCode);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore reflection failures and fall back to the default behaviour.
+            }
+
+            return false;
         }
 
         private static void RestoreOverviewScroll(GuiDialogHandbook dialog, float scrollPosition)
