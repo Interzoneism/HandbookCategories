@@ -550,16 +550,7 @@ namespace Enhanced_Handbook
             categoriesDirty = true;
             ReloadConfiguration();
 
-            if (capi?.Event != null)
-            {
-                if (createButtonListenerId != 0)
-                {
-                    capi.Event.UnregisterGameTickListener(createButtonListenerId);
-                    createButtonListenerId = 0;
-                }
-
-                createButtonListenerId = capi.Event.RegisterGameTickListener(MonitorCreateButtonState, 50);
-            }
+            
         }
 
         internal static void ReloadConfiguration()
@@ -677,11 +668,7 @@ namespace Enhanced_Handbook
             vanillaSearchExtrasByPageCode.Clear();
 
 
-            if (createButtonListenerId != 0)
-            {
-                capi?.Event?.UnregisterGameTickListener(createButtonListenerId);
-                createButtonListenerId = 0;
-            }
+            
 
             trackedCreateButtonComposer = null;
             trackedCreateButton = null;
