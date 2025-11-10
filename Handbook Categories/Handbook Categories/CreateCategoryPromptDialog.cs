@@ -11,8 +11,22 @@ namespace Enhanced_Handbook
     {
         private const string TextInputKey = "handbookcategories-createprompt-input";
         private const string OkButtonKey = "handbookcategories-createprompt-ok";
+        private const string AddResultsToggleKey = "handbookcategories-createprompt-addresults";
 
-        private readonly Action<string> onConfirm;
+        internal readonly struct CreateCategoryPromptResult
+        {
+            internal CreateCategoryPromptResult(string name, bool addCurrentSearchResults)
+            {
+                Name = name;
+                AddCurrentSearchResults = addCurrentSearchResults;
+            }
+
+            internal string Name { get; }
+
+            internal bool AddCurrentSearchResults { get; }
+        }
+
+        private readonly Action<CreateCategoryPromptResult> onConfirm;
         private readonly string dialogTitle;
         private readonly string dialogMessage;
         private readonly string placeholderText;
@@ -20,8 +34,12 @@ namespace Enhanced_Handbook
         private readonly string cancelButtonText;
         private readonly string dialogKey;
         private readonly string initialValue;
+        private readonly bool showAddResultsToggle;
+        private readonly string addResultsToggleText;
+        private readonly bool addResultsDefaultState;
         private string lastValidInput = string.Empty;
         private bool isUpdatingTextInput;
+        private bool addResultsEnabled;
 
         private static readonly FieldInfo SelectedTextStartField = typeof(GuiElementEditableTextBase)
             .GetField("selectedTextStart", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -32,14 +50,17 @@ namespace Enhanced_Handbook
 
         internal CreateCategoryPromptDialog(
             ICoreClientAPI capi,
-            Action<string> onConfirm,
+            Action<CreateCategoryPromptResult> onConfirm,
             string title = null,
             string message = null,
             string placeholder = null,
             string okText = null,
             string cancelText = null,
             string dialogKey = "handbookcategories-createprompt",
-            string initialValue = null)
+            string initialValue = null,
+            bool showAddResultsToggle = false,
+            string addResultsToggleText = null,
+            bool addResultsDefaultState = false)
             : base(title ?? HandbookCategoryManager.GetCreateCategoryPromptTitle(), capi)
         {
             this.onConfirm = onConfirm;
@@ -50,6 +71,12 @@ namespace Enhanced_Handbook
             cancelButtonText = cancelText ?? HandbookCategoryManager.GetCreateCategoryPromptCancelText();
             this.dialogKey = dialogKey ?? "handbookcategories-createprompt";
             this.initialValue = initialValue;
+            this.showAddResultsToggle = showAddResultsToggle;
+            this.addResultsToggleText = string.IsNullOrWhiteSpace(addResultsToggleText)
+                ? HandbookCategoryManager.GetAddSearchResultsToggleText()
+                : addResultsToggleText;
+            this.addResultsDefaultState = addResultsDefaultState;
+            addResultsEnabled = addResultsDefaultState;
             ComposeDialog();
         }
 
@@ -80,7 +107,11 @@ namespace Enhanced_Handbook
             ElementBounds inputBounds = hasMessage
                 ? messageBounds.BelowCopy(0.0, 10.0).WithFixedWidth(360.0).WithFixedHeight(30.0)
                 : ElementBounds.Fixed(0.0, contentTopPadding, 360.0, 30.0);
-            ElementBounds buttonBounds = inputBounds.BelowCopy(0.0, 15.0).WithFixedWidth(140.0).WithFixedHeight(30.0);
+            ElementBounds toggleBounds = showAddResultsToggle
+                ? inputBounds.BelowCopy(0.0, 10.0).WithFixedWidth(360.0).WithFixedHeight(26.0)
+                : null;
+            ElementBounds buttonAnchorBounds = showAddResultsToggle && toggleBounds != null ? toggleBounds : inputBounds;
+            ElementBounds buttonBounds = buttonAnchorBounds.BelowCopy(0.0, 15.0).WithFixedWidth(140.0).WithFixedHeight(30.0);
 
             GuiComposer composer = capi.Gui.CreateCompo(dialogKey, dialogBounds)
                 .AddShadedDialogBG(backgroundBounds, false)
@@ -93,9 +124,21 @@ namespace Enhanced_Handbook
             }
 
             composer
-                    .AddTextInput(inputBounds, OnNameChanged, CairoFont.TextInput(), TextInputKey)
-                    .AddSmallButton(cancelButtonText, OnCancelClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.LeftFixed))
-                    .AddSmallButton(okButtonText, OnOkClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.RightFixed), EnumButtonStyle.Normal, OkButtonKey)
+                .AddTextInput(inputBounds, OnNameChanged, CairoFont.TextInput(), TextInputKey);
+
+            if (showAddResultsToggle && toggleBounds != null)
+            {
+                composer.AddToggleButton(
+                    addResultsToggleText,
+                    CairoFont.WhiteDetailText(),
+                    OnAddResultsToggled,
+                    toggleBounds,
+                    AddResultsToggleKey);
+            }
+
+            composer
+                .AddSmallButton(cancelButtonText, OnCancelClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.LeftFixed))
+                .AddSmallButton(okButtonText, OnOkClicked, buttonBounds.FlatCopy().WithAlignment(EnumDialogArea.RightFixed), EnumButtonStyle.Normal, OkButtonKey)
                 .EndChildElements();
 
             SingleComposer = composer.Compose();
@@ -112,6 +155,14 @@ namespace Enhanced_Handbook
                 input.OnTryTextChangeText = EnsureTextWithinLimit;
             }
             lastValidInput = input?.GetText() ?? string.Empty;
+
+            GuiElementToggleButton toggleButton = showAddResultsToggle
+                ? SingleComposer.GetToggleButton(AddResultsToggleKey)
+                : null;
+            if (toggleButton != null && toggleButton.On != addResultsDefaultState)
+            {
+                toggleButton.SetValue(addResultsDefaultState);
+            }
 
             GuiElementTextButton okButton = SingleComposer.GetButton(OkButtonKey);
             if (okButton != null)
@@ -186,7 +237,8 @@ namespace Enhanced_Handbook
             }
 
             TryClose();
-            onConfirm?.Invoke(sanitized);
+            bool addResults = showAddResultsToggle && addResultsEnabled;
+            onConfirm?.Invoke(new CreateCategoryPromptResult(sanitized, addResults));
             return true;
         }
 
@@ -259,6 +311,11 @@ namespace Enhanced_Handbook
             bool hasText = !string.IsNullOrWhiteSpace(normalized);
             bool withinLimit = normalized != null && normalized.Length <= HandbookCategoryManager.MaxCategoryNameLength;
             okButton.Enabled = hasText && withinLimit;
+        }
+
+        private void OnAddResultsToggled(bool enabled)
+        {
+            addResultsEnabled = enabled;
         }
     }
 }

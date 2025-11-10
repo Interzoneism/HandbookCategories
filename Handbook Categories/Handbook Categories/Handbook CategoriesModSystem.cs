@@ -1434,6 +1434,13 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (searchText.IndexOf('#') < 0)
+            {
+                List<string> currentPageCodes = HandbookCategoryManager.CaptureCurrentPageCodes(dialog);
+                ShowCreateCategoryPrompt(dialog, searchText, currentPageCodes);
+                return true;
+            }
+
             if (!HandbookCategoryManager.TryExecuteCategoryCreateCommand(searchText))
             {
                 return false;
@@ -1444,7 +1451,7 @@ namespace Enhanced_Handbook
             return true;
         }
 
-        private static void ShowCreateCategoryPrompt(GuiDialogHandbook dialog)
+        private static void ShowCreateCategoryPrompt(GuiDialogHandbook dialog, string searchText = null, List<string> currentPageCodes = null)
         {
             ICoreClientAPI api = HandbookCategoryManager.ClientApi;
             if (api?.Gui == null)
@@ -1452,8 +1459,14 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            CreateCategoryPromptDialog prompt = new(api, categoryName =>
+            List<string> capturedCodes = currentPageCodes != null
+                ? new List<string>(currentPageCodes.Where(code => !string.IsNullOrWhiteSpace(code)))
+                : new List<string>();
+            bool showAddResultsToggle = !string.IsNullOrWhiteSpace(searchText);
+
+            CreateCategoryPromptDialog prompt = new(api, result =>
             {
+                string categoryName = result.Name;
                 if (string.IsNullOrWhiteSpace(categoryName))
                 {
                     return;
@@ -1479,9 +1492,20 @@ namespace Enhanced_Handbook
                     return;
                 }
 
+                if (result.AddCurrentSearchResults && capturedCodes.Count > 0)
+                {
+                    string categoryCode = HandbookCategoryManager.GetCategoryCodeFromDisplayName(unquotedName);
+                    if (!string.IsNullOrEmpty(categoryCode))
+                    {
+                        HandbookCategoryManager.TryAddPagesToCategory(categoryCode, capturedCodes);
+                    }
+                }
+
                 api.Gui.PlaySound("menubutton_press");
                 RefreshActiveTab(dialog, clearSearch: true);
-            });
+            },
+            showAddResultsToggle: showAddResultsToggle,
+            addResultsDefaultState: showAddResultsToggle);
 
             HandbookCategoryManager.SetCreateCategoryPromptOpen(true);
             prompt.OnClosed += () => HandbookCategoryManager.SetCreateCategoryPromptOpen(false);
@@ -1514,8 +1538,9 @@ namespace Enhanced_Handbook
 
             CreateCategoryPromptDialog prompt = new(
                 api,
-                categoryName =>
+                result =>
                 {
+                    string categoryName = result.Name;
                     if (string.IsNullOrWhiteSpace(categoryName))
                     {
                         return;
