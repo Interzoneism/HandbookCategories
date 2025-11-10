@@ -31,6 +31,7 @@ namespace Enhanced_Handbook
         private const string CreateCategoryPromptPlaceholderTranslationKey = "enhancedhandbook:dialog-create-category-placeholder";
         private const string CreateCategoryPromptOkTranslationKey = "enhancedhandbook:dialog-create-category-ok";
         private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
+        private const string AddSearchResultsToggleTranslationKey = "enhancedhandbook:toggle-add-search-results";
         private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
         internal const int MaxCategoryNameLength = 20;
@@ -212,6 +213,12 @@ namespace Enhanced_Handbook
         internal static string GetCreateCategoryPromptCancelText()
         {
             return Lang.Get(CreateCategoryPromptCancelTranslationKey);
+        }
+
+        internal static string GetAddSearchResultsToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(AddSearchResultsToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Add current search results" : text;
         }
 
         internal static string GetCategoryNameTooLongMessage()
@@ -1069,6 +1076,79 @@ namespace Enhanced_Handbook
         internal static bool TryAddForbiddenPageCodeToCategory(string categoryCode, string pageCode)
         {
             return TryUpdatePageCodeEntry(categoryCode, pageCode, addToForbidden: true, requireExactCodeMatch: true);
+        }
+
+        internal static bool TryAddPagesToCategory(string categoryCode, IEnumerable<string> pageCodes)
+        {
+            if (string.IsNullOrWhiteSpace(categoryCode) || pageCodes == null)
+            {
+                return false;
+            }
+
+            bool addedAny = false;
+            HashSet<string> seenCodes = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string code in pageCodes)
+            {
+                if (string.IsNullOrWhiteSpace(code))
+                {
+                    continue;
+                }
+
+                string normalized = NormalizePageCode(code);
+                if (string.IsNullOrEmpty(normalized) || !seenCodes.Add(normalized))
+                {
+                    continue;
+                }
+
+                if (TryAddPageCodeMatchToCategory(categoryCode, code))
+                {
+                    addedAny = true;
+                }
+            }
+
+            return addedAny;
+        }
+
+        internal static List<string> CaptureCurrentPageCodes(GuiDialogHandbook dialog)
+        {
+            List<string> codes = new();
+
+            if (dialog == null)
+            {
+                return codes;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages || shownPages.Count == 0)
+            {
+                return codes;
+            }
+
+            HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (IFlatListItem item in shownPages)
+            {
+                if (item is not GuiHandbookPage page)
+                {
+                    continue;
+                }
+
+                string pageCode = page.PageCode;
+                if (string.IsNullOrWhiteSpace(pageCode))
+                {
+                    continue;
+                }
+
+                string normalized = NormalizePageCode(pageCode);
+                if (string.IsNullOrEmpty(normalized) || !seen.Add(normalized))
+                {
+                    continue;
+                }
+
+                codes.Add(pageCode);
+            }
+
+            return codes;
         }
 
         private static bool RemoveWordCaseInsensitive(List<string> list, string word)
@@ -5494,7 +5574,7 @@ namespace Enhanced_Handbook
 
             var prompt = new CreateCategoryPromptDialog(
                 api,
-                value => FinalizePendingGroupCreation(pending, value),
+                result => FinalizePendingGroupCreation(pending, result.Name),
                 GetCreateCategoryPromptTitle(),
                 GetCreateCategoryPromptMessage(),
                 GetCreateCategoryPromptPlaceholder(),
@@ -8131,6 +8211,22 @@ namespace Enhanced_Handbook
 
             capi.TriggerChatMessage(command);
             return true;
+        }
+
+        internal static string GetCategoryCodeFromDisplayName(string categoryName)
+        {
+            if (string.IsNullOrWhiteSpace(categoryName))
+            {
+                return null;
+            }
+
+            string sanitized = Sanitize(categoryName);
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                return null;
+            }
+
+            return string.Concat(CategoryCodePrefix, sanitized);
         }
 
         private static void UpdateCreateButton(GuiComposer overviewGui, SearchQuery searchQuery, GuiDialogHandbook dialog)
