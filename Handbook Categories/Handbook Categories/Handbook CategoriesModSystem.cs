@@ -7,6 +7,7 @@ using System.Reflection.Emit;
 using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
 using Vintagestory.GameContent;
 
 namespace Enhanced_Handbook
@@ -878,6 +879,13 @@ namespace Enhanced_Handbook
 
     internal static class HandbookCategoryPatches
     {
+        private const string SharedHandbookDialogName = "handbook-shared";
+        private static readonly string[] HandbookDialogNames =
+        {
+            "handbook-overview",
+            "handbook-detail"
+        };
+
         private static readonly System.Reflection.FieldInfo AllPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "allHandbookPages");
         private static readonly System.Reflection.FieldInfo ShownPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "shownHandbookPages");
         private static readonly System.Reflection.FieldInfo OverviewGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "overviewGui");
@@ -913,6 +921,8 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            EnsureHandbookDialogPosition(overviewGui);
+
             EnsureRecipesOnlyToggle(__instance, overviewGui);
             EnsureCreateButton(__instance, overviewGui);
 
@@ -931,6 +941,7 @@ namespace Enhanced_Handbook
 
             if (DetailGuiField?.GetValue(__instance) is GuiComposer detailGui)
             {
+                EnsureHandbookDialogPosition(detailGui);
                 HandbookPageDragManager.RegisterDetail(__instance, detailGui);
             }
         }
@@ -1973,6 +1984,38 @@ namespace Enhanced_Handbook
             {
                 instance.currentCatgoryCode = tab.CategoryCode;
             }
+        }
+
+        private static void EnsureHandbookDialogPosition(GuiComposer composer)
+        {
+            if (composer?.Api?.Gui == null)
+            {
+                return;
+            }
+
+            string dialogName = composer.DialogName;
+
+            if (!HandbookDialogNames.Contains(dialogName) && !SharedHandbookDialogName.Equals(dialogName, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            Vec2i position = composer.Api.Gui.GetDialogPosition(SharedHandbookDialogName)
+                ?? HandbookDialogNames
+                    .Select(name => composer.Api.Gui.GetDialogPosition(name))
+                    .FirstOrDefault(pos => pos != null);
+
+            if (position != null)
+            {
+                composer.Api.Gui.SetDialogPosition(SharedHandbookDialogName, position);
+
+                foreach (string name in HandbookDialogNames)
+                {
+                    composer.Api.Gui.SetDialogPosition(name, position);
+                }
+            }
+
+            composer.DialogName = SharedHandbookDialogName;
         }
     }
 }
