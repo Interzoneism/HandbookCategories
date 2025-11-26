@@ -8,6 +8,7 @@ using System.Text;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Config;
 using Vintagestory.GameContent;
 
 namespace Enhanced_Handbook
@@ -2003,7 +2004,10 @@ namespace Enhanced_Handbook
             Vec2i position = composer.Api.Gui.GetDialogPosition(SharedHandbookDialogName)
                 ?? HandbookDialogNames
                     .Select(name => composer.Api.Gui.GetDialogPosition(name))
-                    .FirstOrDefault(pos => pos != null);
+                    .FirstOrDefault(pos => pos != null)
+                ?? new Vec2i(
+                    (int)(composer.Bounds.absX / RuntimeEnv.GUIScale),
+                    (int)(composer.Bounds.absY / RuntimeEnv.GUIScale));
 
             if (position != null)
             {
