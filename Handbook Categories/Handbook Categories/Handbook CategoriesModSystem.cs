@@ -887,6 +887,8 @@ namespace Enhanced_Handbook
             "handbook-detail"
         };
 
+        private static Vec2i sharedHandbookDialogPosition;
+
         private static readonly System.Reflection.FieldInfo AllPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "allHandbookPages");
         private static readonly System.Reflection.FieldInfo ShownPagesField = AccessTools.Field(typeof(GuiDialogHandbook), "shownHandbookPages");
         private static readonly System.Reflection.FieldInfo OverviewGuiField = AccessTools.Field(typeof(GuiDialogHandbook), "overviewGui");
@@ -2001,13 +2003,18 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            Vec2i position = composer.Api.Gui.GetDialogPosition(SharedHandbookDialogName)
+            Vec2i position = sharedHandbookDialogPosition
+                ?? composer.Api.Gui.GetDialogPosition(SharedHandbookDialogName)
                 ?? HandbookDialogNames
                     .Select(name => composer.Api.Gui.GetDialogPosition(name))
                     .FirstOrDefault(pos => pos != null)
                 ?? new Vec2i(
                     (int)(composer.Bounds.absX / RuntimeEnv.GUIScale),
                     (int)(composer.Bounds.absY / RuntimeEnv.GUIScale));
+
+            sharedHandbookDialogPosition = position;
+
+            composer.DialogName = SharedHandbookDialogName;
 
             if (position != null)
             {
@@ -2018,8 +2025,6 @@ namespace Enhanced_Handbook
                     composer.Api.Gui.SetDialogPosition(name, position);
                 }
             }
-
-            composer.DialogName = SharedHandbookDialogName;
         }
     }
 }
