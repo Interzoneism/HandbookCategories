@@ -86,6 +86,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.FilterItems)),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.FilterItemsPrefix)));
 
+            harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnGuiClosed)),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnGuiClosedPostfix)));
+
             harmony.Patch(AccessTools.Method(baseType, "onLeftClickListElement"),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnLeftClickListElementPrefix)));
 
@@ -982,32 +985,41 @@ namespace Enhanced_Handbook
 
         public static bool OnLeftClickListElementPrefix(GuiDialogHandbook __instance, int index)
         {
-            if (!HandbookCategoryManager.DragAndDropEnabled)
+            if (HandbookCategoryManager.DragAndDropEnabled)
             {
-                return true;
+                if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
+                {
+                    return false;
+                }
+
+                if (HandbookPageDragManager.TryHandleShiftClick(__instance, index))
+                {
+                    return false;
+                }
+
+                if (HandbookPageDragManager.TryConsumeGroupPageRelease(__instance))
+                {
+                    return false;
+                }
+
+                if (HandbookCategoryManager.TryHandleGroupPageClick(__instance, index))
+                {
+                    return false;
+                }
+
+                bool allowNavigation = !HandbookPageDragManager.TryConsumeClickSuppression();
+
+                if (allowNavigation)
+                {
+                    UpdateSharedHandbookDialogPosition(__instance);
+                }
+
+                return allowNavigation;
             }
 
-            if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
-            {
-                return false;
-            }
+            UpdateSharedHandbookDialogPosition(__instance);
 
-            if (HandbookPageDragManager.TryHandleShiftClick(__instance, index))
-            {
-                return false;
-            }
-
-            if (HandbookPageDragManager.TryConsumeGroupPageRelease(__instance))
-            {
-                return false;
-            }
-
-            if (HandbookCategoryManager.TryHandleGroupPageClick(__instance, index))
-            {
-                return false;
-            }
-
-            return !HandbookPageDragManager.TryConsumeClickSuppression();
+            return true;
         }
 
         public static bool OnButtonBackPrefix(GuiDialogHandbook __instance, ref bool __result)
@@ -1065,6 +1077,55 @@ namespace Enhanced_Handbook
             }
 
             HandbookCategoryManager.UpdateBackButtonState(__instance);
+        }
+
+        public static void OnGuiClosedPostfix(GuiDialogHandbook __instance)
+        {
+            UpdateSharedHandbookDialogPosition(__instance);
+        }
+
+        private static void UpdateSharedHandbookDialogPosition(GuiDialogHandbook instance)
+        {
+            if (instance == null)
+            {
+                return;
+            }
+
+            if (OverviewGuiField?.GetValue(instance) is GuiComposer overview && TryUpdateSharedHandbookDialogPosition(overview))
+            {
+                return;
+            }
+
+            if (DetailGuiField?.GetValue(instance) is GuiComposer detail)
+            {
+                TryUpdateSharedHandbookDialogPosition(detail);
+            }
+        }
+
+        private static bool TryUpdateSharedHandbookDialogPosition(GuiComposer composer)
+        {
+            if (composer?.Api?.Gui == null)
+            {
+                return false;
+            }
+
+            Vec2i position = composer.Api.Gui.GetDialogPosition(composer.DialogName);
+
+            if (position == null)
+            {
+                return false;
+            }
+
+            sharedHandbookDialogPosition = position;
+
+            composer.Api.Gui.SetDialogPosition(SharedHandbookDialogName, position);
+
+            foreach (string name in HandbookDialogNames)
+            {
+                composer.Api.Gui.SetDialogPosition(name, position);
+            }
+
+            return true;
         }
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
