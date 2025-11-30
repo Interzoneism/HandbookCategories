@@ -727,8 +727,14 @@ namespace Enhanced_Handbook
         private static long createButtonListenerId;
         private static long positionSaveListenerId;
         private static GuiDialogHandbook trackedHandbookDialog;
+        private static ModDbCacheManager modDbCacheManager;
 
         internal static ICoreClientAPI ClientApi => capi;
+
+        /// <summary>
+        /// Gets the mod database cache manager instance.
+        /// </summary>
+        internal static ModDbCacheManager ModDbCache => modDbCacheManager;
 
         internal static bool IsReady => capi?.World != null && (capi.World.GridRecipes != null || !onlyGridPages);
 
@@ -741,6 +747,17 @@ namespace Enhanced_Handbook
             ResetStoneVariantCache();
             ResetCeramicVariantCache();
             ReloadConfiguration();
+
+            // Initialize the mod database cache manager
+            if (modDbCacheManager != null)
+            {
+                modDbCacheManager.Dispose();
+            }
+
+            if (api != null)
+            {
+                modDbCacheManager = new ModDbCacheManager(api);
+            }
 
             if (capi?.Event != null)
             {
@@ -1020,6 +1037,12 @@ namespace Enhanced_Handbook
 
             HandbookPageDragManager.Clear();
 
+            // Save and dispose the mod database cache
+            if (modDbCacheManager != null)
+            {
+                modDbCacheManager.Dispose();
+                modDbCacheManager = null;
+            }
         }
 
         internal static bool HasCategories => orderedCategories.Count > 0;

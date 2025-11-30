@@ -71,6 +71,12 @@ namespace Enhanced_Handbook
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModDefaultCommand);
 
+            capi.ChatCommands
+                .Create("moddbcache")
+                .WithDescription("Manages the mod database cache")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnModDbCacheCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -620,6 +626,65 @@ namespace Enhanced_Handbook
 
             string restoreSummary = $"Restored {defaultCategories.Count} default categor{(defaultCategories.Count == 1 ? "y" : "ies")}. Handbook tabs refreshed.";
             return TextCommandResult.Success(data: restoreSummary);
+        }
+
+        private TextCommandResult OnModDbCacheCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            ModDbCacheManager cache = HandbookCategoryManager.ModDbCache;
+            if (cache == null)
+            {
+                return TextCommandResult.Error("Mod database cache is not initialized");
+            }
+
+            string rawInput = args?.RawArgs?.PopAll()?.Trim()?.ToLowerInvariant();
+
+            if (string.IsNullOrEmpty(rawInput) || rawInput == "status" || rawInput == "stats")
+            {
+                string stats = cache.GetCacheStatistics();
+                bool enabled = cache.IsEnabled;
+                string status = enabled ? "enabled" : "disabled";
+                return TextCommandResult.Success(data: $"[Enhanced Handbook] Mod DB cache is {status}. {stats}");
+            }
+
+            if (rawInput == "clear" || rawInput == "reset")
+            {
+                cache.ClearCache();
+                return TextCommandResult.Success(data: "[Enhanced Handbook] Mod database cache cleared.");
+            }
+
+            if (rawInput == "enable" || rawInput == "on")
+            {
+                if (cache.Config != null)
+                {
+                    cache.Config.Enabled = true;
+                    cache.SaveConfig();
+                }
+                return TextCommandResult.Success(data: "[Enhanced Handbook] Mod database cache enabled.");
+            }
+
+            if (rawInput == "disable" || rawInput == "off")
+            {
+                if (cache.Config != null)
+                {
+                    cache.Config.Enabled = false;
+                    cache.SaveConfig();
+                }
+                return TextCommandResult.Success(data: "[Enhanced Handbook] Mod database cache disabled.");
+            }
+
+            if (rawInput == "save")
+            {
+                cache.SaveCache();
+                cache.SaveConfig();
+                return TextCommandResult.Success(data: "[Enhanced Handbook] Mod database cache saved to disk.");
+            }
+
+            return TextCommandResult.Error("Usage: .moddbcache [status|clear|enable|disable|save]");
         }
 
         private static List<CommandToken> TokenizeArguments(string input)
