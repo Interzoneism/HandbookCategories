@@ -725,6 +725,7 @@ namespace Enhanced_Handbook
         private static bool createCategoryPromptOpen;
         private static GuiElementTextButton trackedCloseButton;
         private static long createButtonListenerId;
+        private static long positionSaveListenerId;
         private static GuiDialogHandbook trackedHandbookDialog;
 
         internal static ICoreClientAPI ClientApi => capi;
@@ -749,7 +750,14 @@ namespace Enhanced_Handbook
                     createButtonListenerId = 0;
                 }
 
+                if (positionSaveListenerId != 0)
+                {
+                    capi.Event.UnregisterGameTickListener(positionSaveListenerId);
+                    positionSaveListenerId = 0;
+                }
+
                 createButtonListenerId = capi.Event.RegisterGameTickListener(MonitorCreateButtonState, 50);
+                positionSaveListenerId = capi.Event.RegisterGameTickListener(PeriodicPositionSave, 2000);
             }
         }
 
@@ -993,6 +1001,12 @@ namespace Enhanced_Handbook
             {
                 capi?.Event?.UnregisterGameTickListener(createButtonListenerId);
                 createButtonListenerId = 0;
+            }
+
+            if (positionSaveListenerId != 0)
+            {
+                capi?.Event?.UnregisterGameTickListener(positionSaveListenerId);
+                positionSaveListenerId = 0;
             }
 
             trackedCreateButtonComposer = null;
@@ -8455,6 +8469,11 @@ namespace Enhanced_Handbook
 
             UpdateCreateButtonTextInternal(composer, button);
             ApplyCreateButtonEnabledState(button);
+        }
+
+        private static void PeriodicPositionSave(float deltaTime)
+        {
+            HandbookCategoryPatches.SaveAllOpenHandbookPositions();
         }
 
         private static bool TryEnsureButtonBounds(GuiComposer composer, GuiElementTextButton button)
