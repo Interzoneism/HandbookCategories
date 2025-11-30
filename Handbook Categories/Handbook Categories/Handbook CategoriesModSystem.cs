@@ -641,7 +641,15 @@ namespace Enhanced_Handbook
                 return TextCommandResult.Error("Mod database cache is not initialized");
             }
 
-            string rawInput = args?.RawArgs?.PopAll()?.Trim()?.ToLowerInvariant();
+            string rawInput = null;
+            if (args?.RawArgs != null)
+            {
+                rawInput = args.RawArgs.PopAll();
+                if (rawInput != null)
+                {
+                    rawInput = rawInput.Trim().ToLowerInvariant();
+                }
+            }
 
             if (string.IsNullOrEmpty(rawInput) || rawInput == "status" || rawInput == "stats")
             {
