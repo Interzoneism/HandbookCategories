@@ -757,7 +757,7 @@ namespace Enhanced_Handbook
                 }
 
                 createButtonListenerId = capi.Event.RegisterGameTickListener(MonitorCreateButtonState, 50);
-                positionSaveListenerId = capi.Event.RegisterGameTickListener(PeriodicPositionSave, 2000);
+                positionSaveListenerId = capi.Event.RegisterGameTickListener(PeriodicPositionSave, 5000);
             }
         }
 
