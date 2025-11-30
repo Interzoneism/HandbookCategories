@@ -1485,8 +1485,6 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            UpdateSharedHandbookDialogPosition(dialog);
-
             if (HandbookCategoryManager.TryExecuteCategoryDeleteCommand(dialog))
             {
                 HandbookCategoryManager.ClientApi?.Gui?.PlaySound("menubutton_press");
@@ -1666,7 +1664,6 @@ namespace Enhanced_Handbook
 
         private static void OnRecipesOnlyToggled(GuiDialogHandbook dialog, bool enabled)
         {
-            UpdateSharedHandbookDialogPosition(dialog);
             string searchText = CaptureActiveSearchText(dialog);
             bool stateChanged = HandbookCategoryManager.TrySetRecipesOnly(enabled);
 
@@ -1680,7 +1677,6 @@ namespace Enhanced_Handbook
 
         private static void OnOriginalSearchToggled(GuiDialogHandbook dialog, bool enabled)
         {
-            UpdateSharedHandbookDialogPosition(dialog);
             string searchText = CaptureActiveSearchText(dialog);
             bool stateChanged = HandbookCategoryManager.TrySetOriginalSearch(enabled);
 
@@ -2089,20 +2085,6 @@ namespace Enhanced_Handbook
                 {
                     composer.Api.Gui.SetDialogPosition(name, position);
                 }
-            }
-        }
-
-        internal static void SaveAllOpenHandbookPositions()
-        {
-            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
-            if (api?.Gui?.OpenedGuis == null)
-            {
-                return;
-            }
-
-            foreach (GuiDialogHandbook dialog in api.Gui.OpenedGuis.OfType<GuiDialogHandbook>())
-            {
-                UpdateSharedHandbookDialogPosition(dialog);
             }
         }
     }
