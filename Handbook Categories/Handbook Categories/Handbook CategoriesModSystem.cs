@@ -95,6 +95,9 @@ namespace Enhanced_Handbook
             harmony.Patch(AccessTools.Method(baseType, "OnButtonBack"),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnButtonBackPrefix)));
 
+            harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnMouseUp), new[] { typeof(MouseEvent) }),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnMouseUpPrefix)));
+
             harmony.Patch(AccessTools.Method(baseType, nameof(GuiDialogHandbook.OnRenderGUI), new[] { typeof(float) }),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)),
                 transpiler: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiTranspiler)));
@@ -1024,6 +1027,9 @@ namespace Enhanced_Handbook
 
         public static bool OnButtonBackPrefix(GuiDialogHandbook __instance, ref bool __result)
         {
+            // Save the position before the back button action executes
+            UpdateSharedHandbookDialogPosition(__instance);
+
             if (!HandbookCategoryManager.DragAndDropEnabled)
             {
                 return true;
@@ -1036,6 +1042,23 @@ namespace Enhanced_Handbook
             }
 
             return true;
+        }
+
+        public static void OnMouseUpPrefix(GuiDialogHandbook __instance, MouseEvent args)
+        {
+            // Save the current position when the left mouse button is released.
+            // This is a prefix to ensure position is saved BEFORE any button handlers run,
+            // so the position is captured before any potential UI changes occur.
+            if (args == null || __instance == null)
+            {
+                return;
+            }
+
+            // Only save position for left mouse button release
+            if (args.Button == EnumMouseButton.Left)
+            {
+                UpdateSharedHandbookDialogPosition(__instance);
+            }
         }
 
         public static IEnumerable<CodeInstruction> OnRenderGuiTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
