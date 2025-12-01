@@ -1387,6 +1387,7 @@ namespace Enhanced_Handbook
             if (recompose)
             {
                 overviewGui.ReCompose();
+                EnsureHandbookDialogPosition(overviewGui);
             }
         }
 
@@ -1427,6 +1428,7 @@ namespace Enhanced_Handbook
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
             HandbookCategoryManager.RegisterCreateButton(overviewGui, button, dialog);
             overviewGui.ReCompose();
+            EnsureHandbookDialogPosition(overviewGui);
         }
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)
