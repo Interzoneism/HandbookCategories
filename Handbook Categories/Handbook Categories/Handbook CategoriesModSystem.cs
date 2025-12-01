@@ -1335,7 +1335,7 @@ namespace Enhanced_Handbook
 
                 if (originalSearchToggle == null)
                 {
-                    originalSearchToggle = new GuiElementToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
+                    originalSearchToggle = new LeftReleaseToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
                     originalSearchToggle.SetValue(desiredOriginalState);
                     originalSearchToggle.Bounds.CalcWorldBounds();
                     overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
@@ -1385,7 +1385,7 @@ namespace Enhanced_Handbook
 
             if (recipesToggle == null)
             {
-                recipesToggle = new GuiElementToggleButton(api, string.Empty, recipesOnlyText, font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
+                recipesToggle = new LeftReleaseToggleButton(api, string.Empty, recipesOnlyText, font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
                 recipesToggle.SetValue(desiredRecipesState);
                 recipesToggle.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(recipesToggle, HandbookCategoryManager.RecipesOnlyToggleKey);
