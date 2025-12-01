@@ -1074,6 +1074,8 @@ namespace Enhanced_Handbook
             }
 
             HandbookCategoryManager.UpdateBackButtonState(__instance);
+
+            UpdateSharedHandbookDialogPosition(__instance);
         }
 
         public static void OnGuiClosedPostfix(GuiDialogHandbook __instance)
@@ -1115,14 +1117,31 @@ namespace Enhanced_Handbook
 
             sharedHandbookDialogPosition = position;
 
-            composer.Api.Gui.SetDialogPosition(SharedHandbookDialogName, position);
+            SyncHandbookDialogPosition(composer.Api.Gui, position, composer.DialogName);
+
+            return true;
+        }
+
+        private static void SyncHandbookDialogPosition(IGuiAPI gui, Vec2i position, string sourceDialogName = null)
+        {
+            if (gui == null || position == null)
+            {
+                return;
+            }
+
+            gui.SetDialogPosition(SharedHandbookDialogName, position);
 
             foreach (string name in HandbookDialogNames)
             {
-                composer.Api.Gui.SetDialogPosition(name, position);
+                gui.SetDialogPosition(name, position);
             }
 
-            return true;
+            if (!string.IsNullOrEmpty(sourceDialogName)
+                && !SharedHandbookDialogName.Equals(sourceDialogName, StringComparison.Ordinal)
+                && !HandbookDialogNames.Contains(sourceDialogName))
+            {
+                gui.SetDialogPosition(sourceDialogName, position);
+            }
         }
 
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
@@ -2078,12 +2097,7 @@ namespace Enhanced_Handbook
 
             if (position != null)
             {
-                composer.Api.Gui.SetDialogPosition(SharedHandbookDialogName, position);
-
-                foreach (string name in HandbookDialogNames)
-                {
-                    composer.Api.Gui.SetDialogPosition(name, position);
-                }
+                SyncHandbookDialogPosition(composer.Api.Gui, position);
             }
         }
     }
