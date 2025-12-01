@@ -128,11 +128,15 @@ namespace Enhanced_Handbook
 
             if (showAddResultsToggle && toggleBounds != null)
             {
-                composer.AddToggleButton(
-                    addResultsToggleText,
-                    CairoFont.WhiteDetailText(),
-                    OnAddResultsToggled,
-                    toggleBounds,
+                composer.AddInteractiveElement(
+                    new LeftReleaseToggleButton(
+                        capi,
+                        string.Empty,
+                        addResultsToggleText,
+                        CairoFont.WhiteDetailText(),
+                        OnAddResultsToggled,
+                        toggleBounds,
+                        true),
                     AddResultsToggleKey);
             }
 
