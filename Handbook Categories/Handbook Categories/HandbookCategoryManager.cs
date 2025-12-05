@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -133,17 +132,13 @@ namespace Enhanced_Handbook
         };
 
         private static readonly AssetLocation WoodWorldPropertyCode = new("worldproperties/block/wood.json");
-        private const string WoodVariantReportFileName = "EnhancedHandbookWoodVariants.txt";
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<WoodVariantReportKey, WoodPageReportEntry> woodVariantPagesByKey = new();
         private static bool woodVariantsLoaded;
 
         private static readonly AssetLocation StoneWorldPropertyCode = new("worldproperties/block/rock.json");
-        private const string StoneVariantReportFileName = "EnhancedHandbookStoneVariants.txt";
         private static readonly HashSet<string> knownStoneVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<StoneVariantReportKey, StonePageReportEntry> stoneVariantPagesByKey = new();
         private static bool stoneVariantsLoaded;
         private static readonly Dictionary<string, string> ceramicVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool ceramicVariantsLoaded;
@@ -1770,48 +1765,6 @@ namespace Enhanced_Handbook
             internal string PageCode { get; }
         }
 
-        private readonly struct StoneVariantReportKey : IEquatable<StoneVariantReportKey>
-        {
-            internal StoneVariantReportKey(string stoneCode, string pageCode, string itemCode)
-            {
-                StoneCode = Normalize(stoneCode);
-                PageCode = Normalize(pageCode);
-                ItemCode = Normalize(itemCode);
-            }
-
-            internal string StoneCode { get; }
-
-            internal string PageCode { get; }
-
-            internal string ItemCode { get; }
-
-            public bool Equals(StoneVariantReportKey other)
-            {
-                return string.Equals(StoneCode, other.StoneCode, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(PageCode, other.PageCode, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(ItemCode, other.ItemCode, StringComparison.OrdinalIgnoreCase);
-            }
-
-            public override bool Equals(object obj)
-            {
-                return obj is StoneVariantReportKey other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                int hash = 17;
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(StoneCode);
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(PageCode);
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(ItemCode);
-                return hash;
-            }
-
-            private static string Normalize(string value)
-            {
-                return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
-            }
-        }
-
         private readonly struct WoodVariantInfo
         {
             internal WoodVariantInfo(string variantKey, string variantValue, string normalizedValue)
@@ -1847,48 +1800,6 @@ namespace Enhanced_Handbook
             internal string ItemCode { get; }
 
             internal string PageCode { get; }
-        }
-
-        private readonly struct WoodVariantReportKey : IEquatable<WoodVariantReportKey>
-        {
-            internal WoodVariantReportKey(string woodCode, string pageCode, string itemCode)
-            {
-                WoodCode = Normalize(woodCode);
-                PageCode = Normalize(pageCode);
-                ItemCode = Normalize(itemCode);
-            }
-
-            internal string WoodCode { get; }
-
-            internal string PageCode { get; }
-
-            internal string ItemCode { get; }
-
-            public bool Equals(WoodVariantReportKey other)
-            {
-                return string.Equals(WoodCode, other.WoodCode, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(PageCode, other.PageCode, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(ItemCode, other.ItemCode, StringComparison.OrdinalIgnoreCase);
-            }
-
-            public override bool Equals(object obj)
-            {
-                return obj is WoodVariantReportKey other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                int hash = 17;
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(WoodCode);
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(PageCode);
-                hash = hash * 31 + StringComparer.OrdinalIgnoreCase.GetHashCode(ItemCode);
-                return hash;
-            }
-
-            private static string Normalize(string value)
-            {
-                return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
-            }
         }
 
         private sealed class WoodVariantGroupBuilder
@@ -2108,10 +2019,8 @@ namespace Enhanced_Handbook
             EnsureStoneVariantsLoaded();
             EnsureCeramicVariantsLoaded();
 
-            woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
             woodVariantGroupAliases.Clear();
-            stoneVariantPagesByKey.Clear();
             stoneVariantGroupsByKey.Clear();
             stoneVariantGroupAliases.Clear();
             ceramicVariantGroupsByKey.Clear();
@@ -2154,14 +2063,8 @@ namespace Enhanced_Handbook
                     string pageTitle = GetWoodVariantReportTitle(stackPage);
 
                     RegisterWoodVariantGroupCandidate(stackPage, info, pageTitle);
-
-                    WoodVariantReportKey key = new(info.NormalizedValue, pageCode, itemCode);
-                    woodVariantPagesByKey[key] = new WoodPageReportEntry(info.NormalizedValue, pageTitle, itemCode, pageCode);
                 }
             }
-
-            SaveWoodVariantReport();
-            SaveStoneVariantReport();
         }
 
         private static void CollectStoneVariantEntry(GuiHandbookItemStackPage page)
@@ -2212,9 +2115,6 @@ namespace Enhanced_Handbook
             string display = GetStoneVariantDisplayName(normalized);
 
             RegisterStoneVariantGroupCandidate(page, info, pageTitle, display);
-
-            StoneVariantReportKey key = new(normalized, pageCode, itemCode);
-            stoneVariantPagesByKey[key] = new StonePageReportEntry(normalized, display, pageTitle, itemCode, pageCode);
         }
 
         private static void CollectCeramicVariantEntry(GuiHandbookItemStackPage page)
@@ -3828,7 +3728,6 @@ namespace Enhanced_Handbook
         {
             knownWoodVariantNames.Clear();
             woodVariantDisplayNameByCode.Clear();
-            woodVariantPagesByKey.Clear();
             woodVariantGroupsByKey.Clear();
             woodVariantGroupAliases.Clear();
             woodVariantsLoaded = false;
@@ -3838,7 +3737,6 @@ namespace Enhanced_Handbook
         {
             knownStoneVariantNames.Clear();
             stoneVariantDisplayNameByCode.Clear();
-            stoneVariantPagesByKey.Clear();
             stoneVariantGroupsByKey.Clear();
             stoneVariantGroupAliases.Clear();
             stoneVariantsLoaded = false;
@@ -3850,123 +3748,6 @@ namespace Enhanced_Handbook
             ceramicVariantGroupsByKey.Clear();
             ceramicVariantGroupAliases.Clear();
             ceramicVariantsLoaded = false;
-        }
-
-        private static void SaveWoodVariantReport()
-        {
-            if (capi == null)
-            {
-                return;
-            }
-
-            string configDirectory;
-            try
-            {
-                configDirectory = capi.GetOrCreateDataPath("ModConfig");
-            }
-            catch (Exception ex)
-            {
-                capi.Logger?.Warning("[Handbook Categories] Failed to access ModConfig directory: {0}", ex);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(configDirectory))
-            {
-                return;
-            }
-
-            string filePath = System.IO.Path.Combine(configDirectory, WoodVariantReportFileName);
-
-            try
-            {
-                using StreamWriter writer = new(filePath, false, Encoding.UTF8);
-
-                List<(string Title, string ItemCode, string PageCode)> orderedEntries = woodVariantPagesByKey.Values
-                    .Select(CreateWoodVariantReportLine)
-                    .OrderBy(entry => entry.Title, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(entry => entry.ItemCode, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(entry => entry.PageCode, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                foreach ((string Title, string ItemCode, string PageCode) entry in orderedEntries)
-                {
-                    writer.WriteLine($"{entry.Title} - {entry.ItemCode} - {entry.PageCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                capi.Logger?.Warning("[Handbook Categories] Failed to write wood variant report to {0}: {1}", filePath, ex);
-            }
-        }
-
-        private static void SaveStoneVariantReport()
-        {
-            if (capi == null)
-            {
-                return;
-            }
-
-            string configDirectory;
-            try
-            {
-                configDirectory = capi.GetOrCreateDataPath("ModConfig");
-            }
-            catch (Exception ex)
-            {
-                capi.Logger?.Warning("[Handbook Categories] Failed to access ModConfig directory for stone variants: {0}", ex);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(configDirectory))
-            {
-                return;
-            }
-
-            string filePath = System.IO.Path.Combine(configDirectory, StoneVariantReportFileName);
-
-            try
-            {
-                using StreamWriter writer = new(filePath, false, Encoding.UTF8);
-
-                List<(string StoneName, string PageTitle, string ItemCode, string PageCode)> orderedEntries = stoneVariantPagesByKey.Values
-                    .Select(CreateStoneVariantReportLine)
-                    .OrderBy(entry => entry.StoneName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(entry => entry.PageTitle, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(entry => entry.ItemCode, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(entry => entry.PageCode, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                foreach ((string StoneName, string PageTitle, string ItemCode, string PageCode) entry in orderedEntries)
-                {
-                    writer.WriteLine($"{entry.StoneName} - {entry.PageTitle} - {entry.ItemCode} - {entry.PageCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                capi.Logger?.Warning("[Handbook Categories] Failed to write stone variant report to {0}: {1}", filePath, ex);
-            }
-        }
-
-        private static (string Title, string ItemCode, string PageCode) CreateWoodVariantReportLine(WoodPageReportEntry entry)
-        {
-            string title = FormatWoodVariantReportTitle(entry.PageTitle, entry.PageCode);
-            string itemCode = FormatWoodVariantReportItemCode(entry.ItemCode);
-            string pageCode = FormatWoodVariantReportPageCode(entry.PageCode);
-
-            return (title, itemCode, pageCode);
-        }
-
-        private static (string StoneName, string PageTitle, string ItemCode, string PageCode) CreateStoneVariantReportLine(StonePageReportEntry entry)
-        {
-            string displayName = string.IsNullOrWhiteSpace(entry.StoneDisplayName)
-                ? GetStoneVariantDisplayName(entry.StoneCode)
-                : entry.StoneDisplayName;
-
-            string title = FormatWoodVariantReportTitle(entry.PageTitle, entry.PageCode);
-            string itemCode = FormatWoodVariantReportItemCode(entry.ItemCode);
-            string pageCode = FormatWoodVariantReportPageCode(entry.PageCode);
-
-            return (displayName, title, itemCode, pageCode);
         }
 
         private static bool TryGetStoneVariantInfo(ItemStack stack, out StoneVariantInfo info)
@@ -4363,26 +4144,6 @@ namespace Enhanced_Handbook
 
             string generated = GuiHandbookItemStackPage.PageCodeForStack(stack);
             return string.IsNullOrWhiteSpace(generated) ? string.Empty : generated.Trim();
-        }
-
-        private static string FormatWoodVariantReportTitle(string title, string pageCode)
-        {
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                return title;
-            }
-
-            return string.IsNullOrWhiteSpace(pageCode) ? "<unnamed page>" : pageCode;
-        }
-
-        private static string FormatWoodVariantReportItemCode(string itemCode)
-        {
-            return string.IsNullOrWhiteSpace(itemCode) ? "<unknown item code>" : itemCode;
-        }
-
-        private static string FormatWoodVariantReportPageCode(string pageCode)
-        {
-            return string.IsNullOrWhiteSpace(pageCode) ? "<unknown page code>" : pageCode;
         }
 
         private static string BuildUniqueGroupCode(string prefix, string sanitizedName, HashSet<string> usedCodes)
