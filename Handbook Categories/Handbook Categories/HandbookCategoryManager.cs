@@ -32,6 +32,7 @@ namespace Enhanced_Handbook
         private const string CreateCategoryPromptOkTranslationKey = "enhancedhandbook:dialog-create-category-ok";
         private const string CreateCategoryPromptCancelTranslationKey = "enhancedhandbook:dialog-create-category-cancel";
         private const string AddSearchResultsToggleTranslationKey = "enhancedhandbook:toggle-add-search-results";
+        private const string SearchPrefixTooltipTranslationKey = "enhancedhandbook:tooltip-search-prefixes";
         private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
         internal const int MaxCategoryNameLength = 20;
@@ -235,6 +236,21 @@ namespace Enhanced_Handbook
         internal static string GetOriginalSearchToggleText()
         {
             return Lang.Get(OriginalSearchToggleTranslationKey);
+        }
+
+        internal static string GetSearchPrefixTooltip()
+        {
+            string translated = ClientApi?.Lang?.GetMatchingIfExists(SearchPrefixTooltipTranslationKey);
+            if (!string.IsNullOrWhiteSpace(translated))
+            {
+                return translated;
+            }
+
+            return "+term: Require this word\n" +
+                "!term: Exclude matches containing the word\n" +
+                "=code: Exact handbook page code\n" +
+                "%code: Match handbook page code or name (%% for exact)\n" +
+                "?term: Use the vanilla search logic";
         }
 
         internal static bool TrySetRecipesOnly(bool enabled)
