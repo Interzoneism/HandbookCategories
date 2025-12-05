@@ -1,9 +1,20 @@
 {
   "button-create-category": "Kategória létrehozása",
   "button-delete-category": "Kategória törlése",
+  "button-rename-category": "Kategória átnevezése",
   "tab-armor": "Páncél",
   "toggle-original-search": "Eredeti keresés",
   "toggle-recipes-only": "Csak receptek",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Csak azok az oldalak jelenjenek meg a rácsban, ahol az elem létrehozható",
+  "tooltip-original-search": "Az összes Továbbfejlesztett kézikönyv keresési funkciójának letiltása",
+  "tooltip-create-category": "A CTRL lenyomva tartása az aktuálisan kiválasztott kategória törléséhez\nA jelenleg kiválasztott kategória átnevezéséhez tartsa lenyomva a SHIFT billentyűt.",
+  "dialog-create-category-title": "Új kategórianév:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategória neve",
+  "dialog-create-category-ok": "RENDBEN",
+  "dialog-create-category-cancel": "Mégse",
+  "dialog-rename-category-title": "A kiválasztott kategória átnevezése",
+  "toggle-add-search-results": "Aktuális keresési eredmények hozzáadása",
+  "button-update-category": "Kategória frissítése",
+  "tooltip-search-prefixes": "+kifejezés: Ezt a szót kell kérni.\n!term: A szót tartalmazó egyezések kizárása\n=kód: A kézikönyv oldalának pontos kódja\n%code: Egyezzen meg a kézikönyv oldalának kódjával vagy nevével (%% a pontosságért)\n?kifejezés: Az oldalleíró szavak egyezése, hasonló az orig-hoz. keresés\n#name: Hozzon létre vagy frissítsen egy kategóriát szóközzel elválasztott kifejezések hozzáadásával"
 }

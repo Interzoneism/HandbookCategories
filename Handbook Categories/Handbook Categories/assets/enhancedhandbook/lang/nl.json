@@ -1,9 +1,20 @@
 {
   "button-create-category": "Categorie maken",
   "button-delete-category": "Categorie verwijderen",
+  "button-rename-category": "Categorie hernoemen",
   "tab-armor": "Pantser",
   "toggle-original-search": "Originele zoekopdracht",
   "toggle-recipes-only": "Alleen recepten",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Toon alleen pagina's waar het item kan worden gemaakt in het raster",
+  "tooltip-original-search": "Schakel alle zoekfuncties van het Uitgebreide handboek uit",
+  "tooltip-create-category": "Houd CTRL ingedrukt om de momenteel geselecteerde categorie te verwijderen\nHoud SHIFT ingedrukt om de momenteel geselecteerde categorie te hernoemen",
+  "dialog-create-category-title": "Nieuwe categorienaam:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Categorienaam",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Annuleren",
+  "dialog-rename-category-title": "Hernoem de geselecteerde categorie",
+  "toggle-add-search-results": "Voeg huidige zoekresultaten toe",
+  "button-update-category": "Categorie bijwerken",
+  "tooltip-search-prefixes": "+term: Dit woord vereisen\n!term: Sluit overeenkomsten uit die het woord bevatten\n=code: Exacte paginacode van het handboek\n%code: Match de code of naam van de handboekpagina (%% voor exact)\n?term: Match paginabeschrijvingswoorden, vergelijkbaar met orig. zoeken\n#name: Maak of update een categorie door termen toe te voegen, gescheiden door spaties"
 }

@@ -1,9 +1,20 @@
 {
   "button-create-category": "카테고리 생성",
   "button-delete-category": "카테고리 삭제",
+  "button-rename-category": "카테고리 이름 바꾸기",
   "tab-armor": "갑옷",
   "toggle-original-search": "원본 검색",
   "toggle-recipes-only": "레시피만",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "그리드에서 항목을 제작할 수 있는 페이지만 표시",
+  "tooltip-original-search": "모든 향상된 핸드북 검색 기능 비활성화",
+  "tooltip-create-category": "현재 선택한 카테고리를 삭제하려면 Ctrl 키를 누르세요\n현재 선택한 카테고리의 이름을 바꾸려면 Shift 키를 누르세요.",
+  "dialog-create-category-title": "새 카테고리 이름:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "카테고리 이름",
+  "dialog-create-category-ok": "확인",
+  "dialog-create-category-cancel": "취소",
+  "dialog-rename-category-title": "선택한 카테고리 이름 바꾸기",
+  "toggle-add-search-results": "현재 검색 결과 추가",
+  "button-update-category": "카테고리 업데이트",
+  "tooltip-search-prefixes": "+용어: 이 단어가 필요합니다.\n!term: 해당 단어가 포함된 일치 항목 제외\n=code: 정확한 핸드북 페이지 코드\n%code: 핸드북 페이지 코드 또는 이름 일치(정확한 경우 %%)\n?term: orig와 유사한 페이지 설명 단어와 일치합니다. 검색\n#name: 공백으로 구분된 용어를 추가하여 카테고리 생성 또는 업데이트"
 }

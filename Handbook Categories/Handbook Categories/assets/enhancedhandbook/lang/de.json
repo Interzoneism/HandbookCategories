@@ -1,9 +1,20 @@
 {
   "button-create-category": "Kategorie erstellen",
   "button-delete-category": "Kategorie löschen",
+  "button-rename-category": "Kategorie umbenennen",
   "tab-armor": "Rüstung",
   "toggle-original-search": "Originalsuche",
   "toggle-recipes-only": "Nur Rezepte",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Nur Seiten anzeigen, auf denen das Element im Raster erstellt werden kann",
+  "tooltip-original-search": "Alle Suchfunktionen des erweiterten Handbuchs deaktivieren",
+  "tooltip-create-category": "Halten Sie die STRG-Taste gedrückt, um die aktuell ausgewählte Kategorie zu löschen\nHalten Sie die UMSCHALTTASTE gedrückt, um die aktuell ausgewählte Kategorie umzubenennen",
+  "dialog-create-category-title": "Neuer Kategoriename:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategoriename",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Abbrechen",
+  "dialog-rename-category-title": "Ausgewählte Kategorie umbenennen",
+  "toggle-add-search-results": "Aktuelle Suchergebnisse hinzufügen",
+  "button-update-category": "Kategorie aktualisieren",
+  "tooltip-search-prefixes": "+Begriff: Dieses Wort ist erforderlich\n!term: Treffer ausschließen, die das Wort enthalten\n=code: Exakter Handbuchseitencode\n%code: Übereinstimmung mit Code oder Name der Handbuchseite (%% für exakt)\n?term: Übereinstimmung mit Seitenbeschreibungswörtern, ähnlich wie bei orig. suchen\n#name: Erstellen oder aktualisieren Sie eine Kategorie, indem Sie durch Leerzeichen getrennte Begriffe hinzufügen"
 }

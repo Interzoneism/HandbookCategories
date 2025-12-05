@@ -1,9 +1,20 @@
 {
   "button-create-category": "Loo kategooria",
   "button-delete-category": "Kustuta kategooria",
+  "button-rename-category": "Nimeta kategooria ümber",
   "tab-armor": "Soomus",
   "toggle-original-search": "Originaalne otsing",
   "toggle-recipes-only": "Ainult retseptid",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Kuvage ruudustikus ainult need lehed, kus üksust saab kujundada",
+  "tooltip-original-search": "Keela kõik täiustatud käsiraamatu otsingufunktsioonid",
+  "tooltip-create-category": "Hetkel valitud kategooria kustutamiseks hoidke all klahvi CTRL\nHetkel valitud kategooria ümbernimetamiseks hoidke all SHIFT",
+  "dialog-create-category-title": "Uue kategooria nimi:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategooria nimi",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Tühista",
+  "dialog-rename-category-title": "Nimetage valitud kategooria ümber",
+  "toggle-add-search-results": "Lisage praegused otsingutulemused",
+  "button-update-category": "Värskenda kategooriat",
+  "tooltip-search-prefixes": "+termin: nõua seda sõna\n!term: välistage seda sõna sisaldavad vasted\n=kood: täpne käsiraamatu lehekülje kood\n%code: sobitage käsiraamatu lehe kood või nimi (täpse jaoks %%)\n?termin: sobitage lehe kirjelduse sõnad, mis on sarnased originaaliga. otsida\n#name: looge või värskendage kategooriat, lisades terminid tühikutega eraldatuna"
 }

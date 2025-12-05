@@ -1,9 +1,20 @@
 {
   "button-create-category": "Kategori oluştur",
   "button-delete-category": "Kategoriyi sil",
+  "button-rename-category": "Kategoriyi Yeniden Adlandır",
   "tab-armor": "Zırh",
   "toggle-original-search": "Orijinal arama",
   "toggle-recipes-only": "Yalnızca tarifler",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Yalnızca öğenin ızgarada hazırlanabileceği sayfaları göster",
+  "tooltip-original-search": "Tüm Gelişmiş El Kitabı arama işlevlerini devre dışı bırakın",
+  "tooltip-create-category": "Şu anda seçili olan kategoriyi silmek için CTRL tuşunu basılı tutun\nŞu anda seçili olan kategoriyi yeniden adlandırmak için SHIFT tuşunu basılı tutun",
+  "dialog-create-category-title": "Yeni kategori adı:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategori adı",
+  "dialog-create-category-ok": "TAMAM",
+  "dialog-create-category-cancel": "İptal etmek",
+  "dialog-rename-category-title": "Seçilen kategoriyi yeniden adlandırın",
+  "toggle-add-search-results": "Mevcut arama sonuçlarını ekle",
+  "button-update-category": "Kategoriyi Güncelle",
+  "tooltip-search-prefixes": "+terim: Bu kelimeyi zorunlu kıl\n!term: Kelimeyi içeren eşleşmeleri hariç tut\n=kod: Tam el kitabı sayfa kodu\n%kod: El kitabı sayfa kodunu veya adını eşleştirin (tam olarak %%)\n?term: Orig'e benzer şekilde sayfa açıklama sözcüklerini eşleştirin. arama\n#name: Boşluklarla ayrılmış terimleri ekleyerek bir kategori oluşturun veya güncelleyin"
 }

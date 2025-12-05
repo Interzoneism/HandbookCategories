@@ -1,9 +1,20 @@
 {
   "button-create-category": "Utwórz kategorię",
   "button-delete-category": "Usuń kategorię",
+  "button-rename-category": "Zmień nazwę kategorii",
   "tab-armor": "Zbroja",
   "toggle-original-search": "Oryginalne wyszukiwanie",
   "toggle-recipes-only": "Tylko przepisy",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Pokazuj tylko strony, na których można wytworzyć przedmiot w siatce",
+  "tooltip-original-search": "Wyłącz wszystkie funkcje wyszukiwania w Rozszerzonym Podręczniku",
+  "tooltip-create-category": "Przytrzymaj CTRL, aby usunąć aktualnie wybraną kategorię\nPrzytrzymaj SHIFT, aby zmienić nazwę aktualnie wybranej kategorii",
+  "dialog-create-category-title": "Nowa nazwa kategorii:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Nazwa kategorii",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Anuluj",
+  "dialog-rename-category-title": "Zmień nazwę wybranej kategorii",
+  "toggle-add-search-results": "Dodaj bieżące wyniki wyszukiwania",
+  "button-update-category": "Aktualizuj kategorię",
+  "tooltip-search-prefixes": "+termin: Wymagaj tego słowa\n!term: Wyklucz dopasowania zawierające słowo\n=code: Dokładny kod strony podręcznika\n%code: Dopasuj kod lub nazwę strony podręcznika (dokładnie%%)\n?termin: Dopasuj słowa opisu strony, podobne do oryg. szukaj\n#name: Utwórz lub zaktualizuj kategorię, dodając terminy oddzielone spacjami"
 }

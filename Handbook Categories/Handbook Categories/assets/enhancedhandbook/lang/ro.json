@@ -1,9 +1,20 @@
 {
   "button-create-category": "Creați o categorie",
   "button-delete-category": "Ștergeți categoria",
+  "button-rename-category": "Redenumiți categoria",
   "tab-armor": "Armură",
   "toggle-original-search": "Căutare originală",
   "toggle-recipes-only": "Doar rețete",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Afișați numai paginile în care articolul poate fi creat în grilă",
+  "tooltip-original-search": "Dezactivați toate funcțiile de căutare din manualul îmbunătățit",
+  "tooltip-create-category": "Țineți apăsat CTRL pentru a șterge categoria selectată în prezent\nȚineți apăsată SHIFT pentru a redenumi categoria selectată în prezent",
+  "dialog-create-category-title": "Nume categorie nouă:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Nume categorie",
+  "dialog-create-category-ok": "Bine",
+  "dialog-create-category-cancel": "Anulați",
+  "dialog-rename-category-title": "Redenumiți categoria selectată",
+  "toggle-add-search-results": "Adăugați rezultatele căutării curente",
+  "button-update-category": "Actualizați categoria",
+  "tooltip-search-prefixes": "+termen: Solicitați acest cuvânt\n!term: Excludeți potrivirile care conțin cuvântul\n=code: Codul exact al paginii manualului\n%code: potriviți codul paginii manualului sau numele (%% pentru exact)\n?term: potriviți cuvintele de descriere a paginii, similare cu orig. caută\n#name: creați sau actualizați o categorie adăugând termeni separați prin spații"
 }

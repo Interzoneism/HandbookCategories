@@ -1,9 +1,20 @@
 {
   "button-create-category": "Створити категорію",
   "button-delete-category": "Видалити категорію",
+  "button-rename-category": "Перейменувати категорію",
   "tab-armor": "Броня",
   "toggle-original-search": "Оригінальний пошук",
   "toggle-recipes-only": "Тільки рецепти",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Показувати в сітці лише сторінки, на яких можна створити предмет",
+  "tooltip-original-search": "Вимкнути всі функції пошуку в розширеному довіднику",
+  "tooltip-create-category": "Утримувати CTRL, щоб видалити вибрану категорію\nУтримуйте SHIFT, щоб перейменувати поточну вибрану категорію",
+  "dialog-create-category-title": "Нова назва категорії:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Назва категорії",
+  "dialog-create-category-ok": "ОК",
+  "dialog-create-category-cancel": "Скасувати",
+  "dialog-rename-category-title": "Перейменувати вибрану категорію",
+  "toggle-add-search-results": "Додати поточні результати пошуку",
+  "button-update-category": "Оновити категорію",
+  "tooltip-search-prefixes": "+термін: Вимагати це слово\n!term: Виключити збіги, що містять слово\n=код: Точний код сторінки довідника\n%code: відповідність коду сторінки довідника або назві (%% для точного)\n?term: відповідність словами опису сторінки, подібним до ориг. пошук\n#name: створіть або оновіть категорію, додавши терміни, розділені пробілами"
 }
