@@ -277,7 +277,7 @@ namespace Enhanced_Handbook
                 "!term: Exclude matches containing the word\n" +
                 "=code: Exact handbook page code\n" +
                 "%code: Match handbook page code or name (%% for exact)\n" +
-                "?term: Use the vanilla search logic\n" +
+                "?term: Match page description words, similar to orig. search\n" +
                 "#name: Create or Update a category by adding terms separated by spaces";
         }
 
