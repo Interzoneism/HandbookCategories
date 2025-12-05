@@ -890,6 +890,10 @@ namespace Enhanced_Handbook
         private const string CreateCategoryHoverKey = "handbookcategories-create-category-hover";
         private const double SearchHelpSpacing = 6.0;
 
+        private const string GuidePageCode = "handbookcategories-guide";
+        private const string GuidePageTitleTranslationKey = "enhancedhandbook:guide-title";
+        private const string GuidePageTextTranslationKey = "enhancedhandbook:guide-text";
+
         private const string SharedHandbookDialogName = "handbook-shared";
         private static readonly string[] HandbookDialogNames =
         {
@@ -909,6 +913,7 @@ namespace Enhanced_Handbook
         private static readonly System.Reflection.FieldInfo ListHeightField = AccessTools.Field(typeof(GuiDialogHandbook), "listHeight");
         private static readonly System.Reflection.FieldInfo CategoryCodesField = AccessTools.Field(typeof(GuiDialogHandbook), "categoryCodes");
         private static readonly System.Reflection.FieldInfo VerticalTabsField = AccessTools.Field(typeof(GuiElementVerticalTabs), "tabs");
+        private static readonly System.Reflection.FieldInfo PageNumberByPageCodeField = AccessTools.Field(typeof(GuiDialogHandbook), "pageNumberByPageCode");
 
         public static void AfterPagesLoaded(GuiDialogHandbook __instance)
         {
@@ -916,6 +921,7 @@ namespace Enhanced_Handbook
             {
                 if (AllPagesField?.GetValue(__instance) is List<GuiHandbookPage> pages)
                 {
+                    EnsureGuidePage(__instance, pages);
                     HandbookCategoryManager.MarkCategoriesDirty();
                     HandbookCategoryManager.RebuildCategories(pages);
                 }
@@ -936,7 +942,7 @@ namespace Enhanced_Handbook
 
             EnsureHandbookDialogPosition(overviewGui);
 
-            EnsureSearchHelpTooltip(overviewGui);
+            EnsureSearchHelpTooltip(__instance, overviewGui);
 
             EnsureRecipesOnlyToggle(__instance, overviewGui);
             EnsureCreateButton(__instance, overviewGui);
@@ -1159,6 +1165,61 @@ namespace Enhanced_Handbook
             return helpButton?.Bounds;
         }
 
+        private static bool EnsureGuidePage(GuiDialogHandbook dialog, List<GuiHandbookPage> pages)
+        {
+            if (dialog == null || pages == null)
+            {
+                return false;
+            }
+
+            if (pages.Any(page => page != null && page.PageCode == GuidePageCode))
+            {
+                return false;
+            }
+
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+
+            if (api == null)
+            {
+                return false;
+            }
+
+            var guidePage = new GuiHandbookTextPage
+            {
+                pageCode = GuidePageCode,
+                Title = GuidePageTitleTranslationKey,
+                Text = GuidePageTextTranslationKey,
+                categoryCode = "guide"
+            };
+
+            guidePage.Init(api);
+
+            guidePage.PageNumber = pages.Count;
+            pages.Add(guidePage);
+
+            if (PageNumberByPageCodeField?.GetValue(dialog) is Dictionary<string, int> lookup)
+            {
+                lookup[GuidePageCode] = guidePage.PageNumber;
+            }
+
+            return true;
+        }
+
+        private static bool OpenGuidePage(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return false;
+            }
+
+            if (AllPagesField?.GetValue(dialog) is List<GuiHandbookPage> pages)
+            {
+                EnsureGuidePage(dialog, pages);
+            }
+
+            return dialog.OpenDetailPageFor(GuidePageCode);
+        }
+
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
         {
             if (ShownPagesField?.GetValue(__instance) is not List<IFlatListItem> shownPages)
@@ -1221,7 +1282,7 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        private static void EnsureSearchHelpTooltip(GuiComposer overviewGui)
+        private static void EnsureSearchHelpTooltip(GuiDialogHandbook dialog, GuiComposer overviewGui)
         {
             if (overviewGui == null)
             {
@@ -1257,7 +1318,7 @@ namespace Enhanced_Handbook
             GuiElementTextButton helpButton = overviewGui.GetButton(SearchHelpButtonKey);
             if (helpButton == null)
             {
-                helpButton = new GuiElementTextButton(api, "?", baseFont, hoverFont, () => false, helpBounds, EnumButtonStyle.Small);
+                helpButton = new GuiElementTextButton(api, "?", baseFont, hoverFont, () => OpenGuidePage(dialog), helpBounds, EnumButtonStyle.Small);
                 helpButton.SetOrientation(EnumTextOrientation.Center);
                 helpButton.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(helpButton, SearchHelpButtonKey);

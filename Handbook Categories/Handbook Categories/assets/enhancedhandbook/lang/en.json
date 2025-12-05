@@ -16,5 +16,7 @@
   "dialog-rename-category-title": "Rename the selected category",
   "toggle-add-search-results": "Add current search results",
   "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces",
+  "guide-title": "Enhanced Handbook useful tips",
+  "guide-text": "Categories\n- If you enter the same name as an already present category you will add to it\n- Hold SHIFT or CTRL to either rename or delete the selected category\n- You can drag and drop items to and from categories\n\nGroups\n- If you SHIFT click a page in the list it will create a Group, a kind of category within a category\n- When SHIFT clicking, the mod will try to add similar items to the Group but it can take a few clicks\n- Use the same Group name when SHIFT clicking to add to it, the last one created is pre-filled\n- Click a Group to open it, SHIFT click a Group to delete it and free all the items within :)\n- Drag and drop items to a Group to add them, and drag them out of the Group to remove them\n- The \"Everything (Grouped)\" category contains already made groups for all variants (same item with different materials)."
 }
