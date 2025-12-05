@@ -885,6 +885,9 @@ namespace Enhanced_Handbook
     {
         private const string SearchHelpButtonKey = "handbookcategories-search-help";
         private const string SearchHelpHoverKey = "handbookcategories-search-help-hover";
+        private const string RecipesOnlyHoverKey = "handbookcategories-recipes-only-hover";
+        private const string OriginalSearchHoverKey = "handbookcategories-original-search-hover";
+        private const string CreateCategoryHoverKey = "handbookcategories-create-category-hover";
         private const double SearchHelpSpacing = 6.0;
 
         private const string SharedHandbookDialogName = "handbook-shared";
@@ -1290,6 +1293,35 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static bool EnsureButtonTooltip(GuiComposer overviewGui, string hoverKey, string tooltipText, ElementBounds targetBounds)
+        {
+            if (overviewGui == null || targetBounds == null || string.IsNullOrWhiteSpace(tooltipText))
+            {
+                return false;
+            }
+
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+            if (api == null)
+            {
+                return false;
+            }
+
+            ElementBounds hoverBounds = targetBounds.FlatCopy();
+            GuiElementHoverText hoverText = overviewGui.GetHoverText(hoverKey);
+
+            if (hoverText == null)
+            {
+                hoverText = new GuiElementHoverText(api, tooltipText, CairoFont.WhiteSmallText(), 480, hoverBounds);
+                hoverText.SetAutoWidth(true);
+                overviewGui.AddInteractiveElement(hoverText, hoverKey);
+                return true;
+            }
+
+            hoverText.Bounds = hoverBounds;
+            hoverText.SetNewText(tooltipText);
+            return false;
+        }
+
         private static void EnsureRecipesOnlyToggle(GuiDialogHandbook dialog, GuiComposer overviewGui)
         {
             if (overviewGui == null)
@@ -1493,6 +1525,22 @@ namespace Enhanced_Handbook
                 }
             }
 
+            recompose |= EnsureButtonTooltip(
+                overviewGui,
+                RecipesOnlyHoverKey,
+                HandbookCategoryManager.GetRecipesOnlyTooltipText(),
+                recipesToggle?.Bounds ?? recipesOnlyBounds);
+
+            if (shouldShowOriginalToggle || originalSearchToggle != null)
+            {
+                ElementBounds originalSearchHoverBounds = originalSearchToggle?.Bounds ?? originalSearchBounds;
+                recompose |= EnsureButtonTooltip(
+                    overviewGui,
+                    OriginalSearchHoverKey,
+                    HandbookCategoryManager.GetOriginalSearchTooltipText(),
+                    originalSearchHoverBounds);
+            }
+
             if (recompose)
             {
                 overviewGui.ReCompose();
@@ -1511,6 +1559,12 @@ namespace Enhanced_Handbook
             if (existingButton != null)
             {
                 HandbookCategoryManager.RegisterCreateButton(overviewGui, existingButton, dialog);
+                if (EnsureCreateButtonTooltip(overviewGui))
+                {
+                    overviewGui.ReCompose();
+                    EnsureHandbookDialogPosition(overviewGui);
+                }
+
                 return;
             }
 
@@ -1536,8 +1590,24 @@ namespace Enhanced_Handbook
 
             overviewGui.AddInteractiveElement(button, HandbookCategoryManager.CreateCategoryButtonKey);
             HandbookCategoryManager.RegisterCreateButton(overviewGui, button, dialog);
+            EnsureCreateButtonTooltip(overviewGui);
             overviewGui.ReCompose();
             EnsureHandbookDialogPosition(overviewGui);
+        }
+
+        private static bool EnsureCreateButtonTooltip(GuiComposer overviewGui)
+        {
+            GuiElementTextButton createButton = overviewGui?.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
+            if (createButton?.Bounds == null)
+            {
+                return false;
+            }
+
+            return EnsureButtonTooltip(
+                overviewGui,
+                CreateCategoryHoverKey,
+                HandbookCategoryManager.GetCreateCategoryTooltipText(),
+                createButton.Bounds);
         }
 
         private static ElementBounds BuildCreateButtonBounds(GuiComposer overviewGui)

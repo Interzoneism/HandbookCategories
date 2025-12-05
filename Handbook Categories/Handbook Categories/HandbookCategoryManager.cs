@@ -34,6 +34,9 @@ namespace Enhanced_Handbook
         private const string AddSearchResultsToggleTranslationKey = "enhancedhandbook:toggle-add-search-results";
         private const string SearchPrefixTooltipTranslationKey = "enhancedhandbook:tooltip-search-prefixes";
         private const string RenameCategoryButtonTranslationKey = "enhancedhandbook:button-rename-category";
+        private const string RecipesOnlyTooltipTranslationKey = "enhancedhandbook:tooltip-recipes-only";
+        private const string OriginalSearchTooltipTranslationKey = "enhancedhandbook:tooltip-original-search";
+        private const string CreateCategoryTooltipTranslationKey = "enhancedhandbook:tooltip-create-category";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
         internal const int MaxCategoryNameLength = 20;
         private const double CreateButtonMinimumWidth = 60.0;
@@ -236,6 +239,30 @@ namespace Enhanced_Handbook
         internal static string GetOriginalSearchToggleText()
         {
             return Lang.Get(OriginalSearchToggleTranslationKey);
+        }
+
+        internal static string GetRecipesOnlyTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(RecipesOnlyTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Only show pages where the item can be crafted in the grid"
+                : text;
+        }
+
+        internal static string GetOriginalSearchTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(OriginalSearchTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Disable all Enhanced Handbook search functions"
+                : text;
+        }
+
+        internal static string GetCreateCategoryTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(CreateCategoryTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Hold CTRL to delete the currently selected category\nHold SHIFT to rename the currently selected category"
+                : text;
         }
 
         internal static string GetSearchPrefixTooltip()
