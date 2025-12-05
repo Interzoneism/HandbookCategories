@@ -11,5 +11,6 @@
   "dialog-create-category-ok": "OK",
   "dialog-create-category-cancel": "Cancel",
   "dialog-rename-category-title": "Rename the selected category",
-  "toggle-add-search-results": "Add current search results"
+  "toggle-add-search-results": "Add current search results",
+  "button-update-category": "Update Category"
 }

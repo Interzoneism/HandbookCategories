@@ -3,5 +3,6 @@
   "button-delete-category": "Kustuta kategooria",
   "tab-armor": "Soomus",
   "toggle-original-search": "Originaalne otsing",
-  "toggle-recipes-only": "Ainult retseptid"
+  "toggle-recipes-only": "Ainult retseptid",
+  "button-update-category": "Update Category"
 }
