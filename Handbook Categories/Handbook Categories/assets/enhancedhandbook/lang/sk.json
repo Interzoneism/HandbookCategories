@@ -1,9 +1,20 @@
 {
   "button-create-category": "Vytvoriť kategóriu",
   "button-delete-category": "Vymazať kategóriu",
+  "button-rename-category": "Premenovať kategóriu",
   "tab-armor": "Brnenie",
   "toggle-original-search": "Originálne vyhľadávanie",
   "toggle-recipes-only": "Iba recepty",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "V mriežke zobraziť iba stránky, na ktorých je možné položku vytvoriť",
+  "tooltip-original-search": "Vypnite všetky funkcie vyhľadávania v rozšírenej príručke",
+  "tooltip-create-category": "Ak chcete odstrániť aktuálne vybratú kategóriu, podržte kláves CTRL\nAk chcete premenovať aktuálne vybratú kategóriu, podržte kláves SHIFT",
+  "dialog-create-category-title": "Nový názov kategórie:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Názov kategórie",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Zrušiť",
+  "dialog-rename-category-title": "Premenujte vybranú kategóriu",
+  "toggle-add-search-results": "Pridajte aktuálne výsledky vyhľadávania",
+  "button-update-category": "Aktualizovať kategóriu",
+  "tooltip-search-prefixes": "+výraz: Vyžadovať toto slovo\n!term: Vylúči zhody obsahujúce slovo\n=code: Presný kód stránky príručky\n%code: Priraďte kód alebo názov stránky príručky (%% pre presné)\n?term: Zhoda slov popisu stránky, podobne ako orig. hľadať\n#name: Vytvorte alebo aktualizujte kategóriu pridaním výrazov oddelených medzerami"
 }

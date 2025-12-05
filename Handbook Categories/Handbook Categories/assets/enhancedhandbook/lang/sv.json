@@ -1,9 +1,20 @@
 {
   "button-create-category": "Skapa kategori",
   "button-delete-category": "Radera kategori",
+  "button-rename-category": "Byt namn på kategori",
   "tab-armor": "Rustning",
   "toggle-original-search": "Originalsökning",
   "toggle-recipes-only": "Endast recept",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Visa endast sidor där objektet kan skapas i rutnätet",
+  "tooltip-original-search": "Inaktivera alla sökfunktioner för förbättrad handbok",
+  "tooltip-create-category": "Håll ned CTRL för att ta bort den för närvarande valda kategorin\nHåll ned SHIFT för att byta namn på den för närvarande valda kategorin",
+  "dialog-create-category-title": "Nytt kategorinamn:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategorinamn",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "|Avbryt",
+  "dialog-rename-category-title": "Byt namn på den valda kategorin",
+  "toggle-add-search-results": "Lägg till aktuella sökresultat",
+  "button-update-category": "Uppdatera kategori",
+  "tooltip-search-prefixes": "+term: Kräv detta ord\n!term: Uteslut matchningar som innehåller ordet\n=kod: Exakt handbokssidas kod\n%code: Matcha handbokssidans kod eller namn (%% för exakt)\n?term: Matcha sidbeskrivningsord, liknande ursprung. sök\n#name: Skapa eller uppdatera en kategori genom att lägga till termer separerade med mellanslag"
 }

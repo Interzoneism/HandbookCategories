@@ -1,9 +1,20 @@
 {
   "button-create-category": "Създай категория",
   "button-delete-category": "Изтрий категория",
+  "button-rename-category": "Преименуване на категория",
   "tab-armor": "Броня",
   "toggle-original-search": "Оригинално търсене",
   "toggle-recipes-only": "Само рецепти",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Показване само на страници, където артикулът може да бъде изработен в мрежата",
+  "tooltip-original-search": "Деактивиране на всички функции за търсене в Enhanced Handbook",
+  "tooltip-create-category": "Задръжте CTRL, за да изтриете текущо избраната категория\nЗадръжте SHIFT, за да преименувате текущо избраната категория",
+  "dialog-create-category-title": "Ново име на категория:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Име на категория",
+  "dialog-create-category-ok": "ОК",
+  "dialog-create-category-cancel": "Отказ",
+  "dialog-rename-category-title": "Преименувайте избраната категория",
+  "toggle-add-search-results": "Добавяне на текущи резултати от търсене",
+  "button-update-category": "Актуализиране на категория",
+  "tooltip-search-prefixes": "+термин: Изискване на тази дума\n!term: Изключване на съвпадения, съдържащи думата\n=код: Точен код на страницата на ръководството\n%code: Съвпада с кода или името на страницата на ръководството (%% за точно)\n?термин: Съвпадение на думите за описание на страницата, подобно на ориг. търсене\n#name: Създайте или актуализирайте категория, като добавите термини, разделени с интервали"
 }

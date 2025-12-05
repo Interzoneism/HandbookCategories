@@ -1,9 +1,20 @@
 {
   "button-create-category": "Izveidot kategoriju",
   "button-delete-category": "Dzēst kategoriju",
+  "button-rename-category": "Pārdēvēt kategoriju",
   "tab-armor": "Bruņas",
   "toggle-original-search": "Oriģināla meklēšana",
   "toggle-recipes-only": "Tikai receptes",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Rādīt tikai tās lapas, kurās vienumu var izveidot režģī",
+  "tooltip-original-search": "Atspējot visas uzlabotās rokasgrāmatas meklēšanas funkcijas",
+  "tooltip-create-category": "Lai izdzēstu pašlaik atlasīto kategoriju, turiet nospiestu taustiņu CTRL\nTuriet nospiestu taustiņu SHIFT, lai pārdēvētu pašlaik atlasīto kategoriju",
+  "dialog-create-category-title": "Jauns kategorijas nosaukums:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategorijas nosaukums",
+  "dialog-create-category-ok": "Labi",
+  "dialog-create-category-cancel": "Atcelt",
+  "dialog-rename-category-title": "Pārdēvēt atlasīto kategoriju",
+  "toggle-add-search-results": "Pievienot pašreizējos meklēšanas rezultātus",
+  "button-update-category": "Atjaunināt kategoriju",
+  "tooltip-search-prefixes": "+termiņš: Nepieciešams šis vārds\n!term: izslēdziet atbilstības, kas satur vārdu\n=kods: precīzs rokasgrāmatas lapas kods\n%code: atbilst rokasgrāmatas lapas kodam vai nosaukumam (%% precīzai)\n?term: atbilst lapas apraksta vārdiem, līdzīgi orig. meklēt\n#name: izveidojiet vai atjauniniet kategoriju, pievienojot terminus, atdalot tos ar atstarpēm"
 }

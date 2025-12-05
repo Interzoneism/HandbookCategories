@@ -1,9 +1,20 @@
 {
   "button-create-category": "创建分类",
   "button-delete-category": "删除分类",
+  "button-rename-category": "重命名类别",
   "tab-armor": "盔甲",
   "toggle-original-search": "原版搜索",
   "toggle-recipes-only": "仅限配方",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "仅显示可以在网格中制作物品的页面",
+  "tooltip-original-search": "禁用所有增强手册搜索功能",
+  "tooltip-create-category": "按住 CTRL 删除当前选定的类别\n按住 SHIFT 重命名当前选定的类别",
+  "dialog-create-category-title": "新类别名称：",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "类别名称",
+  "dialog-create-category-ok": "好的",
+  "dialog-create-category-cancel": "取消",
+  "dialog-rename-category-title": "重命名所选类别",
+  "toggle-add-search-results": "添加当前搜索结果",
+  "button-update-category": "更新类别",
+  "tooltip-search-prefixes": "+term：需要这个词\n!term：排除包含该单词的匹配项\n=code：准确的手册页面代码\n%code：匹配手册页面代码或名称（%% 表示精确）\n?term：匹配页面描述词，与orig类似。搜索\n#name：通过添加用空格分隔的术语来创建或更新类别"
 }

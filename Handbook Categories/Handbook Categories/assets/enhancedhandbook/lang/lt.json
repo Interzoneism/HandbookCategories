@@ -1,9 +1,20 @@
 {
   "button-create-category": "Sukurti kategoriją",
   "button-delete-category": "Ištrinti kategoriją",
+  "button-rename-category": "Pervardyti kategoriją",
   "tab-armor": "Šarvai",
   "toggle-original-search": "Originali paieška",
   "toggle-recipes-only": "Tik receptai",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Rodyti tik tuos puslapius, kuriuose elementas gali būti sukurtas tinklelyje",
+  "tooltip-original-search": "Išjungti visas patobulinto vadovo paieškos funkcijas",
+  "tooltip-create-category": "Norėdami ištrinti šiuo metu pasirinktą kategoriją, laikykite nuspaudę CTRL\nNorėdami pervardyti šiuo metu pasirinktą kategoriją, laikykite nuspaudę SHIFT",
+  "dialog-create-category-title": "Naujos kategorijos pavadinimas:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategorijos pavadinimas",
+  "dialog-create-category-ok": "Gerai",
+  "dialog-create-category-cancel": "Atšaukti",
+  "dialog-rename-category-title": "Pervardykite pasirinktą kategoriją",
+  "toggle-add-search-results": "Pridėkite dabartinius paieškos rezultatus",
+  "button-update-category": "Atnaujinti kategoriją",
+  "tooltip-search-prefixes": "+terminas: reikalauti šio žodžio\n!terminas: neįtraukti atitikmenų, kuriuose yra žodis\n=kodas: tikslus vadovo puslapio kodas\n%kodas: atitinka vadovo puslapio kodą arba pavadinimą (%% tiksliam)\n?terminas: atitinka puslapio aprašymo žodžius, panašius į orig. paieška\n#name: sukurkite arba atnaujinkite kategoriją įtraukdami terminus, atskirtus tarpais"
 }

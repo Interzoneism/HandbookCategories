@@ -1,9 +1,20 @@
 {
   "button-create-category": "Opret kategori",
   "button-delete-category": "Slet kategori",
+  "button-rename-category": "Omdøb kategori",
   "tab-armor": "Rustning",
   "toggle-original-search": "Original søgning",
   "toggle-recipes-only": "Kun opskrifter",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Vis kun sider, hvor elementet kan laves i gitteret",
+  "tooltip-original-search": "Deaktiver alle søgefunktioner i udvidet håndbog",
+  "tooltip-create-category": "Hold CTRL nede for at slette den aktuelt valgte kategori\nHold SHIFT nede for at omdøbe den aktuelt valgte kategori",
+  "dialog-create-category-title": "Nyt kategorinavn:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Kategorinavn",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Annuller",
+  "dialog-rename-category-title": "Omdøb den valgte kategori",
+  "toggle-add-search-results": "Tilføj aktuelle søgeresultater",
+  "button-update-category": "Opdater kategori",
+  "tooltip-search-prefixes": "+udtryk: Kræv dette ord\n!term: Udeluk matcher, der indeholder ordet\n=kode: Præcis håndbogssidekode\n%code: Match håndbogens sidekode eller navn (%% for eksakt)\n?term: Match sidebeskrivelsesord, svarende til orig. søge\n#navn: Opret eller opdater en kategori ved at tilføje termer adskilt af mellemrum"
 }

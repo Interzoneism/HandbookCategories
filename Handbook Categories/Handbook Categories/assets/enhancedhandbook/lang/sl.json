@@ -1,9 +1,20 @@
 {
   "button-create-category": "Ustvari kategorijo",
   "button-delete-category": "Izbriši kategorijo",
+  "button-rename-category": "Preimenuj kategorijo",
   "tab-armor": "Oklep",
   "toggle-original-search": "Izvirno iskanje",
   "toggle-recipes-only": "Samo recepti",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Pokaži samo strani, kjer je mogoče izdelati predmet v mreži",
+  "tooltip-original-search": "Onemogočite vse funkcije iskanja v izboljšanem priročniku",
+  "tooltip-create-category": "Držite CTRL, da izbrišete trenutno izbrano kategorijo\nDržite SHIFT, da preimenujete trenutno izbrano kategorijo",
+  "dialog-create-category-title": "Novo ime kategorije:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Ime kategorije",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Prekliči",
+  "dialog-rename-category-title": "Preimenujte izbrano kategorijo",
+  "toggle-add-search-results": "Dodajte trenutne rezultate iskanja",
+  "button-update-category": "Posodobi kategorijo",
+  "tooltip-search-prefixes": "+izraz: Zahtevaj to besedo\n!term: Izključi zadetke, ki vsebujejo besedo\n=koda: Točna koda strani priročnika\n%code: Ujemanje s kodo strani priročnika ali imenom (%% za natančno)\n?term: Ujemanje z besedami opisa strani, podobno orig. iskanje\n#name: Ustvarite ali posodobite kategorijo z dodajanjem izrazov, ločenih s presledki"
 }

@@ -1,9 +1,20 @@
 {
   "button-create-category": "カテゴリを作成",
   "button-delete-category": "カテゴリを削除",
+  "button-rename-category": "カテゴリの名前を変更",
   "tab-armor": "鎧",
   "toggle-original-search": "オリジナル検索",
   "toggle-recipes-only": "レシピのみ",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "グリッド内でアイテムを作成できるページのみを表示します",
+  "tooltip-original-search": "拡張ハンドブックの検索機能をすべて無効にする",
+  "tooltip-create-category": "CTRL を押したままにすると、現在選択されているカテゴリが削除されます\nSHIFT キーを押したままにすると、現在選択されているカテゴリの名前を変更できます",
+  "dialog-create-category-title": "新しいカテゴリ名:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "カテゴリ名",
+  "dialog-create-category-ok": "わかりました",
+  "dialog-create-category-cancel": "キャンセル",
+  "dialog-rename-category-title": "選択したカテゴリの名前を変更します",
+  "toggle-add-search-results": "現在の検索結果を追加する",
+  "button-update-category": "カテゴリを更新する",
+  "tooltip-search-prefixes": "+term: この単語は必須です\n!term: 単語を含む一致を除外します。\n=code: ハンドブックの正確なページ コード\n%code: ハンドブックのページ コードまたは名前と一致します (正確には %%)\n?term: orig と同様の、ページ説明の単語と一致します。検索\n#name: スペースで区切られた用語を追加してカテゴリを作成または更新します"
 }

@@ -1,9 +1,20 @@
 {
   "button-create-category": "Luo luokka",
   "button-delete-category": "Poista luokka",
+  "button-rename-category": "Nimeä luokka uudelleen",
   "tab-armor": "Panssari",
   "toggle-original-search": "Alkuperäinen haku",
   "toggle-recipes-only": "Vain reseptejä",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Näytä vain sivut, joilla kohde voidaan muotoilla ruudukossa",
+  "tooltip-original-search": "Poista käytöstä kaikki Enhanced Handbook -hakutoiminnot",
+  "tooltip-create-category": "Pidä CTRL-näppäintä painettuna poistaaksesi valitun luokan\nPidä SHIFT-näppäintä painettuna nimetäksesi valitun luokan uudelleen",
+  "dialog-create-category-title": "Uuden luokan nimi:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Luokan nimi",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Peruuttaa",
+  "dialog-rename-category-title": "Nimeä valittu luokka uudelleen",
+  "toggle-add-search-results": "Lisää nykyiset hakutulokset",
+  "button-update-category": "Päivitä luokka",
+  "tooltip-search-prefixes": "+termi: Vaadi tämä sana\n!termi: Sulje pois sanan sisältävät osumat\n=koodi: Tarkka käsikirjan sivukoodi\n%code: Vastaa käsikirjan sivun koodia tai nimeä (%% tarkkaan)\n?termi: Vastaa sivun kuvaussanoja, jotka ovat samankaltaisia kuin orig. haku\n#name: Luo tai päivitä luokka lisäämällä termit välilyönnillä erotettuina"
 }

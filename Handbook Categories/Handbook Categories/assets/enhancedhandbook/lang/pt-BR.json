@@ -1,9 +1,20 @@
 {
   "button-create-category": "Criar categoria",
   "button-delete-category": "Excluir categoria",
+  "button-rename-category": "Renomear categoria",
   "tab-armor": "Armadura",
   "toggle-original-search": "Pesquisa original",
   "toggle-recipes-only": "Apenas receitas",
-  "button-update-category": "Update Category",
-  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
+  "tooltip-recipes-only": "Mostrar apenas páginas onde o item pode ser criado na grade",
+  "tooltip-original-search": "Desative todas as funções de pesquisa do Manual Avançado",
+  "tooltip-create-category": "Segure CTRL para excluir a categoria atualmente selecionada\nSegure SHIFT para renomear a categoria atualmente selecionada",
+  "dialog-create-category-title": "Novo nome de categoria:",
+  "dialog-create-category-message": "",
+  "dialog-create-category-placeholder": "Nome da categoria",
+  "dialog-create-category-ok": "OK",
+  "dialog-create-category-cancel": "Cancelar",
+  "dialog-rename-category-title": "Renomeie a categoria selecionada",
+  "toggle-add-search-results": "Adicionar resultados de pesquisa atuais",
+  "button-update-category": "Atualizar categoria",
+  "tooltip-search-prefixes": "+termo: Exigir esta palavra\n!term: Exclui correspondências contendo a palavra\n=código: código exato da página do manual\n%code: Corresponde ao código ou nome da página do manual (%% para exato)\n?term: Corresponde às palavras de descrição da página, semelhantes a orig. pesquisar\n#name: Crie ou atualize uma categoria adicionando termos separados por espaços"
 }
