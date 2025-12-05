@@ -1897,6 +1897,7 @@ namespace Enhanced_Handbook
             float? scrollToRestore = CaptureScrollPosition(state);
             string removalCategoryCode = groupToModify?.HiddenCategoryCode ?? categoryCode;
             bool removalCategoryManaged = HandbookCategoryManager.IsManagedCategory(removalCategoryCode);
+            string targetCategoryAfterRemoval = sourceGroup?.HiddenCategoryCode ?? dialogCategory;
 
             capi?.Event?.EnqueueMainThreadTask(() =>
             {
@@ -1927,7 +1928,11 @@ namespace Enhanced_Handbook
 
                 HandbookCategoryPatches.RebuildTabs(dialog);
 
-                if (removalCategoryManaged
+                if (sourceGroup != null && !string.IsNullOrEmpty(targetCategoryAfterRemoval))
+                {
+                    dialog.selectTab(targetCategoryAfterRemoval);
+                }
+                else if (removalCategoryManaged
                     && string.Equals(dialog.currentCatgoryCode, removalCategoryCode, StringComparison.OrdinalIgnoreCase))
                 {
                     dialog.selectTab(removalCategoryCode);

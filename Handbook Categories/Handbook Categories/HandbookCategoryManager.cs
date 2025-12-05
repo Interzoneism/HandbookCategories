@@ -1015,6 +1015,14 @@ namespace Enhanced_Handbook
 
         internal static IEnumerable<string> OrderedCategoryCodes => orderedCategories;
 
+        internal static bool ShouldDisplayEverythingGroupsCategory => createEverythingGrouped
+            && orderedCategories.Contains(EverythingGroupsDisplayCategoryCode);
+
+        internal static string GetEverythingGroupsCategoryCode()
+        {
+            return createEverythingGrouped ? EverythingGroupsDisplayCategoryCode : null;
+        }
+
         internal static bool IsManagedCategory(string categoryCode)
         {
             return !string.IsNullOrEmpty(categoryCode) && pagesByCategory.ContainsKey(categoryCode);

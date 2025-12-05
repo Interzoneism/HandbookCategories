@@ -1932,9 +1932,49 @@ namespace Enhanced_Handbook
             }
 
             var existing = new HashSet<string>(tabs.OfType<HandbookTab>().Select(tab => tab.CategoryCode));
+            string everythingGroupsCategoryCode = HandbookCategoryManager.GetEverythingGroupsCategoryCode();
+            bool insertedEverythingGroupedTab = false;
+
+            if (HandbookCategoryManager.ShouldDisplayEverythingGroupsCategory
+                && !string.IsNullOrEmpty(everythingGroupsCategoryCode)
+                && !existing.Contains(everythingGroupsCategoryCode))
+            {
+                int everythingIndex = tabs.FindIndex(tab => tab is HandbookTab handbookTab
+                    && handbookTab.CategoryCode == null);
+
+                if (everythingIndex >= 0)
+                {
+                    double[] backgroundColor = HandbookCategoryManager.GetTabBackgroundColor(everythingGroupsCategoryCode);
+
+                    var groupedTab = new ColoredHandbookTab
+                    {
+                        DataInt = everythingIndex + 1,
+                        CategoryCode = everythingGroupsCategoryCode,
+                        Name = HandbookCategoryManager.GetTabDisplayName(everythingGroupsCategoryCode),
+                        PaddingTop = tabs.Count == 0 ? 0.0 : 0.0,
+                        BackgroundColor = backgroundColor
+                    };
+
+                    tabs.Insert(everythingIndex + 1, groupedTab);
+                    updated = true;
+                    existing.Add(everythingGroupsCategoryCode);
+                    insertedEverythingGroupedTab = true;
+
+                    if (__instance.currentCatgoryCode == everythingGroupsCategoryCode)
+                    {
+                        curTab = everythingIndex + 1;
+                    }
+                }
+            }
 
             foreach (string categoryCode in HandbookCategoryManager.OrderedCategoryCodes)
             {
+                if (insertedEverythingGroupedTab
+                    && string.Equals(categoryCode, everythingGroupsCategoryCode, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 if (!existing.Add(categoryCode))
                 {
                     continue;
