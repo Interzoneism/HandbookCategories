@@ -4,5 +4,6 @@
   "tab-armor": "Броня",
   "toggle-original-search": "Оригинално търсене",
   "toggle-recipes-only": "Само рецепти",
-  "button-update-category": "Update Category"
+  "button-update-category": "Update Category",
+  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Match page description words, similar to orig. search\n#name: Create or Update a category by adding terms separated by spaces"
 }
