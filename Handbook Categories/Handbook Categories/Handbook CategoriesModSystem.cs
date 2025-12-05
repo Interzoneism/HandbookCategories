@@ -18,10 +18,6 @@ namespace Enhanced_Handbook
         //Hi Dana! Legend!
         private const string HarmonyId = "handbookcategories.core";
 
-        private const string SearchHelpButtonKey = "handbookcategories-search-help";
-        private const string SearchHelpHoverKey = "handbookcategories-search-help-hover";
-        private const double SearchHelpSpacing = 6.0;
-
         private Harmony harmony;
         private ICoreClientAPI capi;
 
@@ -887,6 +883,10 @@ namespace Enhanced_Handbook
 
     internal static class HandbookCategoryPatches
     {
+        private const string SearchHelpButtonKey = "handbookcategories-search-help";
+        private const string SearchHelpHoverKey = "handbookcategories-search-help-hover";
+        private const double SearchHelpSpacing = 6.0;
+
         private const string SharedHandbookDialogName = "handbook-shared";
         private static readonly string[] HandbookDialogNames =
         {
@@ -1240,8 +1240,12 @@ namespace Enhanced_Handbook
             }
 
             ElementBounds helpBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + SearchHelpSpacing, 0.0);
+            helpBounds.ParentBounds = searchInput.Bounds.ParentBounds;
+            helpBounds.fixedX = searchInput.Bounds.fixedX + searchInput.Bounds.fixedWidth + SearchHelpSpacing;
+            helpBounds.fixedY = searchInput.Bounds.fixedY;
             helpBounds.fixedWidth = size;
             helpBounds.fixedHeight = size;
+            helpBounds.CalcWorldBounds();
 
             CairoFont baseFont = CairoFont.WhiteSmallText().WithOrientation(EnumTextOrientation.Center);
             CairoFont hoverFont = CairoFont.WhiteSmallText().WithOrientation(EnumTextOrientation.Center);
