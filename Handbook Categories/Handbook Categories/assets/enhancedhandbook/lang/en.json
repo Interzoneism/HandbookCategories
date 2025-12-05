@@ -12,5 +12,6 @@
   "dialog-create-category-cancel": "Cancel",
   "dialog-rename-category-title": "Rename the selected category",
   "toggle-add-search-results": "Add current search results",
-  "button-update-category": "Update Category"
+  "button-update-category": "Update Category",
+  "tooltip-search-prefixes": "+term: Require this word\n!term: Exclude matches containing the word\n=code: Exact handbook page code\n%code: Match handbook page code or name (%% for exact)\n?term: Use the vanilla search logic"
 }

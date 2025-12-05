@@ -18,6 +18,10 @@ namespace Enhanced_Handbook
         //Hi Dana! Legend!
         private const string HarmonyId = "handbookcategories.core";
 
+        private const string SearchHelpButtonKey = "handbookcategories-search-help";
+        private const string SearchHelpHoverKey = "handbookcategories-search-help-hover";
+        private const double SearchHelpSpacing = 6.0;
+
         private Harmony harmony;
         private ICoreClientAPI capi;
 
@@ -929,6 +933,8 @@ namespace Enhanced_Handbook
 
             EnsureHandbookDialogPosition(overviewGui);
 
+            EnsureSearchHelpTooltip(overviewGui);
+
             EnsureRecipesOnlyToggle(__instance, overviewGui);
             EnsureCreateButton(__instance, overviewGui);
 
@@ -1144,6 +1150,12 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static ElementBounds GetSearchHelpBounds(GuiComposer overviewGui)
+        {
+            GuiElementTextButton helpButton = overviewGui?.GetButton(SearchHelpButtonKey);
+            return helpButton?.Bounds;
+        }
+
         public static bool FilterItemsPrefix(GuiDialogHandbook __instance)
         {
             if (ShownPagesField?.GetValue(__instance) is not List<IFlatListItem> shownPages)
@@ -1206,6 +1218,74 @@ namespace Enhanced_Handbook
             return false;
         }
 
+        private static void EnsureSearchHelpTooltip(GuiComposer overviewGui)
+        {
+            if (overviewGui == null)
+            {
+                return;
+            }
+
+            ICoreClientAPI api = HandbookCategoryManager.ClientApi;
+            GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
+
+            if (api == null || searchInput?.Bounds == null)
+            {
+                return;
+            }
+
+            double size = searchInput.Bounds.fixedHeight;
+            if (size <= 0.0)
+            {
+                size = 22.0;
+            }
+
+            ElementBounds helpBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + SearchHelpSpacing, 0.0);
+            helpBounds.fixedWidth = size;
+            helpBounds.fixedHeight = size;
+
+            CairoFont baseFont = CairoFont.WhiteSmallText().WithOrientation(EnumTextOrientation.Center);
+            CairoFont hoverFont = CairoFont.WhiteSmallText().WithOrientation(EnumTextOrientation.Center);
+
+            bool recompose = false;
+            GuiElementTextButton helpButton = overviewGui.GetButton(SearchHelpButtonKey);
+            if (helpButton == null)
+            {
+                helpButton = new GuiElementTextButton(api, "?", baseFont, hoverFont, () => false, helpBounds, EnumButtonStyle.Small);
+                helpButton.SetOrientation(EnumTextOrientation.Center);
+                helpButton.Bounds.CalcWorldBounds();
+                overviewGui.AddInteractiveElement(helpButton, SearchHelpButtonKey);
+                recompose = true;
+            }
+            else
+            {
+                helpButton.Bounds = helpBounds;
+                helpButton.Bounds.CalcWorldBounds();
+            }
+
+            ElementBounds hoverBounds = helpBounds.FlatCopy();
+            GuiElementHoverText hoverText = overviewGui.GetHoverText(SearchHelpHoverKey);
+            string tooltipText = HandbookCategoryManager.GetSearchPrefixTooltip();
+
+            if (hoverText == null)
+            {
+                hoverText = new GuiElementHoverText(api, tooltipText, CairoFont.WhiteSmallText(), 480, hoverBounds);
+                hoverText.SetAutoWidth(true);
+                overviewGui.AddInteractiveElement(hoverText, SearchHelpHoverKey);
+                recompose = true;
+            }
+            else
+            {
+                hoverText.Bounds = hoverBounds;
+                hoverText.SetNewText(tooltipText);
+            }
+
+            if (recompose)
+            {
+                overviewGui.ReCompose();
+                EnsureHandbookDialogPosition(overviewGui);
+            }
+        }
+
         private static void EnsureRecipesOnlyToggle(GuiDialogHandbook dialog, GuiComposer overviewGui)
         {
             if (overviewGui == null)
@@ -1231,6 +1311,8 @@ namespace Enhanced_Handbook
 
             GuiElementToggleButton pauseButton = overviewGui.GetToggleButton("pausegame");
             GuiElementTextInput searchInput = overviewGui.GetTextInput("searchField");
+
+            ElementBounds searchHelpBounds = GetSearchHelpBounds(overviewGui);
 
             bool shouldShowOriginalToggle = HandbookCategoryManager.ShouldShowOriginalSearchToggle;
             ElementBounds originalSearchBounds = null;
@@ -1290,7 +1372,11 @@ namespace Enhanced_Handbook
                     width = fallbackMinWidth;
                 }
 
-                ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing, 0.0);
+                double helpOffset = searchHelpBounds != null
+                    ? searchHelpBounds.fixedWidth + SearchHelpSpacing
+                    : 0.0;
+
+                ElementBounds baseBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + fallbackSpacing + helpOffset, 0.0);
                 baseBounds.fixedWidth = width;
                 baseBounds.fixedHeight = height;
 
