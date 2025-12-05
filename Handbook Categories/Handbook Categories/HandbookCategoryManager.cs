@@ -240,7 +240,7 @@ namespace Enhanced_Handbook
 
         internal static string GetSearchPrefixTooltip()
         {
-            string translated = ClientApi?.Lang?.GetMatchingIfExists(SearchPrefixTooltipTranslationKey);
+            string translated = Lang.GetMatchingIfExists(SearchPrefixTooltipTranslationKey);
             if (!string.IsNullOrWhiteSpace(translated))
             {
                 return translated;
