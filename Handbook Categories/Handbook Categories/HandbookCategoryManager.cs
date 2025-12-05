@@ -25,6 +25,7 @@ namespace Enhanced_Handbook
         internal const string RecipesOnlyToggleTranslationKey = "enhancedhandbook:toggle-recipes-only";
         internal const string OriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-original-search";
         private const string CreateCategoryButtonTranslationKey = "enhancedhandbook:button-create-category";
+        private const string UpdateCategoryButtonTranslationKey = "enhancedhandbook:button-update-category";
         private const string DeleteCategoryButtonTranslationKey = "enhancedhandbook:button-delete-category";
         private const string CreateCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-create-category-title";
         private const string CreateCategoryPromptMessageTranslationKey = "enhancedhandbook:dialog-create-category-message";
@@ -173,6 +174,11 @@ namespace Enhanced_Handbook
         internal static string GetCreateCategoryButtonText()
         {
             return Lang.Get(CreateCategoryButtonTranslationKey);
+        }
+
+        internal static string GetUpdateCategoryButtonText()
+        {
+            return Lang.Get(UpdateCategoryButtonTranslationKey);
         }
 
         internal static string GetDeleteCategoryButtonText()
@@ -724,6 +730,7 @@ namespace Enhanced_Handbook
         private static GuiElementTextButton trackedCreateButton;
         private static bool createCategoryPromptOpen;
         private static GuiElementTextButton trackedCloseButton;
+        private static bool searchTargetsExistingCategory;
         private static long createButtonListenerId;
         private static GuiDialogHandbook trackedHandbookDialog;
 
@@ -987,6 +994,7 @@ namespace Enhanced_Handbook
             rowHighlights.Clear();
             createVariantCategories = false;
             createEverythingGrouped = false;
+            searchTargetsExistingCategory = false;
 
 
             if (createButtonListenerId != 0)
@@ -4982,7 +4990,23 @@ namespace Enhanced_Handbook
             }
 
             SearchQuery searchQuery = PrepareSearchTerms(currentSearchText);
+            UpdateSearchCategoryContext(searchQuery);
             UpdateCreateButton(overviewGui, searchQuery, dialog);
+        }
+
+        private static void UpdateSearchCategoryContext(SearchQuery searchQuery)
+        {
+            searchTargetsExistingCategory = ShouldTargetExistingCategory(searchQuery);
+        }
+
+        private static bool ShouldTargetExistingCategory(SearchQuery searchQuery)
+        {
+            if (!searchQuery.HasCategoryName)
+            {
+                return false;
+            }
+
+            return DoesCategoryExist(searchQuery.CategoryName);
         }
 
         internal static void ApplyCategoryFilter(string categoryCode, IEnumerable<GuiHandbookPage> candidatePages, List<IFlatListItem> shownPages, GuiComposer overviewGui, string currentSearchText, bool loadingPages, double listHeight)
@@ -8229,6 +8253,22 @@ namespace Enhanced_Handbook
             return string.Concat(CategoryCodePrefix, sanitized);
         }
 
+        private static bool DoesCategoryExist(string categoryName)
+        {
+            string categoryCode = GetCategoryCodeFromDisplayName(categoryName);
+            if (string.IsNullOrEmpty(categoryCode))
+            {
+                return false;
+            }
+
+            if (displayNameByCategory.ContainsKey(categoryCode))
+            {
+                return true;
+            }
+
+            return TryGetCategoryConfig(categoryCode, out _, out _);
+        }
+
         private static void UpdateCreateButton(GuiComposer overviewGui, SearchQuery searchQuery, GuiDialogHandbook dialog)
         {
             if (overviewGui == null)
@@ -8494,6 +8534,10 @@ namespace Enhanced_Handbook
             {
                 desiredText = GetRenameCategoryButtonText();
             }
+            else if (ShouldShowUpdateText())
+            {
+                desiredText = GetUpdateCategoryButtonText();
+            }
             else
             {
                 desiredText = GetCreateCategoryButtonText();
@@ -8568,6 +8612,11 @@ namespace Enhanced_Handbook
 
             string categoryCode = trackedHandbookDialog?.currentCatgoryCode;
             return IsModCategoryCode(categoryCode);
+        }
+
+        private static bool ShouldShowUpdateText()
+        {
+            return searchTargetsExistingCategory;
         }
 
         private static bool IsMouseOverButton(GuiElementTextButton button)

@@ -3,5 +3,6 @@
   "button-delete-category": "Poista luokka",
   "tab-armor": "Panssari",
   "toggle-original-search": "Alkuperäinen haku",
-  "toggle-recipes-only": "Vain reseptejä"
+  "toggle-recipes-only": "Vain reseptejä",
+  "button-update-category": "Update Category"
 }
