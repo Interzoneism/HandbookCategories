@@ -20,6 +20,7 @@ namespace Enhanced_Handbook
 
         private Harmony harmony;
         private ICoreClientAPI capi;
+        private HandbookSetupDialog setupDialog;
 
         private static readonly char[] QuoteCharacters = { '"', '\'' };
 
@@ -71,6 +72,12 @@ namespace Enhanced_Handbook
                 .IgnoreAdditionalArgs()
                 .HandleWith(OnCategoryModDefaultCommand);
 
+            capi.ChatCommands
+                .Create("setupbook")
+                .WithDescription("Opens Enhanced Handbook customization settings")
+                .IgnoreAdditionalArgs()
+                .HandleWith(OnSetupBookCommand);
+
             harmony = new Harmony(HarmonyId);
 
             var baseType = typeof(GuiDialogHandbook);
@@ -115,6 +122,7 @@ namespace Enhanced_Handbook
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.RenderFlatListPostfix)));
 
             api.Event.LeaveWorld += OnLeaveWorld;
+            api.Event.LevelFinalize += OnLevelFinalize;
         }
 
         public override void Dispose()
@@ -124,17 +132,41 @@ namespace Enhanced_Handbook
             if (capi != null)
             {
                 capi.Event.LeaveWorld -= OnLeaveWorld;
+                capi.Event.LevelFinalize -= OnLevelFinalize;
             }
 
             HandbookCategoryManager.Clear();
             harmony?.UnpatchAll(HarmonyId);
             harmony = null;
             capi = null;
+            setupDialog = null;
         }
 
         private void OnLeaveWorld()
         {
             HandbookCategoryManager.Clear();
+            setupDialog = null;
+        }
+
+        private void OnLevelFinalize()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            if (config == null || config.HasSeenSetupMessage)
+            {
+                return;
+            }
+
+            capi.ShowChatMessage(
+                "Thanks for installing the mod Enhanced Handbook! Write .setupbook in the chat to customize it to your needs.");
+            config.HasSeenSetupMessage = true;
+            capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
         }
 
         private TextCommandResult OnCategoryModCommand(TextCommandCallingArgs args)
@@ -594,6 +626,30 @@ namespace Enhanced_Handbook
             return builder.ToString();
         }
 
+        private void EnsureSetupDialog()
+        {
+            if (capi == null)
+            {
+                return;
+            }
+
+            HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
+                ?? HandbookCategoriesConfig.CreateDefault();
+
+            if (setupDialog == null)
+            {
+                setupDialog = new HandbookSetupDialog(capi, config, RunDefaultCategoriesCommand);
+                return;
+            }
+
+            setupDialog.UpdateFromConfig(config);
+        }
+
+        private void RunDefaultCategoriesCommand()
+        {
+            capi?.SendChatMessage(".categorymoddefault");
+        }
+
         private TextCommandResult OnCategoryModDefaultCommand(TextCommandCallingArgs args)
         {
             if (capi == null)
@@ -620,6 +676,18 @@ namespace Enhanced_Handbook
 
             string restoreSummary = $"Restored {defaultCategories.Count} default categor{(defaultCategories.Count == 1 ? "y" : "ies")}. Handbook tabs refreshed.";
             return TextCommandResult.Success(data: restoreSummary);
+        }
+
+        private TextCommandResult OnSetupBookCommand(TextCommandCallingArgs args)
+        {
+            if (capi == null)
+            {
+                return TextCommandResult.Error("Client API unavailable");
+            }
+
+            EnsureSetupDialog();
+            setupDialog?.TryOpen();
+            return TextCommandResult.Success("Opened Enhanced Handbook setup");
         }
 
         private static List<CommandToken> TokenizeArguments(string input)

@@ -37,6 +37,24 @@ namespace Enhanced_Handbook
         private const string RecipesOnlyTooltipTranslationKey = "enhancedhandbook:tooltip-recipes-only";
         private const string OriginalSearchTooltipTranslationKey = "enhancedhandbook:tooltip-original-search";
         private const string CreateCategoryTooltipTranslationKey = "enhancedhandbook:tooltip-create-category";
+        private const string SetupDialogTitleTranslationKey = "enhancedhandbook:dialog-setup-title";
+        private const string SetupDialogHeaderTranslationKey = "enhancedhandbook:dialog-setup-header";
+        private const string SetupDialogRestartTranslationKey = "enhancedhandbook:dialog-setup-restart";
+        private const string SetupDialogOkTranslationKey = "enhancedhandbook:dialog-setup-ok";
+        private const string SetupHideTutorialToggleTranslationKey = "enhancedhandbook:toggle-hide-tutorial";
+        private const string SetupHideTutorialTooltipTranslationKey = "enhancedhandbook:tooltip-hide-tutorial";
+        private const string SetupHideBlocksItemsToggleTranslationKey = "enhancedhandbook:toggle-hide-blocksitems";
+        private const string SetupHideBlocksItemsTooltipTranslationKey = "enhancedhandbook:tooltip-hide-blocksitems";
+        private const string SetupHideGuidesToggleTranslationKey = "enhancedhandbook:toggle-hide-guides";
+        private const string SetupHideGuidesTooltipTranslationKey = "enhancedhandbook:tooltip-hide-guides";
+        private const string SetupHideOriginalSearchToggleTranslationKey = "enhancedhandbook:toggle-hide-originalsearch";
+        private const string SetupHideOriginalSearchTooltipTranslationKey = "enhancedhandbook:tooltip-hide-originalsearch";
+        private const string SetupGroupedCategoryToggleTranslationKey = "enhancedhandbook:toggle-grouped-category";
+        private const string SetupGroupedCategoryTooltipTranslationKey = "enhancedhandbook:tooltip-grouped-category";
+        private const string SetupVariantCategoryToggleTranslationKey = "enhancedhandbook:toggle-variant-category";
+        private const string SetupVariantCategoryTooltipTranslationKey = "enhancedhandbook:tooltip-variant-category";
+        private const string SetupDefaultsLabelTranslationKey = "enhancedhandbook:label-create-defaults";
+        private const string SetupDefaultsButtonTranslationKey = "enhancedhandbook:button-create-defaults";
         private const string RenameCategoryPromptTitleTranslationKey = "enhancedhandbook:dialog-rename-category-title";
         internal const int MaxCategoryNameLength = 20;
         private const double CreateButtonMinimumWidth = 60.0;
@@ -255,6 +273,126 @@ namespace Enhanced_Handbook
             return string.IsNullOrWhiteSpace(text)
                 ? "Disable all Enhanced Handbook search functions"
                 : text;
+        }
+
+        internal static string GetSetupDialogTitle()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDialogTitleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Enhanced Handbook Setup" : text;
+        }
+
+        internal static string GetSetupDialogHeaderText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDialogHeaderTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Enhanced Handbook customization" : text;
+        }
+
+        internal static string GetSetupDialogRestartNotice()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDialogRestartTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Changes requires a restart to take effect." : text;
+        }
+
+        internal static string GetSetupDialogOkText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDialogOkTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Ok" : text;
+        }
+
+        internal static string GetHideTutorialToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideTutorialToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Hide Tutorial Tab" : text;
+        }
+
+        internal static string GetHideTutorialTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideTutorialTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Hides the tutorial tab so it no longer shows in the handbook overview."
+                : text;
+        }
+
+        internal static string GetHideBlocksItemsToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideBlocksItemsToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Hide Blocks & Items Tab" : text;
+        }
+
+        internal static string GetHideBlocksItemsTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideBlocksItemsTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Hides the vanilla Blocks & Items tab so you can focus on enhanced categories."
+                : text;
+        }
+
+        internal static string GetHideGuidesToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideGuidesToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Hide Guides Tab" : text;
+        }
+
+        internal static string GetHideGuidesTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideGuidesTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Removes the Guides tab from the handbook overview."
+                : text;
+        }
+
+        internal static string GetHideOriginalSearchToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideOriginalSearchToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Hide Original Search Button" : text;
+        }
+
+        internal static string GetHideOriginalSearchTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupHideOriginalSearchTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Removes the default handbook search button so only Enhanced Handbook search is used."
+                : text;
+        }
+
+        internal static string GetGroupedCategoryToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupGroupedCategoryToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Show new Everything (Grouped) Category" : text;
+        }
+
+        internal static string GetGroupedCategoryTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupGroupedCategoryTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Shows the automatically generated Everything (Grouped) category that bundles variant groups together."
+                : text;
+        }
+
+        internal static string GetVariantCategoryToggleText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupVariantCategoryToggleTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Show new Variants Categories" : text;
+        }
+
+        internal static string GetVariantCategoryTooltipText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupVariantCategoryTooltipTranslationKey);
+            return string.IsNullOrWhiteSpace(text)
+                ? "Shows automatically generated variant categories for blocks and items."
+                : text;
+        }
+
+        internal static string GetCreateDefaultsLabelText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDefaultsLabelTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Create pre-made categories" : text;
+        }
+
+        internal static string GetCreateDefaultsButtonText()
+        {
+            string text = Lang.GetMatchingIfExists(SetupDefaultsButtonTranslationKey);
+            return string.IsNullOrWhiteSpace(text) ? "Create now" : text;
         }
 
         internal static string GetCreateCategoryTooltipText()
@@ -810,16 +948,16 @@ namespace Enhanced_Handbook
             if (capi == null)
             {
                 wordCategories = Array.Empty<WordCategoryDefinition>();
-                onlyGridPages = true;
-                showOriginalSearchToggle = true;
+                onlyGridPages = false;
+                showOriginalSearchToggle = false;
                 useOriginalSearch = false;
-                showTutorialTab = true;
-                showBlocksAndItemsTab = true;
-                showGuidesTab = true;
+                showTutorialTab = false;
+                showBlocksAndItemsTab = false;
+                showGuidesTab = false;
                 enableDragAndDrop = false;
                 enableGroupCreationHotkeys = false;
                 createVariantCategories = false;
-                createEverythingGrouped = false;
+                createEverythingGrouped = true;
                 usingDefaultEnglishWordCategories = false;
                 HandbookPageDragManager.SetEnabled(null, false);
                 groupConfig = HandbookGroupConfig.CreateDefault();
