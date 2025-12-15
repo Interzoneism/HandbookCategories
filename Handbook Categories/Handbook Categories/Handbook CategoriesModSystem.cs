@@ -667,8 +667,12 @@ namespace Enhanced_Handbook
                 return TextCommandResult.Error("No default categories are available to restore.");
             }
 
+            if (HandbookCategoryManager.HasDefaultCategories(config))
+            {
+                return TextCommandResult.Success("Default categories are already applied.");
+            }
+
             config.Categories = defaultCategories;
-            config.UsesEnglishDefaults = true;
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);
             HandbookCategoryManager.ReloadConfiguration();
