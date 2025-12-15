@@ -660,18 +660,14 @@ namespace Enhanced_Handbook
             HandbookCategoriesConfig config = capi.LoadModConfig<HandbookCategoriesConfig>(HandbookCategoriesConfig.ConfigFileName)
                 ?? HandbookCategoriesConfig.CreateDefault();
 
-            List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
+            List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoryManager.CreateDefaultCategoriesForUserLanguage();
 
             if (defaultCategories == null || defaultCategories.Count == 0)
             {
                 return TextCommandResult.Error("No default categories are available to restore.");
             }
 
-            if (HandbookCategoryManager.HasDefaultCategories(config))
-            {
-                return TextCommandResult.Success("Default categories are already applied.");
-            }
-
+            config.Categories?.Clear();
             config.Categories = defaultCategories;
 
             capi.StoreModConfig(config, HandbookCategoriesConfig.ConfigFileName);

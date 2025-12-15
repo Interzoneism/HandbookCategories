@@ -987,7 +987,7 @@ namespace Enhanced_Handbook
 
             if (wordCategories.Length == 0 && usingDefaultCategories)
             {
-                config.Categories = HandbookCategoriesConfig.CreateDefaultCategories();
+                config.Categories = CreateDefaultCategoriesForUserLanguage();
                 wordCategories = BuildWordCategories(config);
                 shouldStoreConfig = true;
                 usingDefaultCategories = HasDefaultCategories(config);
@@ -7670,6 +7670,103 @@ namespace Enhanced_Handbook
             return string.Equals(locale, EnglishLocaleCode, StringComparison.OrdinalIgnoreCase);
         }
 
+        private static Dictionary<string, string> GetLanguageEntries(string localeCode)
+        {
+            if (string.IsNullOrWhiteSpace(localeCode))
+            {
+                return null;
+            }
+
+            if (!Lang.AvailableLanguages.TryGetValue(localeCode, out ITranslationService service))
+            {
+                return null;
+            }
+
+            return service
+                .GetAllEntries()
+                ?.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, string> BuildEnglishValueToKeyMap(Dictionary<string, string> englishEntries)
+        {
+            Dictionary<string, string> englishValueToKey = new(StringComparer.OrdinalIgnoreCase);
+
+            foreach (KeyValuePair<string, string> entry in englishEntries)
+            {
+                string value = entry.Value;
+
+                if (string.IsNullOrWhiteSpace(value) || englishValueToKey.ContainsKey(value))
+                {
+                    continue;
+                }
+
+                englishValueToKey[value] = entry.Key;
+            }
+
+            return englishValueToKey;
+        }
+
+        private static HandbookCategoryConfigEntry ConvertCategoryToUserLanguage(
+            HandbookCategoryConfigEntry category,
+            Dictionary<string, string> englishValueToKey,
+            Dictionary<string, string> userLanguageEntries)
+        {
+            if (category == null)
+            {
+                return category;
+            }
+
+            return new HandbookCategoryConfigEntry
+            {
+                Name = ConvertEnglishTextToUserLanguage(category.Name, englishValueToKey, userLanguageEntries),
+                MatchWords = ConvertEnglishListToUserLanguage(category.MatchWords, englishValueToKey, userLanguageEntries),
+                MatchTitleWords = ConvertEnglishListToUserLanguage(category.MatchTitleWords, englishValueToKey, userLanguageEntries),
+                ForbiddenWords = ConvertEnglishListToUserLanguage(category.ForbiddenWords, englishValueToKey, userLanguageEntries),
+                ForbiddenTitleWords = ConvertEnglishListToUserLanguage(category.ForbiddenTitleWords, englishValueToKey, userLanguageEntries),
+                TabBackgroundColor = category.TabBackgroundColor
+            };
+        }
+
+        private static List<string> ConvertEnglishListToUserLanguage(
+            IEnumerable<string> englishList,
+            Dictionary<string, string> englishValueToKey,
+            Dictionary<string, string> userLanguageEntries)
+        {
+            if (englishList == null)
+            {
+                return new List<string>();
+            }
+
+            return englishList
+                .Select(word => ConvertEnglishTextToUserLanguage(word, englishValueToKey, userLanguageEntries))
+                .ToList();
+        }
+
+        private static string ConvertEnglishTextToUserLanguage(
+            string englishText,
+            Dictionary<string, string> englishValueToKey,
+            Dictionary<string, string> userLanguageEntries)
+        {
+            if (string.IsNullOrWhiteSpace(englishText) || englishValueToKey == null || userLanguageEntries == null)
+            {
+                return englishText;
+            }
+
+            string trimmed = englishText.Trim();
+
+            if (!englishValueToKey.TryGetValue(trimmed, out string translationKey))
+            {
+                return englishText;
+            }
+
+            if (userLanguageEntries.TryGetValue(translationKey, out string localized) && !string.IsNullOrWhiteSpace(localized))
+            {
+                return localized;
+            }
+
+            return englishText;
+        }
+
         private readonly struct PageTitleData
         {
             internal PageTitleData(string normalizedPrimaryTitle, string localizedTitle)
@@ -7711,18 +7808,49 @@ namespace Enhanced_Handbook
             return CategoriesMatchDefaults(config.Categories);
         }
 
+        internal static List<HandbookCategoryConfigEntry> CreateDefaultCategoriesForUserLanguage()
+        {
+            List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
+
+            if (IsEnglishLocale(Lang.CurrentLocale))
+            {
+                return defaultCategories;
+            }
+
+            Dictionary<string, string> englishEntries = GetLanguageEntries(EnglishLocaleCode);
+            Dictionary<string, string> userEntries = GetLanguageEntries(Lang.CurrentLocale);
+
+            if (englishEntries == null || englishEntries.Count == 0 || userEntries == null || userEntries.Count == 0)
+            {
+                return defaultCategories;
+            }
+
+            Dictionary<string, string> englishValueToKey = BuildEnglishValueToKeyMap(englishEntries);
+
+            return defaultCategories
+                .Select(entry => ConvertCategoryToUserLanguage(entry, englishValueToKey, userEntries))
+                .ToList();
+        }
+
         private static bool CategoriesMatchDefaults(IList<HandbookCategoryConfigEntry> categories)
         {
             List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
 
-            if (categories == null || categories.Count != defaultCategories.Count)
+            return CategoriesMatch(categories, defaultCategories);
+        }
+
+        internal static bool CategoriesMatch(
+            IList<HandbookCategoryConfigEntry> categories,
+            IList<HandbookCategoryConfigEntry> expected)
+        {
+            if (categories == null || expected == null || categories.Count != expected.Count)
             {
                 return false;
             }
 
             for (int i = 0; i < categories.Count; i++)
             {
-                if (!CategoryEntryEquals(categories[i], defaultCategories[i]))
+                if (!CategoryEntryEquals(categories[i], expected[i]))
                 {
                     return false;
                 }
