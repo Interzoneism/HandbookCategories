@@ -981,23 +981,16 @@ namespace Enhanced_Handbook
                 shouldStoreConfig = true;
             }
 
-            bool usingDefaultCategories = DetermineIfEnglishDefault(config, ref shouldStoreConfig);
+            bool usingDefaultCategories = HasDefaultCategories(config);
 
             wordCategories = BuildWordCategories(config);
 
-            if (wordCategories.Length == 0)
+            if (wordCategories.Length == 0 && usingDefaultCategories)
             {
-                if (config?.UsesEnglishDefaults == true)
-                {
-                    config.Categories = HandbookCategoriesConfig.CreateDefaultCategories();
-                    wordCategories = BuildWordCategories(config);
-                    shouldStoreConfig = true;
-                    usingDefaultCategories = true;
-                }
-                else
-                {
-                    usingDefaultCategories = false;
-                }
+                config.Categories = HandbookCategoriesConfig.CreateDefaultCategories();
+                wordCategories = BuildWordCategories(config);
+                shouldStoreConfig = true;
+                usingDefaultCategories = HasDefaultCategories(config);
             }
 
             onlyGridPages = config?.OnlyGridPages ?? false;
@@ -7708,54 +7701,21 @@ namespace Enhanced_Handbook
             }
         }
 
-        private static bool DetermineIfEnglishDefault(HandbookCategoriesConfig config, ref bool shouldStoreConfig)
+        internal static bool HasDefaultCategories(HandbookCategoriesConfig config)
         {
-            if (config == null)
+            if (config?.Categories == null)
             {
                 return false;
             }
 
-            if (config.UsesEnglishDefaults)
-            {
-                return true;
-            }
-
-            if (!LooksLikeDefaultEnglishConfig(config))
-            {
-                return false;
-            }
-
-            config.UsesEnglishDefaults = true;
-            shouldStoreConfig = true;
-            return true;
+            return CategoriesMatchDefaults(config.Categories);
         }
 
-        private static bool LooksLikeDefaultEnglishConfig(HandbookCategoriesConfig config)
+        private static bool CategoriesMatchDefaults(IList<HandbookCategoryConfigEntry> categories)
         {
-            if (config == null)
-            {
-                return false;
-            }
-
-            HandbookCategoriesConfig defaultConfig = HandbookCategoriesConfig.CreateDefault();
-
-            if (config.OnlyGridPages != defaultConfig.OnlyGridPages
-                || config.DisableTutorialTab != defaultConfig.DisableTutorialTab
-                || config.DisableBlocksAndItemsTab != defaultConfig.DisableBlocksAndItemsTab
-                || config.DisableGuidesTab != defaultConfig.DisableGuidesTab
-                || config.DisableOriginalSearchButton != defaultConfig.DisableOriginalSearchButton
-                || config.DisableDragAndDrop != defaultConfig.DisableDragAndDrop
-                || config.EnableGroupCreationHotkeys != defaultConfig.EnableGroupCreationHotkeys
-                || config.CreateVariantCategories != defaultConfig.CreateVariantCategories
-                || config.CreateEverythingGrouped != defaultConfig.CreateEverythingGrouped)
-            {
-                return false;
-            }
-
-            List<HandbookCategoryConfigEntry> categories = config.Categories ?? new List<HandbookCategoryConfigEntry>();
             List<HandbookCategoryConfigEntry> defaultCategories = HandbookCategoriesConfig.CreateDefaultCategories();
 
-            if (categories.Count != defaultCategories.Count)
+            if (categories == null || categories.Count != defaultCategories.Count)
             {
                 return false;
             }

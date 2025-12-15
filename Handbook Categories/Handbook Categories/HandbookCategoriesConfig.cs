@@ -37,9 +37,6 @@ namespace Enhanced_Handbook
         [JsonProperty("createEverythingGrouped")]
         public bool CreateEverythingGrouped { get; set; }
 
-        [JsonProperty("usesEnglishDefaults")]
-        public bool UsesEnglishDefaults { get; set; }
-
         [JsonProperty("categories")]
         public List<HandbookCategoryConfigEntry> Categories { get; set; } = new();
 
@@ -57,7 +54,6 @@ namespace Enhanced_Handbook
                 CreateVariantCategories = false,
                 CreateEverythingGrouped = true,
                 HasSeenSetupMessage = false,
-                UsesEnglishDefaults = false,
                 Categories = new List<HandbookCategoryConfigEntry>
                 {
                     new HandbookCategoryConfigEntry
@@ -71,7 +67,6 @@ namespace Enhanced_Handbook
         internal static HandbookCategoriesConfig CreateWithDefaultCategories()
         {
             HandbookCategoriesConfig config = CreateDefault();
-            config.UsesEnglishDefaults = true;
             config.Categories = CreateDefaultCategories();
             return config;
         }
