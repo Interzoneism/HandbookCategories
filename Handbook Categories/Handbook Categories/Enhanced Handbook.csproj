@@ -2,12 +2,12 @@
 
 
 	<PropertyGroup Condition="'$(DesignTimeBuild)'=='true' and '$(TargetFramework)'==''">
-		<TargetFramework>net8.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 	</PropertyGroup>
 
 	<PropertyGroup>
 
-		<TargetFrameworks>net8.0</TargetFrameworks>
+		<TargetFrameworks>net10.0</TargetFrameworks>
 
 
 		<AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
@@ -15,16 +15,16 @@
 	</PropertyGroup>
 
 
-	<PropertyGroup Condition="'$(TargetFramework)'=='net8.0' and '$(VS121)'!=''">
-		<GameDllRoot>$(VS121)</GameDllRoot>
+	<PropertyGroup Condition="'$(TargetFramework)'=='net10.0' and '$(VS122)'!=''">
+		<GameDllRoot>$(VS122)</GameDllRoot>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(TargetFramework)'=='net8.0' and '$(VS121)'==''">
+	<PropertyGroup Condition="'$(TargetFramework)'=='net10.0' and '$(VS122)'==''">
 		<GameDllRoot>$(VINTAGE_STORY)</GameDllRoot>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0|AnyCPU'">
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0|AnyCPU'">
 		<DebugType>none</DebugType>
 	</PropertyGroup>
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0|AnyCPU'">
+	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net10.0|AnyCPU'">
 		<DebugType>none</DebugType>
 	</PropertyGroup>
 	<ItemGroup>

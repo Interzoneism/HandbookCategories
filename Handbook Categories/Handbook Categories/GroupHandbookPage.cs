@@ -209,6 +209,8 @@ namespace Enhanced_Handbook
 
         public override bool IsDuplicate => false;
 
+        public override float SearchWeightOffset => Math.Max(1.5f, weightSourcePage?.SearchWeightOffset ?? 0f);
+
         public override void RenderListEntryTo(ICoreClientAPI capi, float dt, double x, double y, double cellWidth, double cellHeight)
         {
             if (capi == null)
@@ -278,27 +280,13 @@ namespace Enhanced_Handbook
             iconScissorBounds = null;
         }
 
-        public override float GetTextMatchWeight(string searchText)
+        public override PageText GetPageText()
         {
-            float fallback = GetGroupMatchWeight(searchText);
-
-            if (weightSourcePage != null)
+            return new PageText
             {
-                try
-                {
-                    float sourceWeight = weightSourcePage.GetTextMatchWeight(searchText);
-                    if (sourceWeight > fallback)
-                    {
-                        return sourceWeight;
-                    }
-                }
-                catch
-                {
-                    // Ignore failures from the original page to avoid breaking the UI.
-                }
-            }
-
-            return fallback;
+                Title = normalizedName ?? string.Empty,
+                Text = searchableText ?? string.Empty
+            };
         }
 
         public override void ComposePage(
@@ -341,45 +329,6 @@ namespace Enhanced_Handbook
 
             iconScissorBounds = ElementBounds.FixedSize(50.0, 50.0);
             iconScissorBounds.ParentBounds = capi.Gui.WindowBounds;
-        }
-
-        private float GetGroupMatchWeight(string searchText)
-        {
-            if (string.IsNullOrWhiteSpace(searchText))
-            {
-                return 2.5f;
-            }
-
-            string normalized = searchText.ToSearchFriendly().ToLowerInvariant();
-            if (normalized.Length == 0)
-            {
-                return 2.5f;
-            }
-
-            if (!string.IsNullOrEmpty(normalizedName))
-            {
-                if (normalizedName.Equals(normalized, StringComparison.Ordinal))
-                {
-                    return 3.5f;
-                }
-
-                if (normalizedName.StartsWith(normalized, StringComparison.Ordinal))
-                {
-                    return 3.2f;
-                }
-
-                if (normalizedName.Contains(normalized, StringComparison.Ordinal))
-                {
-                    return 3f;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(searchableText) && searchableText.Contains(normalized, StringComparison.Ordinal))
-            {
-                return 2.5f;
-            }
-
-            return 0f;
         }
 
         private static DummySlot CloneSlotFromPage(GuiHandbookPage sourcePage)

@@ -9,6 +9,6 @@
   "version": "1.8.0",
   "side": "Client",
   "dependencies": {
-    "game": ""
+    "game": "1.22.0"
   }
 }

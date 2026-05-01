@@ -1727,7 +1727,7 @@ namespace Enhanced_Handbook
             {
                 foreach (GridRecipe recipe in capi.World.GridRecipes)
                 {
-                    if (recipe == null || recipe.Output?.ResolvedItemstack == null || !recipe.ShowInCreatedBy)
+                    if (recipe == null || recipe.Output?.ResolvedItemStack == null || !recipe.ShowInCreatedBy)
                     {
                         continue;
                     }
@@ -6995,7 +6995,7 @@ namespace Enhanced_Handbook
 
         private static GuiHandbookItemStackPage FindPageForRecipe(GridRecipe recipe, Dictionary<string, GuiHandbookItemStackPage> itemPagesByCode)
         {
-            ItemStack output = recipe.Output?.ResolvedItemstack;
+            ItemStack output = recipe.Output?.ResolvedItemStack;
             if (output == null)
             {
                 return null;
@@ -7255,7 +7255,7 @@ namespace Enhanced_Handbook
                 return 0f;
             }
 
-            float baseWeight = page.GetTextMatchWeight(term);
+            float baseWeight = GetPageTextMatchWeight(page, term);
             bool baseHasWholeWord = !requireWholeWordMatch || MatchesWholeWordInPageText(page, term);
 
             float extrasWeight = GetVanillaSearchExtrasWeight(page, term, requireWholeWordMatch, out bool extrasHaveWholeWord);
@@ -7266,6 +7266,31 @@ namespace Enhanced_Handbook
             }
 
             return extrasWeight > baseWeight ? extrasWeight : baseWeight;
+        }
+
+        private static float GetPageTextMatchWeight(GuiHandbookPage page, string term)
+        {
+            if (page == null || string.IsNullOrEmpty(term))
+            {
+                return 0f;
+            }
+
+            PageText pageText = page.GetPageText();
+            string title = NormalizeWholeWordCandidate(pageText.Title);
+            string text = NormalizeWholeWordCandidate(pageText.Text);
+
+            float titleWeight = GetTitleMatchWeight(title, term);
+            if (titleWeight > 0f)
+            {
+                return titleWeight + page.SearchWeightOffset;
+            }
+
+            if (!string.IsNullOrEmpty(text) && text.IndexOf(term, StringComparison.Ordinal) >= 0)
+            {
+                return 1f + page.SearchWeightOffset;
+            }
+
+            return 0f;
         }
 
         private static float GetVanillaSearchExtrasWeight(GuiHandbookPage page, string term, bool requireWholeWordMatch, out bool hasWholeWordMatch)

@@ -1306,7 +1306,7 @@ namespace Enhanced_Handbook
             GridRecipeAndUnnamedIngredients visibleRecipe = component.CurrentVisibleRecipe;
             if (visibleRecipe == null)
             {
-                GridRecipeAndUnnamedIngredients[] allRecipes = component.GridRecipesAndUnIn;
+                GridRecipeAndUnnamedIngredients[] allRecipes = component.GridRecipesAndUnnamedIngredients;
                 if (allRecipes == null || allRecipes.Length == 0)
                 {
                     return null;
@@ -1326,15 +1326,15 @@ namespace Enhanced_Handbook
                 return null;
             }
 
-            CraftingRecipeIngredient ingredient = recipe.GetElementInGrid(row, column, recipe.resolvedIngredients, recipe.Width);
+            CraftingRecipeIngredient ingredient = recipe.GetElementInGrid(row, column, recipe.ResolvedIngredients, recipe.Width);
             if (ingredient == null)
             {
                 return null;
             }
 
             ItemStack stack = null;
-            int gridIndex = recipe.GetGridIndex(row, column, recipe.resolvedIngredients, recipe.Width);
-            Dictionary<int, ItemStack[]> unnamed = visibleRecipe.unnamedIngredients;
+            int gridIndex = recipe.GetGridIndex(row, column, recipe.ResolvedIngredients, recipe.Width);
+            Dictionary<int, ItemStack[]> unnamed = visibleRecipe.UnnamedIngredients;
 
             if (unnamed != null && unnamed.TryGetValue(gridIndex, out ItemStack[] variants) && variants != null && variants.Length > 0)
             {
@@ -1342,9 +1342,9 @@ namespace Enhanced_Handbook
                 ItemStack variant = variants[Math.Clamp(variantIndex, 0, variants.Length - 1)];
                 stack = variant?.Clone();
             }
-            else if (ingredient.ResolvedItemstack != null)
+            else if (ingredient.ResolvedItemStack != null)
             {
-                stack = ingredient.ResolvedItemstack.Clone();
+                stack = ingredient.ResolvedItemStack.Clone();
             }
 
             if (stack != null)
