@@ -1,6 +1,5 @@
 ## Context
 - Vintage Story API and decompiled source code live in `Decompiled_VS_1.22_SourceCode/`
-- Vintage Story assets (json for blocktypes, recipes, shapes etc) live in `VS_1.21_assets`
 - We only work with the latest stable Vintage Story version 1.22 - all the code in Decompiled_VS_1.22_SourceCode are from the 1.22 version so you can trust it completely.
 - Reference code for adding tabs and other useful information is in `REFCODE/` - two .cs files from another similar mod.
 
