@@ -9,7 +9,7 @@
 *.user
 *.userosscache
 *.sln.docstates
-
+Handbook Categories\Decompiled_VS_1.22_SourceCode
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
