@@ -647,7 +647,8 @@ namespace Enhanced_Handbook
 
         private void RunDefaultCategoriesCommand()
         {
-            capi?.SendChatMessage(".categorymoddefault");
+            if (capi == null) return;
+            OnCategoryModDefaultCommand(null);
         }
 
         private TextCommandResult OnCategoryModDefaultCommand(TextCommandCallingArgs args)
@@ -985,15 +986,56 @@ namespace Enhanced_Handbook
 
         public static void AfterPagesLoaded(GuiDialogHandbook __instance)
         {
-            if (__instance is GuiDialogSurvivalHandbook && HandbookCategoryManager.IsReady)
+            if (__instance is not GuiDialogSurvivalHandbook || !HandbookCategoryManager.IsReady)
             {
-                if (AllPagesField?.GetValue(__instance) is List<GuiHandbookPage> pages)
-                {
-                    EnsureGuidePage(__instance, pages);
-                    HandbookCategoryManager.MarkCategoriesDirty();
-                    HandbookCategoryManager.RebuildCategories(pages);
-                }
+                return;
             }
+
+            if (AllPagesField?.GetValue(__instance) is not List<GuiHandbookPage> pages)
+            {
+                return;
+            }
+
+            ICoreClientAPI capi = HandbookCategoryManager.ClientApi;
+            if (capi == null)
+            {
+                return;
+            }
+
+            // LoadPages_Async runs on a thread pool thread in VS 1.22.
+            // Dispatch all category work to the main thread to avoid concurrent
+            // modification of shared static state, and to refresh the UI if the
+            // handbook is already open when loading finishes.
+            capi.Event.EnqueueMainThreadTask(() =>
+            {
+                EnsureGuidePage(__instance, pages);
+                HandbookCategoryManager.MarkCategoriesDirty();
+                HandbookCategoryManager.RebuildCategories(pages);
+
+                // Always rebuild tabs for the dialog that just loaded pages, even if it is
+                // not currently open.  In VS 1.22 LoadPages_Async runs on a background thread,
+                // so by the time this task executes the dialog may not be in OpenedGuis yet.
+                // Without this the stale overviewGui (built before pages were available) would
+                // be shown the first time the player opens the handbook, causing the
+                // "Everything (Grouped)" tab to be missing.
+                if (__instance is GuiDialogSurvivalHandbook primaryDialog)
+                {
+                    RebuildTabs(primaryDialog);
+                }
+
+                // Also refresh any other open handbook dialogs (e.g. if there are multiple
+                // instances open, which can happen when the config is reloaded at runtime).
+                if (capi?.Gui?.OpenedGuis != null)
+                {
+                    foreach (GuiDialogSurvivalHandbook dialog in capi.Gui.OpenedGuis
+                        .OfType<GuiDialogSurvivalHandbook>()
+                        .Where(d => !ReferenceEquals(d, __instance))
+                        .ToList())
+                    {
+                        RebuildTabs(dialog);
+                    }
+                }
+            }, "handbookcategories-afterpagesloaded");
         }
 
         public static void InitOverviewGuiPostfix(GuiDialogHandbook __instance)

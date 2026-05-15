@@ -38,15 +38,13 @@ namespace CakeBuild
         public string[] ProjectPaths { get; }
         public (string Label, string Tfm)[] Targets { get; } =
         {
-            ("VS1.21","net8.0")
+            ("VS1.22","net10.0")
         };
 
-        public string VS120 { get; }
-        public string VS121 { get; }
+        public string VS122 { get; }
         public string VS_Fallback { get; }
 
-        public string VS120_VersionOverride { get; }
-        public string VS121_VersionOverride { get; }
+        public string VS122_VersionOverride { get; }
         public string ZipCopyTo { get; }
         public BuildContext(ICakeContext ctx) : base(ctx)
         {
@@ -77,27 +75,21 @@ namespace CakeBuild
                     : new[] { $"../BetterHunger/BetterHunger.csproj" };
             }
 
-            VS120 = ctx.EnvironmentVariable("VS120");
-            VS121 = ctx.EnvironmentVariable("VS121");
+            VS122 = ctx.EnvironmentVariable("VS122");
             VS_Fallback = ctx.EnvironmentVariable("VINTAGE_STORY");
 
-            VS120_VersionOverride = ctx.Argument("vs120ver", (string)null) ?? ctx.EnvironmentVariable("VS120_MODVER");
-            VS121_VersionOverride = ctx.Argument("vs121ver", (string)null) ?? ctx.EnvironmentVariable("VS121_MODVER");
+            VS122_VersionOverride = ctx.Argument("vs122ver", (string)null) ?? ctx.EnvironmentVariable("VS122_MODVER");
         }
     }
 
     static class Versioning
     {
 
-        public static (string v120, string v121) ResolveVersions(
-            JObject baseJson, string baseVersion, string cli120, string cli121)
+        public static string ResolveVersion(
+            JObject baseJson, string baseVersion, string cli122)
         {
-            string map120 = FromMap(baseJson, "VS1.20");
-            string map121 = FromMap(baseJson, "VS1.21");
-
-            string v120 = cli120 ?? map120 ?? baseVersion;
-            string v121 = cli121 ?? map121 ?? baseVersion;
-            return (v120, v121);
+            string map122 = FromMap(baseJson, "VS1.22");
+            return cli122 ?? map122 ?? baseVersion;
         }
 
         public static string FromMap(JObject baseJson, string key)
@@ -147,8 +139,7 @@ namespace CakeBuild
 
                 foreach (var (label, tfm) in ctx.Targets)
                 {
-                    var vs120 = ctx.VS120 ?? ctx.VS_Fallback ?? "";
-                    var vs121 = ctx.VS121 ?? ctx.VS_Fallback ?? "";
+                    var vs122 = ctx.VS122 ?? ctx.VS_Fallback ?? "";
 
                     ctx.Information($"Publishing {proj} → {label} ({tfm}) …");
                     ctx.DotNetPublish(proj, new DotNetPublishSettings
@@ -156,8 +147,7 @@ namespace CakeBuild
                         Configuration = ctx.BuildConfiguration,
                         Framework = tfm,
                         ArgumentCustomization = args => args
-                            .Append($"/p:VS120=\"{vs120}\"")
-                            .Append($"/p:VS121=\"{vs121}\"")
+                            .Append($"/p:VS122=\"{vs122}\"")
                     });
                 }
             }
@@ -183,8 +173,7 @@ namespace CakeBuild
                 var modId = baseJson["ModID"]?.Value<string>() ?? Path.GetFileNameWithoutExtension(proj);
                 var baseVersion = baseJson["version"]?.Value<string>() ?? "1.0.0";
 
-                var (v120, v121) = Versioning.ResolveVersions(baseJson, baseVersion,
-                    ctx.VS120_VersionOverride, ctx.VS121_VersionOverride);
+                var v122 = Versioning.ResolveVersion(baseJson, baseVersion, ctx.VS122_VersionOverride);
 
                 foreach (var (label, tfm) in ctx.Targets)
                 {
@@ -208,7 +197,7 @@ namespace CakeBuild
                         ctx.CopyFile(iconPath, Path.Combine(outDir, "modicon.png"));
 
                     var stamped = (JObject)baseJson.DeepClone();
-                    var versionForThis = (label == "VS1.20") ? v120 : v121;
+                    var versionForThis = v122;
                     stamped.Remove("VersionMap");
 
                     var outModInfo = Path.Combine(outDir, "modinfo.json");
@@ -220,10 +209,10 @@ namespace CakeBuild
                     ctx.Zip(outDir, zipPath);
                     if (!string.IsNullOrWhiteSpace(ctx.ZipCopyTo))
                     {
-                        bool is121 = label.Equals("VS1.21", StringComparison.OrdinalIgnoreCase)
-                                  || string.Equals(tfm, "net8.0", StringComparison.OrdinalIgnoreCase);
+                        bool is122 = label.Equals("VS1.22", StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(tfm, "net10.0", StringComparison.OrdinalIgnoreCase);
 
-                        if (is121)
+                        if (is122)
                         {
                             var targetDir = Path.GetFullPath(ctx.ZipCopyTo);
                             ctx.EnsureDirectoryExists(targetDir);
@@ -234,11 +223,11 @@ namespace CakeBuild
                                 ctx.DeleteFile(destPath);
 
                             ctx.CopyFile(zipPath, destPath);
-                            ctx.Information($"Copied ZIP (net8/VS1.21) to: {destPath}");
+                            ctx.Information($"Copied ZIP (net10/VS1.22) to: {destPath}");
                         }
                         else
                         {
-                            ctx.Verbose($"Skipping copy for {label}/{tfm} (only copying VS1.21/net8).");
+                            ctx.Verbose($"Skipping copy for {label}/{tfm} (only copying VS1.22/net10).");
                         }
                     }
 

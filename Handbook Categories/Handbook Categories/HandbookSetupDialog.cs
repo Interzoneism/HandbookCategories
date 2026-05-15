@@ -117,6 +117,14 @@ namespace Enhanced_Handbook
                 OnVariantCategoryToggled,
                 currentY);
 
+            currentY = AddToggle(composer,
+                "group-hotkeys",
+                HandbookCategoryManager.GetGroupHotkeysToggleText(),
+                HandbookCategoryManager.GetGroupHotkeysTooltipText(),
+                config?.EnableGroupCreationHotkeys == true,
+                OnGroupHotkeysToggled,
+                currentY);
+
             ElementBounds categoryLabelBounds = ElementBounds.Fixed(0.0, currentY + 6.0, 240.0, 20.0);
             ElementBounds categoryButtonBounds = ElementBounds.Fixed(260.0, currentY, 200.0, 30.0);
 
@@ -259,6 +267,20 @@ namespace Enhanced_Handbook
                 }
 
                 config.CreateVariantCategories = enabled;
+                return true;
+            });
+        }
+
+        private void OnGroupHotkeysToggled(bool enabled)
+        {
+            UpdateSetting(config =>
+            {
+                if (config.EnableGroupCreationHotkeys == enabled)
+                {
+                    return false;
+                }
+
+                config.EnableGroupCreationHotkeys = enabled;
                 return true;
             });
         }

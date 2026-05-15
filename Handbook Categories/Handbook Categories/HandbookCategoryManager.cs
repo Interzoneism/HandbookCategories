@@ -153,12 +153,12 @@ namespace Enhanced_Handbook
             "guides"
         };
 
-        private static readonly AssetLocation WoodWorldPropertyCode = new("worldproperties/block/wood.json");
+        private static readonly AssetLocation WoodWorldPropertyCode = new("survival", "worldproperties/block/wood.json");
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool woodVariantsLoaded;
 
-        private static readonly AssetLocation StoneWorldPropertyCode = new("worldproperties/block/rock.json");
+        private static readonly AssetLocation StoneWorldPropertyCode = new("survival", "worldproperties/block/rock.json");
         private static readonly HashSet<string> knownStoneVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool stoneVariantsLoaded;
@@ -381,6 +381,22 @@ namespace Enhanced_Handbook
             return string.IsNullOrWhiteSpace(text)
                 ? "Shows automatically generated variant categories for blocks and items."
                 : text;
+        }
+
+        internal static string GetGroupHotkeysToggleText()
+        {
+            return Lang.GetMatchingIfExists("enhancedhandbook:setup-grouphotkeys-toggle")
+                is string t && !string.IsNullOrWhiteSpace(t)
+                ? t
+                : "Enable shift/ctrl-click group creation";
+        }
+
+        internal static string GetGroupHotkeysTooltipText()
+        {
+            return Lang.GetMatchingIfExists("enhancedhandbook:setup-grouphotkeys-tooltip")
+                is string t && !string.IsNullOrWhiteSpace(t)
+                ? t
+                : "Allows creating groups by shift-clicking or ctrl-clicking items in the handbook.";
         }
 
         internal static string GetCreateDefaultsLabelText()
@@ -1688,8 +1704,13 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            capi?.Logger?.Debug("[Handbook Categories] DIAG: RebuildCategories - allPages={0}, createEverythingGrouped={1}, dirty={2}, initialized={3}",
+                allPages?.Count ?? -1, createEverythingGrouped, categoriesDirty, categoriesInitialized);
+
             if (capi?.World == null || allPages == null || allPages.Count == 0)
             {
+                capi?.Logger?.Warning("[Handbook Categories] DIAG: RebuildCategories early-exit: World={0}, pages={1}",
+                    capi?.World != null, allPages?.Count ?? -1);
                 Clear();
                 return;
             }
@@ -1750,6 +1771,9 @@ namespace Enhanced_Handbook
             }
 
             UpdateWoodVariantPageVisibility(allPages);
+
+            capi?.Logger?.Debug("[Handbook Categories] DIAG: After UpdateWoodVariantPageVisibility - woodGroups={0}, stoneGroups={1}, ceramicGroups={2}",
+                woodVariantGroupsByKey.Count, stoneVariantGroupsByKey.Count, ceramicVariantGroupsByKey.Count);
 
             void EnsureCategoryMetadata(WordCategoryDefinition definition)
             {
@@ -2214,11 +2238,6 @@ namespace Enhanced_Handbook
                 foreach (GuiHandbookPage page in pages)
                 {
                     if (page is not GuiHandbookItemStackPage stackPage || page.IsDuplicate)
-                    {
-                        continue;
-                    }
-
-                    if (!IsGridRecipePage(stackPage))
                     {
                         continue;
                     }
@@ -3569,6 +3588,7 @@ namespace Enhanced_Handbook
 
             if (capi?.Assets == null)
             {
+                capi?.Logger?.Warning("[Handbook Categories] DIAG: EnsureWoodVariantsLoaded - capi.Assets is null, wood names NOT loaded");
                 return;
             }
 
@@ -3577,12 +3597,14 @@ namespace Enhanced_Handbook
                 IAsset asset = capi.Assets.TryGet(WoodWorldPropertyCode);
                 if (asset == null)
                 {
+                    capi.Logger?.Warning("[Handbook Categories] DIAG: EnsureWoodVariantsLoaded - asset {0} not found", WoodWorldPropertyCode);
                     return;
                 }
 
                 StandardWorldProperty property = asset.ToObject<StandardWorldProperty>();
                 if (property?.Variants == null)
                 {
+                    capi.Logger?.Warning("[Handbook Categories] DIAG: EnsureWoodVariantsLoaded - property or variants is null");
                     return;
                 }
 
@@ -3594,6 +3616,8 @@ namespace Enhanced_Handbook
                         RegisterKnownWoodName(name);
                     }
                 }
+
+                capi.Logger?.Debug("[Handbook Categories] DIAG: EnsureWoodVariantsLoaded - loaded {0} wood names: {1}", knownWoodVariantNames.Count, string.Join(", ", knownWoodVariantNames));
             }
             catch (Exception ex)
             {
@@ -4730,11 +4754,49 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            var createdGroups = new List<GroupHandbookPage>();
+            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory start - allPages={0}, woodGroupCandidates={1}, knownWoodNames={2}",
+                allPages.Count, woodVariantGroupsByKey.Count, knownWoodVariantNames.Count);
 
-            createdGroups.AddRange(RegisterVariantGroups(CollectWoodVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
-            createdGroups.AddRange(RegisterVariantGroups(CollectStoneVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
-            createdGroups.AddRange(RegisterVariantGroups(CollectCeramicVariantGroupInfos(), EverythingGroupsDisplayCategoryCode, null));
+            var woodInfos = CollectWoodVariantGroupInfos();
+            var stoneInfos = CollectStoneVariantGroupInfos();
+            var ceramicInfos = CollectCeramicVariantGroupInfos();
+
+            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory - wood groups={0}, stone groups={1}, ceramic groups={2}",
+                woodInfos.Count, stoneInfos.Count, ceramicInfos.Count);
+
+            if (woodInfos.Count > 0)
+            {
+                var sampleGroups = woodInfos.Take(5).Select(g => $"{g.DisplayName}({g.Members.Count})");
+                capi?.Logger?.Debug("[Handbook Categories] DIAG: Sample wood groups: {0}", string.Join(", ", sampleGroups));
+            }
+            else
+            {
+                // Log why wood groups are empty - check a few items
+                int woodCandidateCount = woodVariantGroupsByKey.Count;
+                int filteredOut = woodVariantGroupsByKey.Values.Count(b => b != null && b.Members.Count <= 1);
+                capi?.Logger?.Warning("[Handbook Categories] DIAG: No wood groups found! Candidates={0}, filtered-out(<=1 member)={1}", woodCandidateCount, filteredOut);
+
+                if (woodCandidateCount > 0)
+                {
+                    foreach (var kvp in woodVariantGroupsByKey.Take(5))
+                    {
+                        var members = kvp.Value?.Members ?? new System.Collections.Generic.List<GuiHandbookItemStackPage>();
+                        capi?.Logger?.Warning("[Handbook Categories] DIAG:   Group '{0}': {1} member(s)", kvp.Key, members.Count);
+                        if (members.Count > 0)
+                        {
+                            capi?.Logger?.Warning("[Handbook Categories] DIAG:     First member: title='{0}', code='{1}'",
+                                members[0].TextCacheTitle, members[0].Stack?.Collectible?.Code?.Path ?? "?");
+                        }
+                    }
+                }
+            }
+
+            var createdGroups = new List<GroupHandbookPage>();
+            createdGroups.AddRange(RegisterVariantGroups(woodInfos, EverythingGroupsDisplayCategoryCode, null));
+            createdGroups.AddRange(RegisterVariantGroups(stoneInfos, EverythingGroupsDisplayCategoryCode, null));
+            createdGroups.AddRange(RegisterVariantGroups(ceramicInfos, EverythingGroupsDisplayCategoryCode, null));
+
+            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory - total createdGroups={0}", createdGroups.Count);
 
             PopulateEverythingGroupsCategory(allPages, createdGroups);
         }
@@ -4914,6 +4976,11 @@ namespace Enhanced_Handbook
 
         private static bool IsGridRecipePage(GuiHandbookPage page)
         {
+            if (page is GroupHandbookPage groupPage)
+            {
+                return groupPage.Members != null && groupPage.Members.Any(m => IsGridRecipePage(m));
+            }
+
             if (page is GuiHandbookItemStackPage itemPage)
             {
                 string pageCode = itemPage.PageCode;

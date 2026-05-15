@@ -50,7 +50,7 @@ namespace Enhanced_Handbook
                 DisableGuidesTab = true,
                 DisableOriginalSearchButton = true,
                 DisableDragAndDrop = false,
-                EnableGroupCreationHotkeys = false,
+                EnableGroupCreationHotkeys = true,
                 CreateVariantCategories = false,
                 CreateEverythingGrouped = true,
                 HasSeenSetupMessage = false,
