@@ -153,15 +153,16 @@ namespace Enhanced_Handbook
             "guides"
         };
 
-        private static readonly AssetLocation WoodWorldPropertyCode = new("survival", "worldproperties/block/wood.json");
+        private static readonly AssetLocation WoodWorldPropertyCode = new("worldproperties/block/wood.json");
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool woodVariantsLoaded;
 
-        private static readonly AssetLocation StoneWorldPropertyCode = new("survival", "worldproperties/block/rock.json");
+        private static readonly AssetLocation StoneWorldPropertyCode = new("worldproperties/block/rock.json");
         private static readonly HashSet<string> knownStoneVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> stoneVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool stoneVariantsLoaded;
+        private static readonly string[] compoundStoneVariantFallbacks = { "pink-marble", "green-marble" };
         private static readonly Dictionary<string, string> ceramicVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool ceramicVariantsLoaded;
         private static readonly Dictionary<string, string> ceramicVariantColorMap = new(StringComparer.OrdinalIgnoreCase)
@@ -3693,6 +3694,7 @@ namespace Enhanced_Handbook
 
             if (capi?.Assets == null)
             {
+                RegisterFallbackStoneVariants();
                 return;
             }
 
@@ -3701,12 +3703,14 @@ namespace Enhanced_Handbook
                 IAsset asset = capi.Assets.TryGet(StoneWorldPropertyCode);
                 if (asset == null)
                 {
+                    RegisterFallbackStoneVariants();
                     return;
                 }
 
                 StandardWorldProperty property = asset.ToObject<StandardWorldProperty>();
                 if (property?.Variants == null)
                 {
+                    RegisterFallbackStoneVariants();
                     return;
                 }
 
@@ -3723,6 +3727,26 @@ namespace Enhanced_Handbook
             {
                 capi?.Logger?.Warning("[Handbook Categories] Failed to load stone world property {0}: {1}", StoneWorldPropertyCode, ex);
             }
+            finally
+            {
+                RegisterFallbackStoneVariants();
+            }
+        }
+
+        private static void RegisterFallbackStoneVariants()
+        {
+            if (compoundStoneVariantFallbacks == null)
+            {
+                return;
+            }
+
+            foreach (string fallback in compoundStoneVariantFallbacks)
+            {
+                if (!string.IsNullOrEmpty(fallback))
+                {
+                    RegisterKnownStoneName(fallback);
+                }
+            }
         }
 
         private static void RegisterKnownStoneName(string stoneName)
@@ -3738,12 +3762,33 @@ namespace Enhanced_Handbook
 
             if (!string.IsNullOrEmpty(displayName))
             {
-                stoneVariantDisplayNameByCode[normalized] = displayName;
+                if (!stoneVariantDisplayNameByCode.TryGetValue(normalized, out string existing) || !IsMoreReadableName(existing, displayName))
+                {
+                    stoneVariantDisplayNameByCode[normalized] = displayName;
+                }
             }
             else if (added && !stoneVariantDisplayNameByCode.ContainsKey(normalized))
             {
                 stoneVariantDisplayNameByCode[normalized] = BuildStoneVariantDisplayName(normalized);
             }
+        }
+
+        private static bool IsMoreReadableName(string existingName, string newName)
+        {
+            if (string.IsNullOrEmpty(existingName))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(newName))
+            {
+                return true;
+            }
+
+            bool existingHasSeparators = existingName.Contains(' ') || existingName.Contains('-') || existingName.Contains('_');
+            bool newHasSeparators = newName.Contains(' ') || newName.Contains('-') || newName.Contains('_');
+
+            return existingHasSeparators && !newHasSeparators;
         }
 
         private static void EnsureCeramicVariantsLoaded()
@@ -4198,7 +4243,7 @@ namespace Enhanced_Handbook
                 return null;
             }
 
-            foreach (string stone in knownStoneVariantNames)
+            foreach (string stone in knownStoneVariantNames.OrderByDescending(s => s.Length).ThenBy(s => s, StringComparer.OrdinalIgnoreCase))
             {
                 if (CodeContainsStoneToken(code, stone))
                 {
@@ -5081,7 +5126,7 @@ namespace Enhanced_Handbook
                 }
             }
 
-            AppendGroupPages(categoryCode, searchQuery, weightedPages);
+            AppendGroupPages(categoryCode, searchQuery, weightedPages, restrictToRecipes);
 
             foreach (WeightedHandbookPage weighted in weightedPages
                 .OrderByDescending(w => w.Weight)
@@ -6410,6 +6455,32 @@ namespace Enhanced_Handbook
             return key;
         }
 
+        internal static bool ShouldLetVanillaHandleBack(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(dialog) is Stack<BrowseHistoryElement> history && history.Count > 0)
+                {
+                    BrowseHistoryElement top = history.Peek();
+                    if (top?.Page != null && !(top.Page is GroupHandbookPage))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore reflection failures.
+            }
+
+            return false;
+        }
+
         internal static bool TryHandleGroupBackNavigation(GuiDialogHandbook dialog)
         {
             if (dialog == null)
@@ -6456,6 +6527,8 @@ namespace Enhanced_Handbook
             {
                 return false;
             }
+
+            ClearBrowseHistory(dialog);
 
             string previousCategory = target.PreviousCategoryCode;
             if (!string.IsNullOrEmpty(previousCategory))
@@ -6541,6 +6614,26 @@ namespace Enhanced_Handbook
             }
 
             return false;
+        }
+
+        private static void ClearBrowseHistory(GuiDialogHandbook dialog)
+        {
+            if (dialog == null || BrowseHistoryField == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (BrowseHistoryField.GetValue(dialog) is Stack<BrowseHistoryElement> history)
+                {
+                    history.Clear();
+                }
+            }
+            catch
+            {
+                // Ignore reflection failures.
+            }
         }
 
         private static void RestoreOverviewScroll(GuiDialogHandbook dialog, float scrollPosition)
@@ -6661,7 +6754,7 @@ namespace Enhanced_Handbook
             return false;
         }
 
-        private static void AppendGroupPages(string categoryCode, SearchQuery searchQuery, List<WeightedHandbookPage> weightedPages)
+        private static void AppendGroupPages(string categoryCode, SearchQuery searchQuery, List<WeightedHandbookPage> weightedPages, bool restrictToRecipes)
         {
             if (weightedPages == null)
             {
@@ -6680,6 +6773,11 @@ namespace Enhanced_Handbook
             foreach (GroupHandbookPage group in groups)
             {
                 if (group == null)
+                {
+                    continue;
+                }
+
+                if (restrictToRecipes && !IsGridRecipePage(group))
                 {
                     continue;
                 }

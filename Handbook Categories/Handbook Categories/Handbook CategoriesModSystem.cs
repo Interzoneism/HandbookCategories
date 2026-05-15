@@ -1151,6 +1151,11 @@ namespace Enhanced_Handbook
                 return true;
             }
 
+            if (HandbookCategoryManager.ShouldLetVanillaHandleBack(__instance))
+            {
+                return true;
+            }
+
             if (HandbookCategoryManager.TryHandleGroupBackNavigation(__instance))
             {
                 __result = true;
