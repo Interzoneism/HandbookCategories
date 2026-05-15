@@ -25,6 +25,7 @@ namespace Enhanced_Handbook
         private string listDisplayText;
         private string searchableText;
         private LoadedTexture titleTexture;
+        private bool? lastRenderedRecipesOnly;
         private DummySlot iconSlot;
         private GuiHandbookPage weightSourcePage;
         private int sortOrderHint = int.MaxValue;
@@ -313,6 +314,7 @@ namespace Enhanced_Handbook
         {
             titleTexture?.Dispose();
             titleTexture = null;
+            lastRenderedRecipesOnly = null;
         }
 
         private void EnsureIconScissorBounds(ICoreClientAPI capi)
@@ -406,6 +408,25 @@ namespace Enhanced_Handbook
             return source.Inventory != null ? new DummySlot(clone, source.Inventory) : new DummySlot(clone);
         }
 
+        private int CountRecipeMembers()
+        {
+            if (members == null)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            foreach (GuiHandbookPage member in members)
+            {
+                if (HandbookCategoryManager.IsGridRecipePage(member))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         private void EnsureTexture(ICoreClientAPI capi)
         {
             if (capi == null)
@@ -413,18 +434,32 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            if (titleTexture != null)
+            bool currentRecipesOnly = HandbookCategoryManager.RecipesOnlyEnabled;
+            if (titleTexture != null && lastRenderedRecipesOnly == currentRecipesOnly)
             {
                 return;
             }
 
-            string text = listDisplayText;
+            DisposeTexture();
+
+            string text;
+            if (currentRecipesOnly)
+            {
+                int recipeCount = CountRecipeMembers();
+                text = BuildListDisplayText(displayName, recipeCount);
+            }
+            else
+            {
+                text = listDisplayText;
+            }
+
             if (string.IsNullOrWhiteSpace(text))
             {
                 text = displayName ?? string.Empty;
             }
 
             titleTexture = GenerateLinkStyleTexture(capi, text, titleTexture);
+            lastRenderedRecipesOnly = currentRecipesOnly;
         }
 
         private static LoadedTexture GenerateLinkStyleTexture(ICoreClientAPI capi, string text, LoadedTexture existing)

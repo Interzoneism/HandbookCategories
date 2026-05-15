@@ -1116,6 +1116,11 @@ namespace Enhanced_Handbook
         {
             if (HandbookCategoryManager.DragAndDropEnabled)
             {
+                if (HandbookCategoryManager.IsCreateCategoryPromptOpen())
+                {
+                    return false;
+                }
+
                 if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
                 {
                     return false;
@@ -1149,6 +1154,12 @@ namespace Enhanced_Handbook
             if (!HandbookCategoryManager.DragAndDropEnabled)
             {
                 return true;
+            }
+
+            if (HandbookCategoryManager.TryHandleGroupMemberDetailBack(__instance))
+            {
+                __result = true;
+                return false;
             }
 
             if (HandbookCategoryManager.ShouldLetVanillaHandleBack(__instance))
