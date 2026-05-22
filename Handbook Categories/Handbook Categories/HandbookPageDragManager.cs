@@ -21,6 +21,14 @@ namespace Enhanced_Handbook
         // is never occluded by dialog elements.
         private const double DragIconRenderDepth = 4000.0;
 
+        private enum GroupClickModifierAction
+        {
+            None,
+            Shift,
+            Ctrl,
+            ShiftCtrl
+        }
+
         private sealed class DragIconRenderer : IRenderer
         {
             private readonly ICoreClientAPI api;
@@ -269,7 +277,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (capi?.Input == null || !IsCtrlKeyHeld())
+            if (capi?.Input == null || GetCurrentGroupClickModifierAction() != GroupClickModifierAction.Ctrl)
             {
                 return false;
             }
@@ -303,6 +311,52 @@ namespace Enhanced_Handbook
             return HandbookCategoryManager.TryHandleGroupCtrlClick(dialog, overview, searchList, page);
         }
 
+        internal static bool TryHandleShiftCtrlClick(GuiDialogHandbook dialog, int index)
+        {
+            if (!featureEnabled || dialog == null || index < 0)
+            {
+                return false;
+            }
+
+            if (!HandbookCategoryManager.GroupCreationHotkeysEnabled)
+            {
+                return false;
+            }
+
+            if (capi?.Input == null || GetCurrentGroupClickModifierAction() != GroupClickModifierAction.ShiftCtrl)
+            {
+                return false;
+            }
+
+            if (!trackedDialogs.TryGetValue(dialog, out DragState state))
+            {
+                return false;
+            }
+
+            GuiComposer overview = state.Overview;
+            GuiElementFlatList searchList = state.SearchList ?? overview?.GetFlatList("stacklist");
+
+            if (overview == null || searchList == null)
+            {
+                return false;
+            }
+
+            List<IFlatListItem> elements = searchList.Elements;
+            if (elements == null || index < 0 || index >= elements.Count)
+            {
+                return false;
+            }
+
+            if (elements[index] is not GuiHandbookPage page)
+            {
+                return false;
+            }
+
+            state.SearchList = searchList;
+
+            return HandbookCategoryManager.TryHandleSinglePageGroupClick(dialog, overview, searchList, page);
+        }
+
         internal static bool TryHandleShiftClick(GuiDialogHandbook dialog, int index)
         {
             if (!featureEnabled || dialog == null || index < 0)
@@ -315,7 +369,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            if (capi?.Input == null || !IsShiftKeyHeld())
+            if (capi?.Input == null || GetCurrentGroupClickModifierAction() != GroupClickModifierAction.Shift)
             {
                 return false;
             }
@@ -1626,6 +1680,31 @@ namespace Enhanced_Handbook
             bool rightDown = rightIndex >= 0 && rightIndex < keys.Length && keys[rightIndex];
 
             return leftDown || rightDown;
+        }
+
+        private static GroupClickModifierAction GetCurrentGroupClickModifierAction()
+        {
+            return GetGroupClickModifierAction(IsShiftKeyHeld(), IsCtrlKeyHeld());
+        }
+
+        private static GroupClickModifierAction GetGroupClickModifierAction(bool shiftHeld, bool ctrlHeld)
+        {
+            if (shiftHeld && ctrlHeld)
+            {
+                return GroupClickModifierAction.ShiftCtrl;
+            }
+
+            if (ctrlHeld)
+            {
+                return GroupClickModifierAction.Ctrl;
+            }
+
+            if (shiftHeld)
+            {
+                return GroupClickModifierAction.Shift;
+            }
+
+            return GroupClickModifierAction.None;
         }
 
         private static bool IsCtrlKeyHeld()

@@ -97,6 +97,7 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<GuiDialogHandbook, PendingGroupCreation> pendingGroupCreations = new();
         private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly Dictionary<string, (string ReturnCategory, float ScrollPosition)> persistentGroupReturnByCode = new();
+        private static readonly Dictionary<GuiDialogHandbook, string> activeGroupHiddenCategoryByDialog = new();
         private static readonly Dictionary<string, WoodVariantGroupBuilder> woodVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, StoneVariantGroupBuilder> stoneVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -5419,6 +5420,62 @@ namespace Enhanced_Handbook
                 minimumWordCount: 2);
         }
 
+        internal static bool TryHandleSinglePageGroupClick(
+            GuiDialogHandbook dialog,
+            GuiComposer overviewGui,
+            GuiElementFlatList searchList,
+            GuiHandbookPage selectedPage)
+        {
+            if (!enableGroupCreationHotkeys)
+            {
+                return false;
+            }
+
+            if (dialog == null || selectedPage == null)
+            {
+                return false;
+            }
+
+            if (selectedPage is GroupHandbookPage)
+            {
+                return true;
+            }
+
+            string displayCategoryCode = dialog.currentCatgoryCode;
+            if (HasGroupInDisplayCategory(selectedPage, displayCategoryCode))
+            {
+                return true;
+            }
+
+            if (ShownPagesField?.GetValue(dialog) is not List<IFlatListItem> shownPages || shownPages.Count == 0)
+            {
+                return false;
+            }
+
+            int selectedIndex = shownPages.IndexOf(selectedPage);
+            if (selectedIndex < 0)
+            {
+                return false;
+            }
+
+            PendingGroupCreation pending = new(
+                dialog,
+                overviewGui,
+                searchList,
+                shownPages,
+                new List<GuiHandbookPage> { selectedPage },
+                selectedIndex,
+                displayCategoryCode,
+                selectedPage);
+
+            pendingGroupCreations[dialog] = pending;
+
+            string defaultName = GetDefaultGroupName(selectedPage);
+            ShowGroupNamePrompt(pending, defaultName);
+
+            return true;
+        }
+
         private static bool HasGroupInDisplayCategory(GuiHandbookPage page, string displayCategoryCode)
         {
             if (page == null)
@@ -6469,6 +6526,99 @@ namespace Enhanced_Handbook
             stack.Push(new GroupNavigationState(previousCategoryCode, hiddenCategoryCode, scrollPosition));
         }
 
+        private static bool StackContainsHiddenCategory(Stack<GroupNavigationState> stack, string hiddenCategoryCode)
+        {
+            if (stack == null || string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return false;
+            }
+
+            return stack.Any(state => state != null && string.Equals(state.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal));
+        }
+
+        private static void SetActiveGroupHiddenCategory(GuiDialogHandbook dialog, string hiddenCategoryCode)
+        {
+            if (dialog == null || string.IsNullOrEmpty(hiddenCategoryCode))
+            {
+                return;
+            }
+
+            activeGroupHiddenCategoryByDialog[dialog] = hiddenCategoryCode;
+        }
+
+        private static void ClearActiveGroupHiddenCategory(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            activeGroupHiddenCategoryByDialog.Remove(dialog);
+        }
+
+        internal static void SynchronizeActiveGroupWithCurrentCategory(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            if (!activeGroupHiddenCategoryByDialog.TryGetValue(dialog, out string trackedCode)
+                || string.IsNullOrEmpty(trackedCode))
+            {
+                return;
+            }
+
+            string currentCode = dialog.currentCatgoryCode;
+
+            if (string.Equals(currentCode, trackedCode, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            bool inStack = groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack)
+                && stack != null
+                && StackContainsHiddenCategory(stack, trackedCode);
+
+            if (!inStack)
+            {
+                ClearActiveGroupHiddenCategory(dialog);
+                return;
+            }
+
+            bool currentIsHiddenInStack = !string.IsNullOrEmpty(currentCode)
+                && StackContainsHiddenCategory(stack, currentCode);
+
+            if (!currentIsHiddenInStack)
+            {
+                ClearActiveGroupHiddenCategory(dialog);
+            }
+        }
+
+        private static void RestoreActiveGroupHiddenCategoryFromStack(GuiDialogHandbook dialog, Stack<GroupNavigationState> stack)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            if (stack == null || stack.Count == 0)
+            {
+                ClearActiveGroupHiddenCategory(dialog);
+                return;
+            }
+
+            GroupNavigationState top = stack.Peek();
+            if (top != null && !string.IsNullOrEmpty(top.HiddenCategoryCode))
+            {
+                SetActiveGroupHiddenCategory(dialog, top.HiddenCategoryCode);
+            }
+            else
+            {
+                ClearActiveGroupHiddenCategory(dialog);
+            }
+        }
+
         internal static bool HasGroupBackNavigation(GuiDialogHandbook dialog)
         {
             return TryGetActiveGroupNavigationState(dialog, out _);
@@ -6615,6 +6765,7 @@ namespace Enhanced_Handbook
 
             PushGroupNavigation(dialog, groupPage.HiddenCategoryCode, previousCategory, scrollPosition);
             persistentGroupReturnByCode["grpback_" + groupPage.HiddenCategoryCode] = (previousCategory, scrollPosition);
+            SetActiveGroupHiddenCategory(dialog, groupPage.HiddenCategoryCode);
 
             dialog.currentCatgoryCode = groupPage.HiddenCategoryCode;
             dialog.FilterItems();
@@ -6787,6 +6938,11 @@ namespace Enhanced_Handbook
             if (stack.Count == 0)
             {
                 groupNavigationHistory.Remove(dialog);
+                ClearActiveGroupHiddenCategory(dialog);
+            }
+            else
+            {
+                RestoreActiveGroupHiddenCategoryFromStack(dialog, stack);
             }
 
             if (target == null)
@@ -6858,6 +7014,7 @@ namespace Enhanced_Handbook
                         if (!string.IsNullOrEmpty(hiddenCode))
                         {
                             dialog.currentCatgoryCode = hiddenCode;
+                            SetActiveGroupHiddenCategory(dialog, hiddenCode);
                             dialog.FilterItems();
                             RestoreOverviewScroll(dialog, activeState?.ScrollPosition ?? 0f);
                         }
@@ -6884,6 +7041,14 @@ namespace Enhanced_Handbook
             if (dialog == null || stack == null || stack.Count == 0)
             {
                 return false;
+            }
+
+            if (activeGroupHiddenCategoryByDialog.TryGetValue(dialog, out string trackedCode)
+                && !string.IsNullOrEmpty(trackedCode)
+                && StackContainsHiddenCategory(stack, trackedCode))
+            {
+                hiddenCategoryCode = trackedCode;
+                return true;
             }
 
             string currentCode = dialog.currentCatgoryCode;
@@ -7290,6 +7455,7 @@ namespace Enhanced_Handbook
             groupPagesByDisplayCategory.Clear();
             pendingGroupCreations.Clear();
             groupNavigationHistory.Clear();
+            activeGroupHiddenCategoryByDialog.Clear();
             persistentGroupReturnByCode.Clear();
             ResetNextGroupIdFromConfig();
         }
@@ -10283,6 +10449,7 @@ namespace Enhanced_Handbook
             groupPagesByDisplayCategory.Clear();
             pendingGroupCreations.Clear();
             groupNavigationHistory.Clear();
+            activeGroupHiddenCategoryByDialog.Clear();
 
             if (groupConfig?.Groups == null || groupConfig.Groups.Count == 0 || allPages == null || allPages.Count == 0)
             {

@@ -1121,6 +1121,11 @@ namespace Enhanced_Handbook
                     return false;
                 }
 
+                if (HandbookPageDragManager.TryHandleShiftCtrlClick(__instance, index))
+                {
+                    return false;
+                }
+
                 if (HandbookPageDragManager.TryHandleCtrlClick(__instance, index))
                 {
                     return false;
@@ -1403,6 +1408,7 @@ namespace Enhanced_Handbook
 
             HandbookCategoryManager.ApplyCategoryFilter(__instance.currentCatgoryCode, candidatePages, shownPages, overviewGui, currentSearch, loading, listHeight);
 
+            HandbookCategoryManager.SynchronizeActiveGroupWithCurrentCategory(__instance);
             HandbookCategoryManager.UpdateBackButtonState(__instance);
 
             return false;
