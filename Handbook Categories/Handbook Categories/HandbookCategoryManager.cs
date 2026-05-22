@@ -115,6 +115,7 @@ namespace Enhanced_Handbook
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo BrowseHistoryField = typeof(GuiDialogHandbook).GetField("browseHistory", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo CurrentSearchTextField = typeof(GuiDialogHandbook).GetField("currentSearchText", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo VerticalTabsField = typeof(GuiElementVerticalTabs).GetField("tabs", BindingFlags.Instance | BindingFlags.NonPublic);
         private static int nextGroupId = 1;
         private static string lastCreatedGroupName;
@@ -192,6 +193,7 @@ namespace Enhanced_Handbook
             ["greenmarble"] = "Green Marble",
             ["whitemarble"] = "White Marble"
         };
+        private static readonly string[] stoneVariantCompoundPrefixesToStrip = { "bone" };
         private static readonly Dictionary<string, string> ceramicVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool ceramicVariantsLoaded;
         private static readonly Dictionary<string, string> ceramicVariantColorMap = new(StringComparer.OrdinalIgnoreCase)
@@ -4213,7 +4215,62 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            return knownStoneVariantNames.Contains(normalized);
+            return knownStoneVariantNames.Contains(normalized)
+                || TryGetKnownStoneVariantFromCompound(value, out _);
+        }
+
+        private static string GetCanonicalStoneVariantValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            string normalized = NormalizeStoneName(value);
+            if (string.IsNullOrEmpty(normalized) || knownStoneVariantNames.Count == 0)
+            {
+                return value;
+            }
+
+            if (knownStoneVariantNames.Contains(normalized))
+            {
+                return normalized;
+            }
+
+            return TryGetKnownStoneVariantFromCompound(value, out string stone) ? stone : value;
+        }
+
+        private static bool TryGetKnownStoneVariantFromCompound(string value, out string stone)
+        {
+            stone = null;
+
+            string normalized = NormalizeStoneName(value);
+            if (string.IsNullOrEmpty(normalized)
+                || knownStoneVariantNames.Count == 0
+                || stoneVariantCompoundPrefixesToStrip == null)
+            {
+                return false;
+            }
+
+            foreach (string prefix in stoneVariantCompoundPrefixesToStrip)
+            {
+                string normalizedPrefix = NormalizeStoneName(prefix);
+                if (string.IsNullOrEmpty(normalizedPrefix)
+                    || normalized.Length <= normalizedPrefix.Length
+                    || !normalized.StartsWith(normalizedPrefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string candidate = normalized.Substring(normalizedPrefix.Length);
+                if (knownStoneVariantNames.Contains(candidate))
+                {
+                    stone = candidate;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void ResetWoodVariantCache()
@@ -4330,9 +4387,10 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            RegisterKnownStoneName(value);
-            string normalized = NormalizeStoneName(value);
-            info = new StoneVariantInfo(value, normalized);
+            string canonicalValue = GetCanonicalStoneVariantValue(value);
+            RegisterKnownStoneName(canonicalValue);
+            string normalized = NormalizeStoneName(canonicalValue);
+            info = new StoneVariantInfo(canonicalValue, normalized);
             return info.HasValue;
         }
 
@@ -4521,6 +4579,11 @@ namespace Enhanced_Handbook
                     return true;
                 }
 
+                if (IsCompoundStoneToken(token, stoneLower))
+                {
+                    return true;
+                }
+
                 if (token.Length >= stoneLower.Length)
                 {
                     continue;
@@ -4546,6 +4609,32 @@ namespace Enhanced_Handbook
                     {
                         break;
                     }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsCompoundStoneToken(string token, string stoneLower)
+        {
+            if (string.IsNullOrEmpty(token)
+                || string.IsNullOrEmpty(stoneLower)
+                || stoneVariantCompoundPrefixesToStrip == null)
+            {
+                return false;
+            }
+
+            foreach (string prefix in stoneVariantCompoundPrefixesToStrip)
+            {
+                string normalizedPrefix = NormalizeStoneName(prefix);
+                if (string.IsNullOrEmpty(normalizedPrefix))
+                {
+                    continue;
+                }
+
+                if (string.Equals(token, string.Concat(normalizedPrefix, stoneLower), StringComparison.Ordinal))
+                {
+                    return true;
                 }
             }
 
@@ -5128,7 +5217,7 @@ namespace Enhanced_Handbook
             var groupLookup = new Dictionary<GuiHandbookPage, GroupHandbookPage>();
             foreach (GroupHandbookPage group in groups)
             {
-                if (group?.Members == null)
+                if (!ShouldDisplayGroupInCategory(group, EverythingGroupsDisplayCategoryCode) || group?.Members == null)
                 {
                     continue;
                 }
@@ -5171,7 +5260,7 @@ namespace Enhanced_Handbook
 
             foreach (GroupHandbookPage group in groups)
             {
-                if (group == null || insertedGroups.Contains(group))
+                if (!ShouldDisplayGroupInCategory(group, EverythingGroupsDisplayCategoryCode) || insertedGroups.Contains(group))
                 {
                     continue;
                 }
@@ -5180,6 +5269,32 @@ namespace Enhanced_Handbook
             }
 
             return result;
+        }
+
+        private static bool ShouldDisplayGroupInCategory(GroupHandbookPage group, string categoryCode)
+        {
+            if (group == null)
+            {
+                return false;
+            }
+
+            if (string.Equals(categoryCode, EverythingGroupsDisplayCategoryCode, StringComparison.Ordinal))
+            {
+                return CountGroupMembers(group) > 1 || IsConfiguredGroup(group);
+            }
+
+            return true;
+        }
+
+        private static bool IsConfiguredGroup(GroupHandbookPage group)
+        {
+            string hiddenCode = group?.HiddenCategoryCode;
+            return !string.IsNullOrEmpty(hiddenCode) && groupConfigEntriesByHiddenCode.ContainsKey(hiddenCode);
+        }
+
+        private static int CountGroupMembers(GroupHandbookPage group)
+        {
+            return group?.Members?.Count(member => member != null) ?? 0;
         }
 
 
@@ -6950,6 +7065,7 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            string searchText = CaptureDialogSearchText(dialog);
             ClearBrowseHistory(dialog);
 
             string persistentKey = "grpback_" + hiddenCategoryCode;
@@ -6977,6 +7093,7 @@ namespace Enhanced_Handbook
             }
 
             dialog.ReloadPage();
+            RestoreDialogSearchText(dialog, searchText);
             RestoreOverviewScroll(dialog, scrollToRestore);
 
             if (!string.IsNullOrEmpty(previousCategory))
@@ -7009,14 +7126,21 @@ namespace Enhanced_Handbook
                     if (top?.Page != null && !(top.Page is GroupHandbookPage))
                     {
                         string hiddenCode = activeState?.HiddenCategoryCode;
+                        string searchText = CaptureDialogSearchText(dialog);
                         ClearBrowseHistory(dialog);
                         dialog.ReloadPage();
                         if (!string.IsNullOrEmpty(hiddenCode))
                         {
                             dialog.currentCatgoryCode = hiddenCode;
                             SetActiveGroupHiddenCategory(dialog, hiddenCode);
+                            RestoreDialogSearchText(dialog, searchText);
                             dialog.FilterItems();
+                            RestoreDialogSearchText(dialog, searchText);
                             RestoreOverviewScroll(dialog, activeState?.ScrollPosition ?? 0f);
+                        }
+                        else
+                        {
+                            RestoreDialogSearchText(dialog, searchText);
                         }
                         UpdateBackButtonState(dialog);
                         return true;
@@ -7122,6 +7246,59 @@ namespace Enhanced_Handbook
             }
         }
 
+        private static string CaptureDialogSearchText(GuiDialogHandbook dialog)
+        {
+            if (dialog == null)
+            {
+                return null;
+            }
+
+            string searchText = null;
+
+            try
+            {
+                if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
+                {
+                    searchText = overview.GetTextInput("searchField")?.GetText();
+                }
+            }
+            catch
+            {
+                // Ignore reflection failures and use the dialog field fallback.
+            }
+
+            if (searchText == null)
+            {
+                searchText = CurrentSearchTextField?.GetValue(dialog) as string;
+            }
+
+            CurrentSearchTextField?.SetValue(dialog, searchText);
+            return searchText;
+        }
+
+        private static void RestoreDialogSearchText(GuiDialogHandbook dialog, string searchText)
+        {
+            if (dialog == null)
+            {
+                return;
+            }
+
+            CurrentSearchTextField?.SetValue(dialog, searchText);
+
+            try
+            {
+                if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
+                {
+                    GuiElementTextInput searchInput = overview.GetTextInput("searchField");
+                    searchInput?.SetValue(searchText ?? string.Empty);
+                }
+            }
+            catch
+            {
+                // The private search text is still restored even if the input is unavailable.
+            }
+        }
+
         private static void RestoreOverviewScroll(GuiDialogHandbook dialog, float scrollPosition)
         {
             if (dialog == null)
@@ -7208,7 +7385,7 @@ namespace Enhanced_Handbook
 
             foreach (GroupHandbookPage group in groups)
             {
-                if (group == null)
+                if (!ShouldDisplayGroupInCategory(group, categoryCode))
                 {
                     continue;
                 }
@@ -7225,7 +7402,7 @@ namespace Enhanced_Handbook
 
             foreach (GroupHandbookPage group in groups)
             {
-                if (group == null)
+                if (!ShouldDisplayGroupInCategory(group, categoryCode))
                 {
                     continue;
                 }
