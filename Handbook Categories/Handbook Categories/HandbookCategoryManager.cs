@@ -80,6 +80,8 @@ namespace Enhanced_Handbook
         private const string CeramicGroupPageCodePrefix = GroupPageCodePrefix + "ceramicvariant-";
         private const string CeramicGroupDisplayCategoryName = "Ceramic Variants";
         private static readonly string CeramicGroupDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(CeramicGroupDisplayCategoryName));
+        private const string DefaultHandbookGroupHiddenCodePrefix = GroupCategoryCodePrefix + "default-";
+        private const string DefaultHandbookGroupPageCodePrefix = GroupPageCodePrefix + "default-";
         private const string EverythingGroupsDisplayCategoryName = "Everything (Groups)";
         private static readonly string EverythingGroupsDisplayCategoryCode = string.Concat(CategoryCodePrefix, Sanitize(EverythingGroupsDisplayCategoryName));
 
@@ -1799,10 +1801,10 @@ namespace Enhanced_Handbook
                 }
             }
 
-            UpdateWoodVariantPageVisibility(allPages);
-
-            capi?.Logger?.Debug("[Handbook Categories] DIAG: After UpdateWoodVariantPageVisibility - woodGroups={0}, stoneGroups={1}, ceramicGroups={2}",
-                woodVariantGroupsByKey.Count, stoneVariantGroupsByKey.Count, ceramicVariantGroupsByKey.Count);
+            if (createVariantCategories && !createEverythingGrouped)
+            {
+                UpdateWoodVariantPageVisibility(allPages);
+            }
 
             void EnsureCategoryMetadata(WordCategoryDefinition definition)
             {
@@ -3381,7 +3383,7 @@ namespace Enhanced_Handbook
                 string explicitWood = variants["wood"];
                 if (!string.IsNullOrEmpty(explicitWood))
                 {
-                    RegisterKnownWoodName(explicitWood);
+                    RememberWoodVariantDisplayName(explicitWood);
                     info = new WoodVariantInfo("wood", explicitWood, NormalizeWoodName(explicitWood));
                     return info.HasValue;
                 }
@@ -3394,7 +3396,7 @@ namespace Enhanced_Handbook
 
                     if (IsWoodVariantValue(typeVariant) || matchesWoodGroup)
                     {
-                        RegisterKnownWoodName(typeVariant);
+                        RememberWoodVariantDisplayName(typeVariant);
                         info = new WoodVariantInfo("type", typeVariant, normalizedType);
                         return info.HasValue;
                     }
@@ -3414,7 +3416,7 @@ namespace Enhanced_Handbook
 
                     if (keyIndicatesWood || ContainsWoodVariant(attributeWoodVariants, normalized) || IsWoodVariantValue(value))
                     {
-                        RegisterKnownWoodName(value);
+                        RememberWoodVariantDisplayName(value);
                         info = new WoodVariantInfo(key, value, normalized);
                         return info.HasValue;
                     }
@@ -3505,7 +3507,7 @@ namespace Enhanced_Handbook
                         continue;
                     }
 
-                    RegisterKnownWoodName(value);
+                    RememberWoodVariantDisplayName(value);
 
                     string normalized = NormalizeWoodName(value);
                     if (!string.IsNullOrEmpty(normalized))
@@ -3714,6 +3716,23 @@ namespace Enhanced_Handbook
             else if (added && !woodVariantDisplayNameByCode.ContainsKey(normalized))
             {
                 woodVariantDisplayNameByCode[normalized] = BuildWoodVariantDisplayName(normalized);
+            }
+        }
+
+        private static void RememberWoodVariantDisplayName(string woodName)
+        {
+            string normalized = NormalizeWoodName(woodName);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return;
+            }
+
+            string displayName = BuildWoodVariantDisplayName(woodName);
+            if (!string.IsNullOrEmpty(displayName)
+                && (!woodVariantDisplayNameByCode.TryGetValue(normalized, out string existing)
+                    || !IsMoreReadableName(existing, displayName)))
+            {
+                woodVariantDisplayNameByCode[normalized] = displayName;
             }
         }
 
@@ -4706,6 +4725,230 @@ namespace Enhanced_Handbook
             return groups;
         }
 
+        private sealed class HandbookGroupingCandidate
+        {
+            internal HandbookGroupingCandidate(GuiHandbookItemStackPage page, AssetLocation groupingCode)
+            {
+                Page = page;
+                GroupingCode = groupingCode;
+            }
+
+            internal GuiHandbookItemStackPage Page { get; }
+
+            internal AssetLocation GroupingCode { get; }
+        }
+
+        private static List<VariantGroupCreationInfo> CollectDefaultHandbookGroupInfos(IEnumerable<GuiHandbookPage> allPages)
+        {
+            var groups = new List<VariantGroupCreationInfo>();
+            if (allPages == null)
+            {
+                return groups;
+            }
+
+            List<HandbookGroupingCandidate> candidates = allPages
+                .OfType<GuiHandbookItemStackPage>()
+                .Where(page => page != null
+                    && page is not GuiHandbookGroupedItemstackPage
+                    && !page.IsDuplicate
+                    && page.Stack?.Collectible?.Code != null)
+                .Select(page => new HandbookGroupingCandidate(page, GetCodeForHandbookGrouping(page.Stack)))
+                .Where(candidate => candidate.GroupingCode != null)
+                .ToList();
+
+            var claimedPages = new HashSet<GuiHandbookPage>();
+
+            foreach (HandbookGroupingCandidate seed in candidates)
+            {
+                if (claimedPages.Contains(seed.Page))
+                {
+                    continue;
+                }
+
+                List<AssetLocation> wildcards = GetHandbookGroupWildcards(seed.Page.Stack);
+                if (wildcards.Count == 0)
+                {
+                    continue;
+                }
+
+                List<GuiHandbookItemStackPage> members = candidates
+                    .Where(candidate => !claimedPages.Contains(candidate.Page)
+                        && (ReferenceEquals(candidate.Page, seed.Page)
+                            || wildcards.Any(wildcard => WildcardUtil.Match(wildcard, candidate.GroupingCode))))
+                    .Select(candidate => candidate.Page)
+                    .Distinct()
+                    .ToList();
+
+                // A one-item group only adds another click without reducing the list.
+                if (members.Count <= 1)
+                {
+                    continue;
+                }
+
+                foreach (GuiHandbookItemStackPage member in members)
+                {
+                    claimedPages.Add(member);
+                }
+
+                members.Sort((left, right) => left.PageNumber.CompareTo(right.PageNumber));
+
+                string displayName = BuildDefaultHandbookGroupDisplayName(members, wildcards);
+                string sanitized = Sanitize(displayName);
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = Sanitize(wildcards[0].Path);
+                }
+
+                if (string.IsNullOrEmpty(sanitized))
+                {
+                    sanitized = "defaultgroup";
+                }
+
+                int sortHint = members.Min(member => member.PageNumber);
+                groups.Add(new VariantGroupCreationInfo(
+                    displayName,
+                    sanitized,
+                    members,
+                    sortHint,
+                    DefaultHandbookGroupHiddenCodePrefix,
+                    DefaultHandbookGroupPageCodePrefix));
+            }
+
+            return groups;
+        }
+
+        private static AssetLocation GetCodeForHandbookGrouping(ItemStack stack)
+        {
+            CollectibleObject collectible = stack?.Collectible;
+            if (collectible?.Code == null)
+            {
+                return null;
+            }
+
+            IHandbookGrouping grouping = collectible.GetCollectibleInterface<IHandbookGrouping>();
+            return grouping?.GetCodeForHandbookGrouping(stack) ?? collectible.Code;
+        }
+
+        private static List<AssetLocation> GetHandbookGroupWildcards(ItemStack stack)
+        {
+            var wildcards = new List<AssetLocation>();
+            CollectibleObject collectible = stack?.Collectible;
+            if (collectible?.Code == null)
+            {
+                return wildcards;
+            }
+
+            string[] configuredGroups = collectible.Attributes?["handbook"]?["groupBy"]?.AsArray<string>(null, "game");
+            if (configuredGroups == null || configuredGroups.Length == 0)
+            {
+                return wildcards;
+            }
+
+            IHandbookGrouping grouping = collectible.GetCollectibleInterface<IHandbookGrouping>();
+
+            foreach (string configuredGroup in configuredGroups)
+            {
+                if (string.IsNullOrWhiteSpace(configuredGroup))
+                {
+                    continue;
+                }
+
+                string wildcard = grouping?.GetWildcardForHandbookGrouping(configuredGroup, stack) ?? configuredGroup;
+                if (string.IsNullOrWhiteSpace(wildcard))
+                {
+                    continue;
+                }
+
+                AssetLocation location = wildcard.Contains(':')
+                    ? new AssetLocation(wildcard)
+                    : new AssetLocation(collectible.Code.Domain, wildcard);
+
+                if (!wildcards.Contains(location))
+                {
+                    wildcards.Add(location);
+                }
+            }
+
+            return wildcards;
+        }
+
+        private static string BuildDefaultHandbookGroupDisplayName(
+            IReadOnlyList<GuiHandbookItemStackPage> members,
+            IReadOnlyList<AssetLocation> wildcards)
+        {
+            List<string> commonTitleWords = FindCommonTitleWords(members);
+            List<string> wildcardWords = ExtractWildcardLiteralWords(wildcards?.FirstOrDefault()?.Path);
+
+            bool commonMatchesWildcard = commonTitleWords.Count == 1
+                && wildcardWords.Any(word => string.Equals(word, commonTitleWords[0], StringComparison.OrdinalIgnoreCase));
+
+            string name;
+            if (commonTitleWords.Count > 1 || commonMatchesWildcard || wildcardWords.Count == 0)
+            {
+                name = string.Join(" ", commonTitleWords);
+            }
+            else
+            {
+                name = string.Join(" ", wildcardWords);
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = GetLocalizedPageTitle(members?.FirstOrDefault());
+            }
+
+            return FormatStoneGroupDisplayName(string.IsNullOrWhiteSpace(name) ? DefaultGroupName : name);
+        }
+
+        private static List<string> FindCommonTitleWords(IReadOnlyList<GuiHandbookItemStackPage> members)
+        {
+            if (members == null || members.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            List<string> firstTitleWords = ExtractOrderedWordsPreservingCase(GetLocalizedPageTitle(members[0]));
+            if (firstTitleWords.Count == 0)
+            {
+                return firstTitleWords;
+            }
+
+            List<HashSet<string>> remainingTitleWords = members
+                .Skip(1)
+                .Select(member => new HashSet<string>(
+                    ExtractOrderedWordsPreservingCase(GetLocalizedPageTitle(member)),
+                    StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            return firstTitleWords
+                .Where(word => !string.IsNullOrWhiteSpace(word)
+                    && word.Any(char.IsLetter)
+                    && remainingTitleWords.All(words => words.Contains(word)))
+                .ToList();
+        }
+
+        private static List<string> ExtractWildcardLiteralWords(string wildcardPath)
+        {
+            var words = new List<string>();
+            if (string.IsNullOrWhiteSpace(wildcardPath))
+            {
+                return words;
+            }
+
+            int metaIndex = wildcardPath.IndexOfAny(new[] { '*', '@', '{', '(', '[', '?' });
+            string literalPrefix = metaIndex >= 0 ? wildcardPath.Substring(0, metaIndex) : wildcardPath;
+
+            foreach (string word in ExtractOrderedWordsPreservingCase(literalPrefix))
+            {
+                if (!string.IsNullOrWhiteSpace(word) && word.Any(char.IsLetter))
+                {
+                    words.Add(word);
+                }
+            }
+
+            return words;
+        }
+
         private static List<GuiHandbookPage> EnsureWoodGroupCategoryExists()
         {
             if (!pagesByCategory.TryGetValue(WoodGroupDisplayCategoryCode, out List<GuiHandbookPage> list) || list == null)
@@ -4963,49 +5206,8 @@ namespace Enhanced_Handbook
                 return;
             }
 
-            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory start - allPages={0}, woodGroupCandidates={1}, knownWoodNames={2}",
-                allPages.Count, woodVariantGroupsByKey.Count, knownWoodVariantNames.Count);
-
-            var woodInfos = CollectWoodVariantGroupInfos();
-            var stoneInfos = CollectStoneVariantGroupInfos();
-            var ceramicInfos = CollectCeramicVariantGroupInfos();
-
-            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory - wood groups={0}, stone groups={1}, ceramic groups={2}",
-                woodInfos.Count, stoneInfos.Count, ceramicInfos.Count);
-
-            if (woodInfos.Count > 0)
-            {
-                var sampleGroups = woodInfos.Take(5).Select(g => $"{g.DisplayName}({g.Members.Count})");
-                capi?.Logger?.Debug("[Handbook Categories] DIAG: Sample wood groups: {0}", string.Join(", ", sampleGroups));
-            }
-            else
-            {
-                // Log why wood groups are empty - check a few items
-                int woodCandidateCount = woodVariantGroupsByKey.Count;
-                int filteredOut = woodVariantGroupsByKey.Values.Count(b => b != null && b.Members.Count <= 1);
-                capi?.Logger?.Warning("[Handbook Categories] DIAG: No wood groups found! Candidates={0}, filtered-out(<=1 member)={1}", woodCandidateCount, filteredOut);
-
-                if (woodCandidateCount > 0)
-                {
-                    foreach (var kvp in woodVariantGroupsByKey.Take(5))
-                    {
-                        var members = kvp.Value?.Members ?? new System.Collections.Generic.List<GuiHandbookItemStackPage>();
-                        capi?.Logger?.Warning("[Handbook Categories] DIAG:   Group '{0}': {1} member(s)", kvp.Key, members.Count);
-                        if (members.Count > 0)
-                        {
-                            capi?.Logger?.Warning("[Handbook Categories] DIAG:     First member: title='{0}', code='{1}'",
-                                members[0].TextCacheTitle, members[0].Stack?.Collectible?.Code?.Path ?? "?");
-                        }
-                    }
-                }
-            }
-
-            var createdGroups = new List<GroupHandbookPage>();
-            createdGroups.AddRange(RegisterVariantGroups(woodInfos, EverythingGroupsDisplayCategoryCode, null));
-            createdGroups.AddRange(RegisterVariantGroups(stoneInfos, EverythingGroupsDisplayCategoryCode, null));
-            createdGroups.AddRange(RegisterVariantGroups(ceramicInfos, EverythingGroupsDisplayCategoryCode, null));
-
-            capi?.Logger?.Debug("[Handbook Categories] DIAG: CreateEverythingGroupsCategory - total createdGroups={0}", createdGroups.Count);
+            List<VariantGroupCreationInfo> groupInfos = CollectDefaultHandbookGroupInfos(allPages);
+            List<GroupHandbookPage> createdGroups = RegisterVariantGroups(groupInfos, EverythingGroupsDisplayCategoryCode, null);
 
             PopulateEverythingGroupsCategory(allPages, createdGroups);
         }

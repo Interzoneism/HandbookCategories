@@ -1,10 +1,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Enhanced_Handbook;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
+using Vintagestory.API.Util;
 using Vintagestory.GameContent;
 using Xunit;
 
@@ -12,6 +16,79 @@ namespace Enhanced_Handbook.Tests;
 
 public sealed class HandbookCategoryManagerGroupTests
 {
+    [Fact]
+    public void DefaultHandbookGroupsFollowConfiguredGroupByWildcard()
+    {
+        IList groups = CollectDefaultHandbookGroups(
+            CreateItemPage("book-normal-brickred", "Brick red book", "book-*", 0),
+            CreateItemPage("book-normal-cherryred", "Cherry red book", "book-*", 1),
+            CreateItemPage("book-aged-gray", "Gray book", "book-*", 2));
+
+        object group = Assert.Single(groups.Cast<object>());
+        Assert.Equal("Book", ReadProperty<string>(group, "DisplayName"));
+        Assert.Equal(3, ReadProperty<IList>(group, "Members").Count);
+    }
+
+    [Fact]
+    public void DefaultHandbookGroupsKeepStoneAndMetalToolsTogether()
+    {
+        IList groups = CollectDefaultHandbookGroups(
+            CreateItemPage("knife-generic-chert", "Chert knife", "knife-*", 0),
+            CreateItemPage("knife-generic-bonechert", "Chert knife", "knife-*", 1),
+            CreateItemPage("knife-generic-copper", "Copper knife", "knife-*", 2),
+            CreateItemPage("knife-generic-steel", "Steel knife", "knife-*", 3));
+
+        object group = Assert.Single(groups.Cast<object>());
+        Assert.Equal("Knife", ReadProperty<string>(group, "DisplayName"));
+        Assert.Equal(4, ReadProperty<IList>(group, "Members").Count);
+    }
+
+    [Fact]
+    public void DiscoveringExplicitWoodVariantDoesNotTeachUnrelatedVariantValuesAsWood()
+    {
+        Type managerType = GetManagerType();
+        FieldInfo knownField = managerType.GetField("knownWoodVariantNames", BindingFlags.NonPublic | BindingFlags.Static)!;
+        FieldInfo displayField = managerType.GetField("woodVariantDisplayNameByCode", BindingFlags.NonPublic | BindingFlags.Static)!;
+        FieldInfo loadedField = managerType.GetField("woodVariantsLoaded", BindingFlags.NonPublic | BindingFlags.Static)!;
+        MethodInfo method = managerType.GetMethod("TryGetWoodVariantInfo", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var known = (ISet<string>)knownField.GetValue(null)!;
+        var display = (IDictionary)displayField.GetValue(null)!;
+        string[] originalKnown = known.ToArray();
+        var originalDisplay = display.Cast<DictionaryEntry>().ToDictionary(entry => entry.Key, entry => entry.Value);
+        bool originalLoaded = (bool)loadedField.GetValue(null)!;
+
+        try
+        {
+            known.Clear();
+            known.Add("oak");
+            display.Clear();
+            loadedField.SetValue(null, true);
+
+            Item explicitWoodItem = CreateItem("modded-board-chert", null, new Dictionary<string, string> { ["wood"] = "chert" });
+            Item unrelatedItem = CreateItem("knife-generic-chert", null, new Dictionary<string, string> { ["material"] = "chert" });
+
+            Assert.True(InvokeTryGetVariantInfo(method, new ItemStack(explicitWoodItem)));
+            Assert.False(InvokeTryGetVariantInfo(method, new ItemStack(unrelatedItem)));
+            Assert.DoesNotContain("chert", known);
+        }
+        finally
+        {
+            known.Clear();
+            foreach (string value in originalKnown)
+            {
+                known.Add(value);
+            }
+
+            display.Clear();
+            foreach (KeyValuePair<object, object> entry in originalDisplay)
+            {
+                display[entry.Key] = entry.Value;
+            }
+
+            loadedField.SetValue(null, originalLoaded);
+        }
+    }
+
     [Fact]
     public void BuildEverythingGroupsCategoryPagesDoesNotReplaceSingletonMembersWithGroup()
     {
@@ -110,6 +187,65 @@ public sealed class HandbookCategoryManagerGroupTests
         method.Invoke(null, new[] { dialog, "resin" });
 
         Assert.Equal("resin", currentSearchTextField.GetValue(dialog));
+    }
+
+    private static IList CollectDefaultHandbookGroups(params GuiHandbookItemStackPage[] pages)
+    {
+        MethodInfo method = GetManagerType().GetMethod("CollectDefaultHandbookGroupInfos", BindingFlags.NonPublic | BindingFlags.Static)!;
+        return (IList)method.Invoke(null, new object[] { pages.Cast<GuiHandbookPage>().ToList() })!;
+    }
+
+    private static GuiHandbookItemStackPage CreateItemPage(string code, string title, string groupBy, int pageNumber)
+    {
+        Item item = CreateItem(code, groupBy, null);
+        var page = (GuiHandbookItemStackPage)RuntimeHelpers.GetUninitializedObject(typeof(GuiHandbookItemStackPage));
+        page.Stack = new ItemStack(item);
+        page.TextCacheTitle = title;
+        page.TextCacheAll = title;
+        page.PageNumber = pageNumber;
+        return page;
+    }
+
+    private static Item CreateItem(string code, string groupBy, Dictionary<string, string> variants)
+    {
+        var item = new Item
+        {
+            Code = new AssetLocation("game", code)
+        };
+
+        if (!string.IsNullOrWhiteSpace(groupBy))
+        {
+            item.Attributes = JsonObject.FromJson($"{{\"handbook\":{{\"groupBy\":[\"{groupBy}\"]}}}}");
+        }
+
+        if (variants != null)
+        {
+            foreach (KeyValuePair<string, string> variant in variants)
+            {
+                item.VariantStrict[variant.Key] = variant.Value;
+            }
+
+            item.Variant = new RelaxedReadOnlyDictionary<string, string>(item.VariantStrict);
+        }
+
+        return item;
+    }
+
+    private static bool InvokeTryGetVariantInfo(MethodInfo method, ItemStack stack)
+    {
+        object[] args = { stack, null };
+        return (bool)method.Invoke(null, args)!;
+    }
+
+    private static Type GetManagerType()
+    {
+        return typeof(Handbook_CategoriesModSystem).Assembly.GetType("Enhanced_Handbook.HandbookCategoryManager", throwOnError: true)!;
+    }
+
+    private static T ReadProperty<T>(object instance, string propertyName)
+    {
+        PropertyInfo property = instance.GetType().GetProperty(propertyName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)!;
+        return (T)property.GetValue(instance)!;
     }
 
     private sealed class TestHandbookPage : GuiHandbookPage
