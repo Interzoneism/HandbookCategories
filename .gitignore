@@ -13,6 +13,8 @@ Handbook Categories/Decompiled_VS_1.22_SourceCode/
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 refcode 1.21/
+Vintage Story API 1.22.6/
+Enhanced Handbook.Tests/
 
 # Mono auto generated files
 mono_crash.*

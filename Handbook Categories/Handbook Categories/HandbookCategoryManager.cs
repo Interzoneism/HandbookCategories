@@ -97,7 +97,6 @@ namespace Enhanced_Handbook
         private static readonly Dictionary<GuiDialogHandbook, PendingGroupCreation> pendingGroupCreations = new();
         private static readonly Dictionary<GuiDialogHandbook, Stack<GroupNavigationState>> groupNavigationHistory = new();
         private static readonly Dictionary<string, (string ReturnCategory, float ScrollPosition)> persistentGroupReturnByCode = new();
-        private static readonly Dictionary<GuiDialogHandbook, string> activeGroupHiddenCategoryByDialog = new();
         private static readonly Dictionary<string, WoodVariantGroupBuilder> woodVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantGroupAliases = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, StoneVariantGroupBuilder> stoneVariantGroupsByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -111,6 +110,7 @@ namespace Enhanced_Handbook
         private static readonly string[] woodVariantTrailingDescriptors = { "wood", "timber" };
         private static readonly string[] stoneVariantTrailingDescriptors = { "stone", "rock" };
         private static readonly string[] ceramicVariantTrailingDescriptors = { "ceramic", "clay" };
+        private static readonly string[] stoneVariantCompoundPrefixesToStrip = { "bone" };
         private static readonly FieldInfo ShownPagesField = typeof(GuiDialogHandbook).GetField("shownHandbookPages", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ListHeightField = typeof(GuiDialogHandbook).GetField("listHeight", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo OverviewGuiField = typeof(GuiDialogHandbook).GetField("overviewGui", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -160,17 +160,10 @@ namespace Enhanced_Handbook
         private static readonly HashSet<string> knownWoodVariantNames = new(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> woodVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool woodVariantsLoaded;
-        private static readonly Dictionary<string, string[]> woodVariantDisplayAliasesByCode = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["aged"] = new[] { "Aged Oak" }
-        };
-
         private static readonly Dictionary<string, string> woodVariantFallbacks = new(StringComparer.OrdinalIgnoreCase)
         {
             ["acacia"] = "Acacia",
-            ["aged"] = "Aged Wood",
             ["baldcypress"] = "Bald Cypress",
-            ["bamboo"] = "Bamboo",
             ["birch"] = "Birch",
             ["ebony"] = "Ebony",
             ["kapok"] = "Kapok",
@@ -193,7 +186,6 @@ namespace Enhanced_Handbook
             ["greenmarble"] = "Green Marble",
             ["whitemarble"] = "White Marble"
         };
-        private static readonly string[] stoneVariantCompoundPrefixesToStrip = { "bone" };
         private static readonly Dictionary<string, string> ceramicVariantDisplayNameByCode = new(StringComparer.OrdinalIgnoreCase);
         private static bool ceramicVariantsLoaded;
         private static readonly Dictionary<string, string> ceramicVariantColorMap = new(StringComparer.OrdinalIgnoreCase)
@@ -1026,6 +1018,11 @@ namespace Enhanced_Handbook
             if (config == null)
             {
                 config = HandbookCategoriesConfig.CreateDefault();
+                shouldStoreConfig = true;
+            }
+
+            if (config.NeedsSaveAfterMigration)
+            {
                 shouldStoreConfig = true;
             }
 
@@ -2269,20 +2266,7 @@ namespace Enhanced_Handbook
             {
                 foreach (GuiHandbookPage page in pages)
                 {
-                    if (page == null || page.IsDuplicate)
-                    {
-                        continue;
-                    }
-
-                    if (page is GuiHandbookGroupedItemstackPage groupedPage
-                        && groupedPage.Stacks != null
-                        && groupedPage.Stacks.Count > 0)
-                    {
-                        CollectGroupedVariantEntries(groupedPage);
-                        continue;
-                    }
-
-                    if (page is not GuiHandbookItemStackPage stackPage)
+                    if (page is not GuiHandbookItemStackPage stackPage || page.IsDuplicate)
                     {
                         continue;
                     }
@@ -2310,89 +2294,6 @@ namespace Enhanced_Handbook
                     string pageTitle = GetWoodVariantReportTitle(stackPage);
 
                     RegisterWoodVariantGroupCandidate(stackPage, info, pageTitle);
-                }
-            }
-        }
-
-        private static void CollectGroupedVariantEntries(GuiHandbookGroupedItemstackPage page)
-        {
-            if (page?.Stacks == null || page.Stacks.Count == 0)
-            {
-                return;
-            }
-
-            string groupedPageCode = GetEffectivePageCode(page);
-
-            bool woodRegistered = false;
-            bool stoneRegistered = false;
-            bool ceramicRegistered = false;
-
-            foreach (ItemStack containedStack in page.Stacks)
-            {
-                if (containedStack == null)
-                {
-                    continue;
-                }
-
-                string itemCode = GetItemCodeForStack(containedStack);
-
-                if (!woodRegistered && TryGetWoodVariantInfo(containedStack, out WoodVariantInfo woodInfo) && woodInfo.HasValue)
-                {
-                    if (!string.IsNullOrEmpty(woodInfo.NormalizedValue) && !woodVariantDisplayNameByCode.ContainsKey(woodInfo.NormalizedValue))
-                    {
-                        woodVariantDisplayNameByCode[woodInfo.NormalizedValue] = BuildWoodVariantDisplayName(woodInfo.VariantValue);
-                    }
-
-                    if (!ShouldIgnoreWoodVariantEntry(itemCode, groupedPageCode))
-                    {
-                        string pageTitle = GetWoodVariantReportTitle(page);
-                        RegisterWoodVariantGroupCandidate(page, woodInfo, pageTitle);
-                        woodRegistered = true;
-                    }
-                }
-
-                if (!stoneRegistered && TryGetStoneVariantInfo(containedStack, out StoneVariantInfo stoneInfo) && stoneInfo.HasValue)
-                {
-                    string normalized = stoneInfo.NormalizedValue;
-                    if (string.IsNullOrEmpty(normalized) && !string.IsNullOrEmpty(stoneInfo.Value))
-                    {
-                        normalized = NormalizeStoneName(stoneInfo.Value);
-                    }
-
-                    if (!string.IsNullOrEmpty(normalized))
-                    {
-                        if (!stoneVariantDisplayNameByCode.ContainsKey(normalized))
-                        {
-                            string displayName = BuildStoneVariantDisplayName(stoneInfo.Value) ?? BuildStoneVariantDisplayName(normalized);
-                            if (!string.IsNullOrEmpty(displayName))
-                            {
-                                stoneVariantDisplayNameByCode[normalized] = displayName;
-                            }
-                        }
-
-                        if (!ShouldIgnoreStoneVariantEntry(itemCode, groupedPageCode))
-                        {
-                            string pageTitle = GetWoodVariantReportTitle(page);
-                            string stoneDisplay = GetStoneVariantDisplayName(normalized);
-                            RegisterStoneVariantGroupCandidate(page, stoneInfo, pageTitle, stoneDisplay);
-                            stoneRegistered = true;
-                        }
-                    }
-                }
-
-                if (!ceramicRegistered && TryGetCeramicVariantInfo(containedStack, out CeramicVariantInfo ceramicInfo) && ceramicInfo.HasValue)
-                {
-                    if (!ShouldIgnoreCeramicVariantEntry(itemCode, groupedPageCode))
-                    {
-                        string pageTitle = GetWoodVariantReportTitle(page);
-                        RegisterCeramicVariantGroupCandidate(page, ceramicInfo, pageTitle);
-                        ceramicRegistered = true;
-                    }
-                }
-
-                if (woodRegistered && stoneRegistered && ceramicRegistered)
-                {
-                    break;
                 }
             }
         }
@@ -2635,7 +2536,7 @@ namespace Enhanced_Handbook
 
             woodDisplayName ??= BuildWoodVariantDisplayName(info.VariantValue);
 
-            string baseTitle = ExtractWoodVariantGroupBaseName(pageTitle, woodDisplayName, info.NormalizedValue);
+            string baseTitle = ExtractVariantGroupBaseName(pageTitle, woodDisplayName, woodVariantTrailingDescriptors, IsWoodVariantValue);
             if (string.IsNullOrWhiteSpace(baseTitle))
             {
                 return;
@@ -2998,63 +2899,6 @@ namespace Enhanced_Handbook
             while (removed);
 
             return trimmed;
-        }
-
-        private static string ExtractWoodVariantGroupBaseName(
-            string pageTitle,
-            string primaryDisplayName,
-            string normalizedCode)
-        {
-            string primaryResult = ExtractVariantGroupBaseName(pageTitle, primaryDisplayName, woodVariantTrailingDescriptors, IsWoodVariantValue);
-
-            string[] aliases = null;
-            if (!string.IsNullOrEmpty(normalizedCode))
-            {
-                woodVariantDisplayAliasesByCode.TryGetValue(normalizedCode, out aliases);
-            }
-
-            if (aliases == null || aliases.Length == 0)
-            {
-                return primaryResult;
-            }
-
-            string originalNormalized = NormalizeTitle(pageTitle);
-            string bestResult = null;
-
-            foreach (string aliasDisplayName in aliases)
-            {
-                string aliasResult = ExtractVariantGroupBaseName(pageTitle, aliasDisplayName, woodVariantTrailingDescriptors, IsWoodVariantValue);
-                if (string.IsNullOrWhiteSpace(aliasResult))
-                {
-                    continue;
-                }
-
-                string aliasNormalized = NormalizeTitle(aliasResult);
-                if (string.Equals(aliasNormalized, originalNormalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (bestResult == null
-                    || aliasNormalized.Length < NormalizeTitle(bestResult).Length)
-                {
-                    bestResult = aliasResult;
-                }
-            }
-
-            if (bestResult != null)
-            {
-                string primaryNormalized = NormalizeTitle(primaryResult);
-                if (string.Equals(primaryNormalized, originalNormalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    return bestResult;
-                }
-
-                string bestNormalized = NormalizeTitle(bestResult);
-                return bestNormalized.Length <= primaryNormalized.Length ? bestResult : primaryResult;
-            }
-
-            return primaryResult;
         }
 
         private static string ExtractVariantGroupBaseName(
@@ -4215,8 +4059,7 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            return knownStoneVariantNames.Contains(normalized)
-                || TryGetKnownStoneVariantFromCompound(value, out _);
+            return knownStoneVariantNames.Contains(normalized);
         }
 
         private static string GetCanonicalStoneVariantValue(string value)
@@ -4245,9 +4088,7 @@ namespace Enhanced_Handbook
             stone = null;
 
             string normalized = NormalizeStoneName(value);
-            if (string.IsNullOrEmpty(normalized)
-                || knownStoneVariantNames.Count == 0
-                || stoneVariantCompoundPrefixesToStrip == null)
+            if (string.IsNullOrEmpty(normalized) || knownStoneVariantNames.Count == 0)
             {
                 return false;
             }
@@ -4617,9 +4458,7 @@ namespace Enhanced_Handbook
 
         private static bool IsCompoundStoneToken(string token, string stoneLower)
         {
-            if (string.IsNullOrEmpty(token)
-                || string.IsNullOrEmpty(stoneLower)
-                || stoneVariantCompoundPrefixesToStrip == null)
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(stoneLower))
             {
                 return false;
             }
@@ -4627,12 +4466,8 @@ namespace Enhanced_Handbook
             foreach (string prefix in stoneVariantCompoundPrefixesToStrip)
             {
                 string normalizedPrefix = NormalizeStoneName(prefix);
-                if (string.IsNullOrEmpty(normalizedPrefix))
-                {
-                    continue;
-                }
-
-                if (string.Equals(token, string.Concat(normalizedPrefix, stoneLower), StringComparison.Ordinal))
+                if (!string.IsNullOrEmpty(normalizedPrefix)
+                    && string.Equals(token, string.Concat(normalizedPrefix, stoneLower), StringComparison.Ordinal))
                 {
                     return true;
                 }
@@ -6641,96 +6476,14 @@ namespace Enhanced_Handbook
             stack.Push(new GroupNavigationState(previousCategoryCode, hiddenCategoryCode, scrollPosition));
         }
 
-        private static bool StackContainsHiddenCategory(Stack<GroupNavigationState> stack, string hiddenCategoryCode)
-        {
-            if (stack == null || string.IsNullOrEmpty(hiddenCategoryCode))
-            {
-                return false;
-            }
-
-            return stack.Any(state => state != null && string.Equals(state.HiddenCategoryCode, hiddenCategoryCode, StringComparison.Ordinal));
-        }
-
-        private static void SetActiveGroupHiddenCategory(GuiDialogHandbook dialog, string hiddenCategoryCode)
-        {
-            if (dialog == null || string.IsNullOrEmpty(hiddenCategoryCode))
-            {
-                return;
-            }
-
-            activeGroupHiddenCategoryByDialog[dialog] = hiddenCategoryCode;
-        }
-
-        private static void ClearActiveGroupHiddenCategory(GuiDialogHandbook dialog)
-        {
-            if (dialog == null)
-            {
-                return;
-            }
-
-            activeGroupHiddenCategoryByDialog.Remove(dialog);
-        }
-
         internal static void SynchronizeActiveGroupWithCurrentCategory(GuiDialogHandbook dialog)
         {
+            // Group navigation is keyed directly from currentCatgoryCode and browse history.
+            // Keep this hook for the FilterItems patch and for compatibility with older
+            // builds that tracked a second per-dialog copy of the active group code.
             if (dialog == null)
             {
                 return;
-            }
-
-            if (!activeGroupHiddenCategoryByDialog.TryGetValue(dialog, out string trackedCode)
-                || string.IsNullOrEmpty(trackedCode))
-            {
-                return;
-            }
-
-            string currentCode = dialog.currentCatgoryCode;
-
-            if (string.Equals(currentCode, trackedCode, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            bool inStack = groupNavigationHistory.TryGetValue(dialog, out Stack<GroupNavigationState> stack)
-                && stack != null
-                && StackContainsHiddenCategory(stack, trackedCode);
-
-            if (!inStack)
-            {
-                ClearActiveGroupHiddenCategory(dialog);
-                return;
-            }
-
-            bool currentIsHiddenInStack = !string.IsNullOrEmpty(currentCode)
-                && StackContainsHiddenCategory(stack, currentCode);
-
-            if (!currentIsHiddenInStack)
-            {
-                ClearActiveGroupHiddenCategory(dialog);
-            }
-        }
-
-        private static void RestoreActiveGroupHiddenCategoryFromStack(GuiDialogHandbook dialog, Stack<GroupNavigationState> stack)
-        {
-            if (dialog == null)
-            {
-                return;
-            }
-
-            if (stack == null || stack.Count == 0)
-            {
-                ClearActiveGroupHiddenCategory(dialog);
-                return;
-            }
-
-            GroupNavigationState top = stack.Peek();
-            if (top != null && !string.IsNullOrEmpty(top.HiddenCategoryCode))
-            {
-                SetActiveGroupHiddenCategory(dialog, top.HiddenCategoryCode);
-            }
-            else
-            {
-                ClearActiveGroupHiddenCategory(dialog);
             }
         }
 
@@ -6880,7 +6633,6 @@ namespace Enhanced_Handbook
 
             PushGroupNavigation(dialog, groupPage.HiddenCategoryCode, previousCategory, scrollPosition);
             persistentGroupReturnByCode["grpback_" + groupPage.HiddenCategoryCode] = (previousCategory, scrollPosition);
-            SetActiveGroupHiddenCategory(dialog, groupPage.HiddenCategoryCode);
 
             dialog.currentCatgoryCode = groupPage.HiddenCategoryCode;
             dialog.FilterItems();
@@ -7053,11 +6805,6 @@ namespace Enhanced_Handbook
             if (stack.Count == 0)
             {
                 groupNavigationHistory.Remove(dialog);
-                ClearActiveGroupHiddenCategory(dialog);
-            }
-            else
-            {
-                RestoreActiveGroupHiddenCategoryFromStack(dialog, stack);
             }
 
             if (target == null)
@@ -7065,7 +6812,6 @@ namespace Enhanced_Handbook
                 return false;
             }
 
-            string searchText = CaptureDialogSearchText(dialog);
             ClearBrowseHistory(dialog);
 
             string persistentKey = "grpback_" + hiddenCategoryCode;
@@ -7093,7 +6839,6 @@ namespace Enhanced_Handbook
             }
 
             dialog.ReloadPage();
-            RestoreDialogSearchText(dialog, searchText);
             RestoreOverviewScroll(dialog, scrollToRestore);
 
             if (!string.IsNullOrEmpty(previousCategory))
@@ -7126,21 +6871,11 @@ namespace Enhanced_Handbook
                     if (top?.Page != null && !(top.Page is GroupHandbookPage))
                     {
                         string hiddenCode = activeState?.HiddenCategoryCode;
-                        string searchText = CaptureDialogSearchText(dialog);
                         ClearBrowseHistory(dialog);
                         dialog.ReloadPage();
                         if (!string.IsNullOrEmpty(hiddenCode))
                         {
                             dialog.currentCatgoryCode = hiddenCode;
-                            SetActiveGroupHiddenCategory(dialog, hiddenCode);
-                            RestoreDialogSearchText(dialog, searchText);
-                            dialog.FilterItems();
-                            RestoreDialogSearchText(dialog, searchText);
-                            RestoreOverviewScroll(dialog, activeState?.ScrollPosition ?? 0f);
-                        }
-                        else
-                        {
-                            RestoreDialogSearchText(dialog, searchText);
                         }
                         UpdateBackButtonState(dialog);
                         return true;
@@ -7165,14 +6900,6 @@ namespace Enhanced_Handbook
             if (dialog == null || stack == null || stack.Count == 0)
             {
                 return false;
-            }
-
-            if (activeGroupHiddenCategoryByDialog.TryGetValue(dialog, out string trackedCode)
-                && !string.IsNullOrEmpty(trackedCode)
-                && StackContainsHiddenCategory(stack, trackedCode))
-            {
-                hiddenCategoryCode = trackedCode;
-                return true;
             }
 
             string currentCode = dialog.currentCatgoryCode;
@@ -7264,7 +6991,7 @@ namespace Enhanced_Handbook
             }
             catch
             {
-                // Ignore reflection failures and use the dialog field fallback.
+                // Use the dialog field when the overview composer is unavailable.
             }
 
             if (searchText == null)
@@ -7289,13 +7016,12 @@ namespace Enhanced_Handbook
             {
                 if (OverviewGuiField?.GetValue(dialog) is GuiComposer overview)
                 {
-                    GuiElementTextInput searchInput = overview.GetTextInput("searchField");
-                    searchInput?.SetValue(searchText ?? string.Empty);
+                    overview.GetTextInput("searchField")?.SetValue(searchText ?? string.Empty);
                 }
             }
             catch
             {
-                // The private search text is still restored even if the input is unavailable.
+                // The private search state is still restored if the input is unavailable.
             }
         }
 
@@ -7632,7 +7358,6 @@ namespace Enhanced_Handbook
             groupPagesByDisplayCategory.Clear();
             pendingGroupCreations.Clear();
             groupNavigationHistory.Clear();
-            activeGroupHiddenCategoryByDialog.Clear();
             persistentGroupReturnByCode.Clear();
             ResetNextGroupIdFromConfig();
         }
@@ -7988,18 +7713,18 @@ namespace Enhanced_Handbook
                 return true;
             }
 
-            float matchWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
-            if (matchWeight <= 0f)
+            bool contentMatches = term.IsExactMatch
+                ? MatchesExactTerm(searchableContent, searchableWords, term.Term)
+                : !string.IsNullOrEmpty(searchableContent)
+                    && searchableContent.IndexOf(term.Term, StringComparison.Ordinal) >= 0;
+
+            if (!contentMatches)
             {
                 return false;
             }
 
-            if (term.IsExactMatch && !MatchesExactTerm(searchableContent, searchableWords, term.Term))
-            {
-                return false;
-            }
-
-            weight = matchWeight;
+            float titleWeight = GetTitleMatchWeight(normalizedTitle, term.Term);
+            weight = titleWeight > 0f ? titleWeight : 1f;
             return true;
         }
 
@@ -9536,7 +9261,10 @@ namespace Enhanced_Handbook
 
         private static bool IsControlKeyHeld()
         {
-            bool[] keys = capi?.Input?.KeyboardKeyState;
+            // Handbook dialogs consume modifier key events. KeyboardKeyState deliberately
+            // excludes keys handled by a dialog in 1.22.6, so category actions must use
+            // the raw state (the same source used by vanilla GUI controls).
+            bool[] keys = capi?.Input?.KeyboardKeyStateRaw;
             if (keys == null)
             {
                 return false;
@@ -9553,7 +9281,7 @@ namespace Enhanced_Handbook
 
         private static bool IsShiftKeyHeld()
         {
-            bool[] keys = capi?.Input?.KeyboardKeyState;
+            bool[] keys = capi?.Input?.KeyboardKeyStateRaw;
             if (keys == null)
             {
                 return false;
@@ -10626,7 +10354,6 @@ namespace Enhanced_Handbook
             groupPagesByDisplayCategory.Clear();
             pendingGroupCreations.Clear();
             groupNavigationHistory.Clear();
-            activeGroupHiddenCategoryByDialog.Clear();
 
             if (groupConfig?.Groups == null || groupConfig.Groups.Count == 0 || allPages == null || allPages.Count == 0)
             {

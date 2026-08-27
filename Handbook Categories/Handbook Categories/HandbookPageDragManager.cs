@@ -646,6 +646,39 @@ namespace Enhanced_Handbook
             return handled;
         }
 
+        internal static void HandleMouseDownOnList(GuiElementFlatList list, MouseEvent args)
+        {
+            if (!featureEnabled || list == null || args == null || args.Button != EnumMouseButton.Left)
+            {
+                return;
+            }
+
+            if (HandbookCategoryManager.IsCreateCategoryPromptOpen() || IsShiftKeyHeld() || IsCtrlKeyHeld())
+            {
+                return;
+            }
+
+            foreach (DragState state in trackedDialogs.Values)
+            {
+                GuiElementFlatList stateList = state?.SearchList ?? state?.Overview?.GetFlatList("stacklist");
+                if (!ReferenceEquals(stateList, list))
+                {
+                    continue;
+                }
+
+                ResetPending();
+                if (TryBeginDragFromSearchList(state, args.X, args.Y))
+                {
+                    // OnMouseDownOnElement is the authoritative GUI event in 1.22.6.
+                    // Mark the edge as observed so the next render tick evaluates movement
+                    // instead of resetting this pending drag while polling raw mouse state.
+                    wasLeftDown = true;
+                }
+
+                return;
+            }
+        }
+
         private static bool TrySpawnCreativeStack()
         {
             if (capi?.World?.Player == null || draggingSlot?.Itemstack == null)
@@ -1667,7 +1700,7 @@ namespace Enhanced_Handbook
 
         private static bool IsShiftKeyHeld()
         {
-            bool[] keys = capi?.Input?.KeyboardKeyState;
+            bool[] keys = capi?.Input?.KeyboardKeyStateRaw;
             if (keys == null)
             {
                 return false;
@@ -1709,7 +1742,7 @@ namespace Enhanced_Handbook
 
         private static bool IsCtrlKeyHeld()
         {
-            bool[] keys = capi?.Input?.KeyboardKeyState;
+            bool[] keys = capi?.Input?.KeyboardKeyStateRaw;
             if (keys == null)
             {
                 return false;

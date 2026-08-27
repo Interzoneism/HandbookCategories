@@ -1,11 +1,23 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 
 namespace Enhanced_Handbook
 {
     internal sealed class HandbookCategoriesConfig
     {
         internal const string ConfigFileName = "EnhancedHandbook.json";
+        private bool enableGroupCreationHotkeys = true;
+        private bool hasSeenSetupMessage;
+        private bool createVariantCategories;
+        private bool createEverythingGrouped = true;
+        private bool enableGroupCreationHotkeysSpecified;
+        private bool hasSeenSetupMessageSpecified;
+        private bool createVariantCategoriesSpecified;
+        private bool createEverythingGroupedSpecified;
+
+        [JsonIgnore]
+        internal bool NeedsSaveAfterMigration { get; private set; }
 
         [JsonProperty("onlyGridPages")]
         public bool OnlyGridPages { get; set; } = false;
@@ -26,19 +38,96 @@ namespace Enhanced_Handbook
         public bool DisableDragAndDrop { get; set; }
 
         [JsonProperty("enableGroupCreationHotkeys")]
-        public bool EnableGroupCreationHotkeys { get; set; }
+        public bool EnableGroupCreationHotkeys
+        {
+            get => enableGroupCreationHotkeys;
+            set
+            {
+                enableGroupCreationHotkeys = value;
+                enableGroupCreationHotkeysSpecified = true;
+            }
+        }
 
         [JsonProperty("hasSeenSetupMessage")]
-        public bool HasSeenSetupMessage { get; set; }
+        public bool HasSeenSetupMessage
+        {
+            get => hasSeenSetupMessage;
+            set
+            {
+                hasSeenSetupMessage = value;
+                hasSeenSetupMessageSpecified = true;
+            }
+        }
 
         [JsonProperty("createVariantCategories")]
-        public bool CreateVariantCategories { get; set; }
+        public bool CreateVariantCategories
+        {
+            get => createVariantCategories;
+            set
+            {
+                createVariantCategories = value;
+                createVariantCategoriesSpecified = true;
+            }
+        }
 
         [JsonProperty("createEverythingGrouped")]
-        public bool CreateEverythingGrouped { get; set; }
+        public bool CreateEverythingGrouped
+        {
+            get => createEverythingGrouped;
+            set
+            {
+                createEverythingGrouped = value;
+                createEverythingGroupedSpecified = true;
+            }
+        }
 
         [JsonProperty("categories")]
         public List<HandbookCategoryConfigEntry> Categories { get; set; } = new();
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            Categories ??= new List<HandbookCategoryConfigEntry>();
+
+            bool isLegacyPre180Config = !enableGroupCreationHotkeysSpecified
+                && !hasSeenSetupMessageSpecified
+                && !createVariantCategoriesSpecified
+                && !createEverythingGroupedSpecified;
+
+            if (isLegacyPre180Config)
+            {
+                enableGroupCreationHotkeys = true;
+                hasSeenSetupMessage = true;
+                createVariantCategories = false;
+                createEverythingGrouped = true;
+                NeedsSaveAfterMigration = true;
+                return;
+            }
+
+            if (!enableGroupCreationHotkeysSpecified)
+            {
+                enableGroupCreationHotkeys = true;
+                NeedsSaveAfterMigration = true;
+            }
+
+            if (!createVariantCategoriesSpecified)
+            {
+                createVariantCategories = false;
+                NeedsSaveAfterMigration = true;
+            }
+
+            if (!createEverythingGroupedSpecified)
+            {
+                createEverythingGrouped = true;
+                NeedsSaveAfterMigration = true;
+            }
+
+            if (!hasSeenSetupMessageSpecified)
+            {
+                hasSeenSetupMessage = false;
+                NeedsSaveAfterMigration = true;
+            }
+        }
 
         internal static HandbookCategoriesConfig CreateDefault()
         {

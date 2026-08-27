@@ -106,6 +106,9 @@ namespace Enhanced_Handbook
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiPostfix)),
                 transpiler: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnRenderGuiTranspiler)));
 
+            harmony.Patch(AccessTools.Method(baseType, "OnNewScrollbarvalueDetailPage", new[] { typeof(float) }),
+                prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnNewScrollbarvalueDetailPagePrefix)));
+
             harmony.Patch(AccessTools.Method(typeof(GuiDialogSurvivalHandbook), "genTabs"),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.GenTabsPostfix)));
 
@@ -117,6 +120,9 @@ namespace Enhanced_Handbook
 
             harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.OnMouseUpOnElement)),
                 prefix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnMouseUpOnElementPrefix)));
+
+            harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.OnMouseDownOnElement)),
+                postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.OnMouseDownOnElementPostfix)));
 
             harmony.Patch(AccessTools.Method(typeof(GuiElementFlatList), nameof(GuiElementFlatList.RenderInteractiveElements)),
                 postfix: new HarmonyMethod(typeof(HandbookCategoryPatches), nameof(HandbookCategoryPatches.RenderFlatListPostfix)));
@@ -1112,6 +1118,16 @@ namespace Enhanced_Handbook
             return true;
         }
 
+        public static void OnMouseDownOnElementPostfix(GuiElementFlatList __instance, MouseEvent args)
+        {
+            if (!HandbookCategoryManager.DragAndDropEnabled)
+            {
+                return;
+            }
+
+            HandbookPageDragManager.HandleMouseDownOnList(__instance, args);
+        }
+
         public static bool OnLeftClickListElementPrefix(GuiDialogHandbook __instance, int index)
         {
             if (HandbookCategoryManager.DragAndDropEnabled)
@@ -1224,6 +1240,48 @@ namespace Enhanced_Handbook
             UpdateSharedHandbookDialogPosition(__instance);
         }
 
+        public static bool OnNewScrollbarvalueDetailPagePrefix(GuiDialogHandbook __instance)
+        {
+            if (__instance == null)
+            {
+                return false;
+            }
+
+            // If reflection is unavailable (field renamed by a game update), behave as unpatched.
+            if (BrowseHistoryField?.GetValue(__instance) is not Stack<BrowseHistoryElement> history)
+            {
+                return true;
+            }
+
+            if (history.Count > 0 && history.Peek()?.Page != null)
+            {
+                return true;
+            }
+
+            // A stale detail composer received a scroll event after the browse history was
+            // cleared/popped in the same frame (vanilla "Overview"/back navigation, or the
+            // mod's group back navigation). The vanilla handler would crash on
+            // Stack.Peek(). Skip it and do nothing else: recomposing here would re-enter
+            // GUI composition from inside input dispatch, and OnRenderGUI already switches
+            // back to the overview composer on the next frame.
+            LogDetailScrollGuardTripped();
+            return false;
+        }
+
+        private static bool detailScrollGuardLogged;
+
+        private static void LogDetailScrollGuardTripped()
+        {
+            if (detailScrollGuardLogged)
+            {
+                return;
+            }
+
+            detailScrollGuardLogged = true;
+            HandbookCategoryManager.ClientApi?.Logger?.Notification(
+                "[Handbook Categories] Suppressed a detail-page scroll event that arrived with an empty browse history (stale detail composer). This is harmless; the UI recovers on the next frame.");
+        }
+
         public static void OnGuiClosedPostfix(GuiDialogHandbook __instance)
         {
             UpdateSharedHandbookDialogPosition(__instance);
@@ -1294,6 +1352,56 @@ namespace Enhanced_Handbook
         {
             GuiElementTextButton helpButton = overviewGui?.GetButton(SearchHelpButtonKey);
             return helpButton?.Bounds;
+        }
+
+        private static ElementBounds ResolveOverviewParentBounds(GuiComposer overviewGui, params ElementBounds[] preferredBounds)
+        {
+            if (preferredBounds != null)
+            {
+                foreach (ElementBounds bounds in preferredBounds)
+                {
+                    if (bounds?.ParentBounds != null)
+                    {
+                        return bounds.ParentBounds;
+                    }
+                }
+            }
+
+            // Fall back to the composer's root bounds: that is the coordinate space
+            // elements added after Compose() are parented to (same as "searchField").
+            // Never fall back to Bounds.ParentBounds - that is the window space and
+            // would anchor the element to the screen instead of the dialog.
+            LogParentBoundsFallbackUsed();
+            return overviewGui?.Bounds
+                ?? HandbookCategoryManager.ClientApi?.Gui?.WindowBounds;
+        }
+
+        private static bool parentBoundsFallbackLogged;
+
+        private static void LogParentBoundsFallbackUsed()
+        {
+            if (parentBoundsFallbackLogged)
+            {
+                return;
+            }
+
+            parentBoundsFallbackLogged = true;
+            HandbookCategoryManager.ClientApi?.Logger?.Warning(
+                "[Handbook Categories] Had to resolve a fallback parent for handbook overview element bounds (no sibling with a parent was available). If UI elements appear misplaced, please report this together with the mod list.");
+        }
+
+        private static void EnsureOverviewParentBounds(GuiComposer overviewGui, ElementBounds bounds, params ElementBounds[] preferredBounds)
+        {
+            if (bounds == null || bounds.ParentBounds != null)
+            {
+                return;
+            }
+
+            ElementBounds resolvedParent = ResolveOverviewParentBounds(overviewGui, preferredBounds);
+            if (resolvedParent != null)
+            {
+                bounds.ParentBounds = resolvedParent;
+            }
         }
 
         private static bool EnsureGuidePage(GuiDialogHandbook dialog, List<GuiHandbookPage> pages)
@@ -1436,7 +1544,7 @@ namespace Enhanced_Handbook
             }
 
             ElementBounds helpBounds = searchInput.Bounds.CopyOffsetedSibling(searchInput.Bounds.fixedWidth + SearchHelpSpacing, 0.0);
-            helpBounds.ParentBounds = searchInput.Bounds.ParentBounds;
+            EnsureOverviewParentBounds(overviewGui, helpBounds, searchInput.Bounds);
             helpBounds.fixedX = searchInput.Bounds.fixedX + searchInput.Bounds.fixedWidth + SearchHelpSpacing;
             helpBounds.fixedY = searchInput.Bounds.fixedY;
             helpBounds.fixedWidth = size;
@@ -1452,6 +1560,7 @@ namespace Enhanced_Handbook
             {
                 helpButton = new GuiElementTextButton(api, "?", baseFont, hoverFont, () => OpenGuidePage(dialog), helpBounds, EnumButtonStyle.Small);
                 helpButton.SetOrientation(EnumTextOrientation.Center);
+                EnsureOverviewParentBounds(overviewGui, helpButton.Bounds, searchInput.Bounds, helpBounds);
                 helpButton.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(helpButton, SearchHelpButtonKey);
                 recompose = true;
@@ -1459,10 +1568,12 @@ namespace Enhanced_Handbook
             else
             {
                 helpButton.Bounds = helpBounds;
+                EnsureOverviewParentBounds(overviewGui, helpButton.Bounds, searchInput.Bounds, helpBounds);
                 helpButton.Bounds.CalcWorldBounds();
             }
 
             ElementBounds hoverBounds = helpBounds.FlatCopy();
+            EnsureOverviewParentBounds(overviewGui, hoverBounds, helpBounds, searchInput.Bounds);
             GuiElementHoverText hoverText = overviewGui.GetHoverText(SearchHelpHoverKey);
             string tooltipText = HandbookCategoryManager.GetSearchPrefixTooltip();
 
@@ -1499,7 +1610,9 @@ namespace Enhanced_Handbook
                 return false;
             }
 
+            EnsureOverviewParentBounds(overviewGui, targetBounds);
             ElementBounds hoverBounds = targetBounds.FlatCopy();
+            EnsureOverviewParentBounds(overviewGui, hoverBounds, targetBounds);
             GuiElementHoverText hoverText = overviewGui.GetHoverText(hoverKey);
 
             if (hoverText == null)
@@ -1627,6 +1740,9 @@ namespace Enhanced_Handbook
                 return;
             }
 
+            EnsureOverviewParentBounds(overviewGui, recipesOnlyBounds, pauseButton?.Bounds, searchInput?.Bounds, recipesToggle?.Bounds, originalSearchToggle?.Bounds);
+            EnsureOverviewParentBounds(overviewGui, originalSearchBounds, pauseButton?.Bounds, searchInput?.Bounds, recipesOnlyBounds, originalSearchToggle?.Bounds);
+
             if (shouldShowOriginalToggle && originalSearchBounds == null)
             {
                 shouldShowOriginalToggle = false;
@@ -1645,6 +1761,7 @@ namespace Enhanced_Handbook
                 {
                     originalSearchToggle = new LeftReleaseToggleButton(api, string.Empty, originalSearchText, font, on => OnOriginalSearchToggled(dialog, on), originalSearchBounds, toggleable: true);
                     originalSearchToggle.SetValue(desiredOriginalState);
+                    EnsureOverviewParentBounds(overviewGui, originalSearchToggle.Bounds, originalSearchBounds, recipesOnlyBounds, pauseButton?.Bounds, searchInput?.Bounds);
                     originalSearchToggle.Bounds.CalcWorldBounds();
                     overviewGui.AddInteractiveElement(originalSearchToggle, HandbookCategoryManager.OriginalSearchToggleKey);
                     recompose = true;
@@ -1654,6 +1771,7 @@ namespace Enhanced_Handbook
                     if (originalSearchBounds != null)
                     {
                         originalSearchToggle.Bounds = originalSearchBounds;
+                        EnsureOverviewParentBounds(overviewGui, originalSearchToggle.Bounds, originalSearchBounds, recipesOnlyBounds, pauseButton?.Bounds, searchInput?.Bounds);
                         originalSearchToggle.Bounds.CalcWorldBounds();
                     }
 
@@ -1685,6 +1803,7 @@ namespace Enhanced_Handbook
                 originalSearchToggle.Enabled = false;
                 originalSearchToggle.Bounds.fixedWidth = 0.0;
                 originalSearchToggle.Bounds.fixedHeight = 0.0;
+                EnsureOverviewParentBounds(overviewGui, originalSearchToggle.Bounds, pauseButton?.Bounds, searchInput?.Bounds, recipesOnlyBounds);
                 originalSearchToggle.Bounds.CalcWorldBounds();
             }
 
@@ -1695,6 +1814,7 @@ namespace Enhanced_Handbook
             {
                 recipesToggle = new LeftReleaseToggleButton(api, string.Empty, recipesOnlyText, font, on => OnRecipesOnlyToggled(dialog, on), recipesOnlyBounds, toggleable: true);
                 recipesToggle.SetValue(desiredRecipesState);
+                EnsureOverviewParentBounds(overviewGui, recipesToggle.Bounds, recipesOnlyBounds, pauseButton?.Bounds, searchInput?.Bounds);
                 recipesToggle.Bounds.CalcWorldBounds();
                 overviewGui.AddInteractiveElement(recipesToggle, HandbookCategoryManager.RecipesOnlyToggleKey);
                 recompose = true;
@@ -1704,6 +1824,7 @@ namespace Enhanced_Handbook
                 if (recipesOnlyBounds != null)
                 {
                     recipesToggle.Bounds = recipesOnlyBounds;
+                    EnsureOverviewParentBounds(overviewGui, recipesToggle.Bounds, recipesOnlyBounds, pauseButton?.Bounds, searchInput?.Bounds);
                     recipesToggle.Bounds.CalcWorldBounds();
                 }
 
@@ -1751,6 +1872,8 @@ namespace Enhanced_Handbook
             GuiElementTextButton existingButton = overviewGui.GetButton(HandbookCategoryManager.CreateCategoryButtonKey);
             if (existingButton != null)
             {
+                EnsureOverviewParentBounds(overviewGui, existingButton.Bounds);
+                existingButton.Bounds?.CalcWorldBounds();
                 HandbookCategoryManager.RegisterCreateButton(overviewGui, existingButton, dialog);
                 if (EnsureCreateButtonTooltip(overviewGui))
                 {
@@ -1772,6 +1895,8 @@ namespace Enhanced_Handbook
             {
                 return;
             }
+
+            EnsureOverviewParentBounds(overviewGui, buttonBounds);
             
             CairoFont baseFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);
             CairoFont hoverFont = CairoFont.SmallButtonText(EnumButtonStyle.Normal);

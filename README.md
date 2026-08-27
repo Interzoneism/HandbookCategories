@@ -95,7 +95,7 @@ Each category entry supports `name`, `matchWords`, `matchTitleWords`, `forbidden
 
 ## Building from Source
 
-Requirements: .NET 7 SDK and a copy of Vintage Story 1.21.
+Requirements: .NET 10 SDK and a copy of Vintage Story 1.22.6. Set `VS122` (preferred) or `VINTAGE_STORY` to the game directory.
 
 ```bash
 dotnet build -nologo -clp:Summary -warnaserror
@@ -111,7 +111,7 @@ dotnet test --nologo --verbosity=minimal
 
 ## Compatibility
 
-- **Vintage Story**: 1.21
+- **Vintage Story**: 1.22.6
 - **Side**: Client only
 - **Dependencies**: [HarmonyLib](https://github.com/pardeike/Harmony) (bundled)
 
